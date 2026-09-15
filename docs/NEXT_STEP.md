@@ -1,35 +1,43 @@
 # NEXT_STEP.md
 
 **Last updated:** 15 September 2026
-**Just finished:** Phase 2 — design system
+**Just finished:** Milestone B start — public website layout and homepage (Phases 3 & 4 combined)
 
 ---
 
 ## What I just completed
 
-Built the actual design system: color tokens, a type scale, spacing and radius tokens, two self-hosted typefaces, and the first five real components (`Button`, `Input`, `Label`, `Card`, `Badge`). Added a `/design-system` page so I can see all of it rendered in the browser instead of just reading about it in a file.
-
-I went with the direction from `PHASE_0_ARCHITECTURE.md` section 10: deep pine green as primary, warm paper background, marigold as the single accent, Source Serif 4 for headings paired with IBM Plex Sans for body and UI text.
+Built the real public website shell and homepage: header with desktop and mobile navigation, footer, a persistent development banner, and a homepage with a real hero, a "how we care" process, a services overview, a "who we serve" section, a request-care call to action, and an FAQ accordion. Every other nav destination (About, Services, Who We Serve, How We Care, Resources, Contact, Request Care, Sign In) now goes to a real page instead of a 404 - most of them honest placeholders for now.
 
 ## What files were created
 
-- `src/styles/tokens.css` — every raw design value: colors, type scale, spacing, radius, shadow
-- `src/app/globals.css` — rewritten to wire tokens into Tailwind's theme and load the self-hosted fonts
-- `src/lib/cn.ts` — small utility for merging Tailwind classes without conflicts
-- `src/components/ui/button.tsx`
-- `src/components/ui/input.tsx`
-- `src/components/ui/label.tsx`
-- `src/components/ui/card.tsx`
-- `src/components/ui/badge.tsx`
-- `src/app/design-system/page.tsx` — a reference page showing everything rendered together
-- `src/app/page.tsx` — updated to use the real tokens instead of the Phase 1 placeholder grays
-- `docs/DESIGN_SYSTEM.md`
+**Layout & shared pieces**
+- `src/app/(public)/layout.tsx` — wraps every public page in header + footer + banner
+- `src/components/marketing/header.tsx`
+- `src/components/marketing/footer.tsx`
+- `src/components/marketing/development-banner.tsx`
+- `src/components/marketing/hero-illustration.tsx` — original SVG, not stock photography
+- `src/components/marketing/nav-links.ts` — the single source of truth for navigation
+- `src/components/marketing/coming-soon-page.tsx` — the placeholder page template
+
+**Pages**
+- `src/app/(public)/page.tsx` — the real homepage
+- `src/app/(public)/about/page.tsx`
+- `src/app/(public)/services/page.tsx`
+- `src/app/(public)/who-we-serve/page.tsx`
+- `src/app/(public)/how-we-care/page.tsx`
+- `src/app/(public)/resources/page.tsx`
+- `src/app/(public)/contact/page.tsx`
+- `src/app/(public)/request-care/page.tsx`
+- `src/app/sign-in/page.tsx`
+
+**Docs**
+- `docs/PUBLIC_WEBSITE.md`
 
 ## What changed
 
-- Two new dependencies for fonts: `@fontsource/source-serif-4`, `@fontsource/ibm-plex-sans` — these ship the actual font files inside the app, so there's no live request to Google Fonts when the site loads or builds.
-- Two small utility dependencies: `clsx`, `tailwind-merge` — used inside `cn()`.
-- `globals.css` no longer has the Phase 1 placeholder styling — it now defines the real system.
+- `src/components/ui/button.tsx` — added `buttonVariants()`, a function that returns the Button's classes without rendering a `<button>`. Needed because a `<button>` nested inside a `<Link>`'s `<a>` is invalid HTML; this lets a `<Link>` look exactly like a button instead.
+- Deleted `src/app/page.tsx` (the old root page) — the homepage now lives at `src/app/(public)/page.tsx` instead, inside the shared public layout.
 
 ## How to test it
 
@@ -38,40 +46,44 @@ npm install
 npm run dev
 ```
 
-Open <http://localhost:3000> — the homepage should now show pine green, marigold and the serif headline instead of plain black-and-white text.
-
-Then open <http://localhost:3000/design-system> — this shows every color swatch, every type size, all three button variants, badges, an input with a label, and a card, all in one place. This is the page to actually check against — if a color looks wrong or a font isn't loading, it will be obvious here.
-
-Also run:
+Open <http://localhost:3000> and check:
+- The development banner appears at the very top
+- Desktop nav shows all six links plus Sign in and Request care
+- Resize the browser narrow (or use the browser's device toolbar) - the hamburger menu should appear, open on click, and contain the same links
+- Click through every nav link and every footer link - nothing should 404
+- Click a FAQ question - it should expand with a − replacing the +
+- Tab through the page with the keyboard - every link and button should show a visible focus ring
 
 ```bash
 npm run build
 npm run lint
 ```
 
-Both should finish with no errors.
+Both should finish with no errors. I also checked the compiled CSS directly this phase to confirm the mobile menu and FAQ accordion's utility classes (`group-open:hidden`, etc.) actually generated - they did.
 
 ## What should work
 
-- The homepage shows the pine/paper/marigold palette and the serif headline
-- `/design-system` renders all six color swatches, the full type scale, three button variants (including a disabled one), five status badges, a labeled input, and a card
-- Clicking into the input and tabbing through the buttons shows a visible outline (keyboard focus)
-- `npm run build` and `npm run lint` both pass clean
+- 11 real routes, no 404s from any navigation link
+- Mobile menu opens/closes via tap, keyboard-operable by default (native `<details>`)
+- FAQ accordion expands/collapses
+- Every page shows the development banner
+- Homepage layout varies section to section rather than repeating one pattern
 
 ## Known issues
 
-- `/design-system` is a working reference page, not a real page in the site — it gets removed or moved behind an internal-only route before this goes near a real audience.
-- Only five components exist. More (`Table`, `Dialog`, `Select`, etc.) get added as real screens actually need them.
-- No real branding from the organization exists to check this against, since this is being kept as a surprise. If real branding ever does show up, this palette gets revisited then.
+- Every page beyond the shell and homepage is a placeholder stub - that's expected at this point, not a bug.
+- Request Care and Sign In are stub pages, not working forms - those come in Phase 7 and the auth milestone respectively.
+- No real service names, address, or legal text anywhere - all clearly labelled.
+- The mobile menu and FAQ are intentionally simple (native HTML, no custom animation). Fine for now; revisit if a more elaborate interaction is wanted later.
 
 ## What I should not change
 
-- The token names in `tokens.css` — components already reference them by name (`bg-pine`, `text-h2`, etc.). Renaming a token means updating every place that uses it.
-- The `@theme inline` block in `globals.css` — it deliberately mirrors `tokens.css` using Tailwind v4's naming convention (`--text-h1`, `--color-pine`, etc.) so those values become real utility classes.
+- `nav-links.ts` should stay the single place navigation is defined - don't hardcode a link list separately in the header or footer.
+- The development banner should not be removed or hidden until real content actually replaces the placeholders it's warning about - not just some of them.
 
 ## What comes next
 
-**Milestone B — the public website**, starting with the shared layout: header, footer, and the navigation shell every public page sits inside. After that: the homepage for real, then the individual service pages.
+Phase 5 — public service pages (once services are confirmed, or built as clearly-labelled illustrative content if not). Phase 6 — about, care approach, trust content. Phase 7 — the real request-care form and real contact details.
 
 ## Exact next command
 
@@ -81,10 +93,10 @@ npm install
 npm run dev
 ```
 
-Check both `/` and `/design-system`, then commit:
+Click through the whole site at http://localhost:3000, then:
 
 ```bash
 git add .
-git commit -m "Phase 2: design system - tokens, typography, and first components"
+git commit -m "Milestone B: public website layout, navigation, and homepage"
 git push
 ```

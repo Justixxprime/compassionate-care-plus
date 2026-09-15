@@ -11,19 +11,28 @@ Order follows the revised milestone plan in `PHASE_0_ARCHITECTURE.md` section 12
 - **Status:** Complete — 15 September 2026
 
 ## PHASE 2 — Design system
+- **Status:** Complete — 15 September 2026
+
+## PHASES 3 & 4 — Public website foundation + homepage
 - **Status:** Complete
 - **Date:** 15 September 2026
-- **Files:** `src/styles/tokens.css`, rewritten `globals.css`, `src/lib/cn.ts`, five components in `src/components/ui/`, `/design-system` reference page, `docs/DESIGN_SYSTEM.md`
-- **Tests:** `npm run build` and `npm run lint` both pass clean; utilities verified present in the compiled CSS output
-- **Known issues:** no real organization branding to check against (this is a surprise project); component set is intentionally small and grows only as real screens need more
-- **Next action:** Milestone B — public website layout
+- **Files:** public layout, header, footer, nav data, hero illustration, homepage, 8 pages (7 placeholder stubs + sign-in stub)
+- **Tests:** `npm run build` (11 routes, no errors), `npm run lint` clean, compiled CSS checked for mobile menu / FAQ utilities
+- **Known issues:** all content beyond the shell is placeholder, clearly labelled; request-care and sign-in are stubs
+- **Next action:** Phase 5 - service pages
 
-## MILESTONE B — Public website (phases 3-7)
+## PHASE 5 — Public service pages
+- **Status:** Not started
+
+## PHASE 6 — About, care approach and trust content
+- **Status:** Not started
+
+## PHASE 7 — Contact and request care
 - **Status:** Not started
 
 ## MILESTONE C — Spine: database, auth, API, RBAC, audit
 - **Status:** Not started
-- **Note:** the repository must go private before this milestone begins
+- **Note:** repository must go private before this milestone begins
 
 ## MILESTONE D — Core operations
 - **Status:** Not started

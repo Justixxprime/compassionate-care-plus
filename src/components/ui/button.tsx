@@ -38,6 +38,26 @@ const sizeStyles = {
   lg: "h-12 px-6 text-base",
 } as const;
 
+/**
+ * Returns the Button's classes without rendering a <button>. Use this when
+ * something needs to LOOK like a button but must render as a different
+ * element - most often a Next.js <Link>, since a <button> nested inside
+ * or wrapping an <a> is invalid HTML and behaves unreliably.
+ *
+ * Example: <Link href="/request-care" className={buttonVariants({})}>
+ */
+export function buttonVariants({
+  variant = "primary",
+  size = "md",
+  className,
+}: {
+  variant?: keyof typeof variantStyles;
+  size?: keyof typeof sizeStyles;
+  className?: string;
+} = {}) {
+  return cn(baseStyles, variantStyles[variant], sizeStyles[size], className);
+}
+
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: keyof typeof variantStyles;
   size?: keyof typeof sizeStyles;
@@ -48,12 +68,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <button
         ref={ref}
-        className={cn(
-          baseStyles,
-          variantStyles[variant],
-          sizeStyles[size],
-          className,
-        )}
+        className={buttonVariants({ variant, size, className })}
         {...props}
       />
     );

@@ -1,3 +1,17 @@
+## Phases 3 & 4 — Public website foundation and homepage
+**15 September 2026**
+
+Added
+- Public site layout: header (desktop + mobile nav), footer, persistent development banner
+- Original SVG hero illustration - no stock photography
+- Real homepage: hero, "how we care" process, services overview, who-we-serve, request-care CTA, FAQ accordion
+- Placeholder pages for About, Services, Who We Serve, How We Care, Resources, Contact, Request Care, Sign In - so no nav link 404s
+- `buttonVariants()` helper so links can look like buttons without invalid nested-button HTML
+- `docs/PUBLIC_WEBSITE.md`
+
+Changed
+- Removed the old root `page.tsx` - homepage now lives inside the `(public)` route group
+
 # CHANGELOG
 
 ## Phase 2 — Design system
