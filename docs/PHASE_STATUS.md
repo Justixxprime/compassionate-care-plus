@@ -30,7 +30,12 @@ Order follows the revised milestone plan in `PHASE_0_ARCHITECTURE.md` section 12
 - **Next action:** Phase 6 - about, care approach and trust content
 
 ## PHASE 6 — About, care approach and trust content
-- **Status:** Not started
+- **Status:** Complete
+- **Date:** 15 September 2026
+- **Files:** real `/about` and `/contact` pages
+- **Tests:** build (19 routes) and lint both clean
+- **Known issues:** address/phone/stats still placeholder pending confirmation
+- **Next action:** Phase 7 - request care form
 
 ## PHASE 7 — Contact and request care
 - **Status:** Not started

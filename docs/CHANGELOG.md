@@ -1,3 +1,13 @@
+## Phase 6 — About and contact content
+**15 September 2026**
+
+Added
+- Real `/about` page - "treat, then teach" positioning, beliefs list, stats bar (placeholder values), mission statement
+- Real `/contact` page - placeholder address, phone/fax, example office hours
+
+Notes
+- Structure and copy style informed by a mock site built while learning (Cheliv Compassionate Care Plus) - specific facts (address, phone, stats) kept as placeholders pending confirmation they belong to this organization
+
 ## Phase 5 — Public service pages
 **15 September 2026**
 
