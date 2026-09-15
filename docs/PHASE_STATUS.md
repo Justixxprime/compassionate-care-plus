@@ -22,7 +22,12 @@ Order follows the revised milestone plan in `PHASE_0_ARCHITECTURE.md` section 12
 - **Next action:** Phase 5 - service pages
 
 ## PHASE 5 — Public service pages
-- **Status:** Not started
+- **Status:** Complete
+- **Date:** 15 September 2026
+- **Files:** `src/lib/services-data.ts`, real `/services` index, `/services/[slug]` dynamic detail pages
+- **Tests:** `npm run build` shows all 6 services statically generated; lint clean
+- **Known issues:** content is illustrative, clearly labelled
+- **Next action:** Phase 6 - about, care approach and trust content
 
 ## PHASE 6 — About, care approach and trust content
 - **Status:** Not started

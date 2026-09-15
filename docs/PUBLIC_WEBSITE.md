@@ -41,6 +41,14 @@ Every non-homepage page beyond the shell is a `ComingSoonPage` stub: honest abou
 
 **The development banner stays** across every public page until real content replaces every placeholder - not just some of them. It's the thing that keeps this from accidentally reading as a published, factual website.
 
+## Service pages (Phase 5)
+
+`src/lib/services-data.ts` holds every service's content in one file - title, summary, who it may serve, what to expect, a care process sequence, common questions, and related services. Both `/services` (the index) and `/services/[slug]` (each detail page) render from this file rather than being separate hand-written pages, so adding a seventh service later means adding one entry to the data file, not building a new page from scratch.
+
+`generateStaticParams()` in `[slug]/page.tsx` tells Next.js to pre-build one page per service at build time - all six render as static HTML, same as every other public page.
+
+Every service's content still carries the same "illustrative — to be confirmed" label as the homepage's service list, for the same reason: these are standard home-health industry categories used as example content, not a confirmed fact about what Compassionate Care Plus offers.
+
 ## What's not built yet
 
-Individual service detail pages, the real about/trust content, the real request-care form (currently a stub - the real one needs the fields specified in section 19 of the architecture doc, without collecting sensitive medical information through a public form), and real contact details. These are Phases 5–7.
+The real about/trust content, the real request-care form (currently a stub - the real one needs the fields specified in section 19 of the architecture doc, without collecting sensitive medical information through a public form), and real contact details. These are Phases 6–7.

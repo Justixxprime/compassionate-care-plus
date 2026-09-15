@@ -1,3 +1,14 @@
+## Phase 5 — Public service pages
+**15 September 2026**
+
+Added
+- `src/lib/services-data.ts` - single source of truth for all service content
+- Real `/services` index page (replacing the placeholder stub)
+- `/services/[slug]` dynamic detail pages, statically generated per service
+
+Fixed
+- Documented and instructed removal of a leftover `src/app/page.tsx` that a prior ZIP delivery didn't clean up on the user's machine, which was causing the old Phase 2 placeholder to display instead of the real homepage
+
 ## Phases 3 & 4 — Public website foundation and homepage
 **15 September 2026**
 
