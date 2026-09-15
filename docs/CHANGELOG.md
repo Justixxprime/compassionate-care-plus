@@ -1,3 +1,24 @@
+## Phase 7 — Real request-care form
+**15 September 2026**
+
+Added
+- `src/components/marketing/request-care-form.tsx` - real client-side form: name, email, phone, relationship, preferred contact method, service interest, best time, optional message
+- Real `/request-care` page with the real office phone as an urgent-need fallback
+
+Notes
+- Confirmed via the project owner's uncle's own Facebook profile that the real legal name is "Cheliv Compassionate Care Plus INC" - a site-wide rename decision is pending
+- Form has no backend to submit to yet (Milestone C not built) - documented clearly rather than faked
+
+## Root layout fix, real content, motion system
+**15 September 2026**
+
+Fixed
+- `src/app/layout.tsx` had been overwritten with duplicate `(public)/layout.tsx` content - missing html/body/metadata/CSS import. This caused both a local runtime error and a completely unstyled Vercel deployment. Restored correct content.
+
+Added
+- Motion system: scroll-reveal (`Reveal`), animated stat count-up (`StatCounter`), hero entrance animation, sticky header with scroll shadow - all respecting prefers-reduced-motion, with a noscript fallback for reveal content
+- Real confirmed content: office address, phone, and About page stats (previously placeholders, now confirmed real by the project owner)
+
 ## Phase 6 — About and contact content
 **15 September 2026**
 

@@ -23,9 +23,9 @@ export function Footer() {
             <p className="mt-2 text-body-sm text-slate">
               Home health care. Texas.
               <br />
-              <span className="text-caption">
-                [Address to be confirmed by the organization]
-              </span>
+              4434 Blue Bonnet Dr, Suite 151
+              <br />
+              Stafford, TX 77477
             </p>
           </div>
 

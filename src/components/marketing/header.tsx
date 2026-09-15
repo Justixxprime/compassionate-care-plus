@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { primaryNav } from "./nav-links";
@@ -15,11 +18,33 @@ import { primaryNav } from "./nav-links";
   already knows how to make this keyboard-accessible and screen-reader
   friendly for free; I only need to style it. If a more elaborate mobile
   menu is wanted later (animated panel, etc.), this is the file to revisit.
+
+  The header is sticky and gains a subtle shadow once the page scrolls -
+  a small, purposeful bit of motion (not decoration) that keeps
+  navigation reachable on long pages and gives the site a considered,
+  "alive" feel per PHASE_0_ARCHITECTURE.md section 10. This is the reason
+  the component is a Client Component - everything else about it could
+  render on the server.
 */
 
 export function Header() {
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
-    <header className="border-b border-border bg-paper">
+    <header
+      className={`sticky top-0 z-40 border-b bg-paper/95 backdrop-blur transition-shadow duration-300 ${
+        scrolled
+          ? "border-border-strong shadow-[0_1px_0_rgba(23,36,32,0.06),0_8px_24px_-16px_rgba(23,36,32,0.25)]"
+          : "border-border shadow-none"
+      }`}
+    >
       <div className="mx-auto flex h-20 max-w-6xl items-center justify-between px-6">
         <Link
           href="/"

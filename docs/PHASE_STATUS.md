@@ -38,7 +38,12 @@ Order follows the revised milestone plan in `PHASE_0_ARCHITECTURE.md` section 12
 - **Next action:** Phase 7 - request care form
 
 ## PHASE 7 — Contact and request care
-- **Status:** Not started
+- **Status:** Complete
+- **Date:** 15 September 2026
+- **Files:** real `/request-care` page and form component
+- **Tests:** build (19 routes), lint, and tsc --noEmit all clean
+- **Known issues:** form doesn't send/save anywhere yet - no backend exists; "Cheliv" naming question still open
+- **Next action:** Phase 8 - authentication architecture (starts Milestone C)
 
 ## MILESTONE C — Spine: database, auth, API, RBAC, audit
 - **Status:** Not started

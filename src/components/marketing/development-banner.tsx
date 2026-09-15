@@ -13,9 +13,8 @@
 export function DevelopmentBanner() {
   return (
     <div className="border-b border-border-strong bg-ink px-4 py-2 text-center text-caption text-paper">
-      Development preview — services, staff and contact details shown here
-      are placeholders and have not been confirmed by Compassionate Care
-      Plus.
+      Development preview — this site is still being built and has not
+      been reviewed or approved for public use.
     </div>
   );
 }
