@@ -1,26 +1,104 @@
 @import "tailwindcss";
+@import "../styles/tokens.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* Self-hosted fonts. No requests to Google Fonts at runtime - the font
+   files ship inside the app itself. Faster, more private, and it still
+   works if fonts.googleapis.com is ever blocked or offline. */
+@import "@fontsource/source-serif-4/400.css";
+@import "@fontsource/source-serif-4/600.css";
+@import "@fontsource/source-serif-4/700.css";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
 
+/*
+  Wire the design tokens into Tailwind's theme so I can write
+  bg-pine, text-ink, border-border, etc. directly in markup, and every
+  one of those classes traces back to a single source of truth in
+  src/styles/tokens.css.
+*/
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --font-display: "Source Serif 4", Georgia, serif;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-ink: var(--color-ink);
+  --color-paper: var(--color-paper);
+  --color-pine: var(--color-pine);
+  --color-pine-dark: var(--color-pine-dark);
+  --color-pine-light: var(--color-pine-light);
+  --color-sage: var(--color-sage);
+  --color-sage-dark: var(--color-sage-dark);
+  --color-marigold: var(--color-marigold);
+  --color-marigold-dark: var(--color-marigold-dark);
+  --color-marigold-light: var(--color-marigold-light);
+  --color-slate: var(--color-slate);
+  --color-slate-light: var(--color-slate-light);
+  --color-success: var(--color-success);
+  --color-success-bg: var(--color-success-bg);
+  --color-warning: var(--color-warning);
+  --color-warning-bg: var(--color-warning-bg);
+  --color-danger: var(--color-danger);
+  --color-danger-bg: var(--color-danger-bg);
+  --color-info: var(--color-info);
+  --color-info-bg: var(--color-info-bg);
+  --color-border: var(--color-border);
+  --color-border-strong: var(--color-border-strong);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --shadow-raised: var(--shadow-raised);
+
+  --text-display: var(--text-display);
+  --text-display--line-height: var(--text-display--line-height);
+  --text-h1: var(--text-h1);
+  --text-h1--line-height: var(--text-h1--line-height);
+  --text-h2: var(--text-h2);
+  --text-h2--line-height: var(--text-h2--line-height);
+  --text-h3: var(--text-h3);
+  --text-h3--line-height: var(--text-h3--line-height);
+  --text-h4: var(--text-h4);
+  --text-h4--line-height: var(--text-h4--line-height);
+  --text-body-lg: var(--text-body-lg);
+  --text-body-lg--line-height: var(--text-body-lg--line-height);
+  --text-body: var(--text-body);
+  --text-body--line-height: var(--text-body--line-height);
+  --text-body-sm: var(--text-body-sm);
+  --text-body-sm--line-height: var(--text-body-sm--line-height);
+  --text-caption: var(--text-caption);
+  --text-caption--line-height: var(--text-caption--line-height);
+  --text-label: var(--text-label);
+  --text-label--line-height: var(--text-label--line-height);
+  --text-data: var(--text-data);
+  --text-data--line-height: var(--text-data--line-height);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* Consistent, visible keyboard focus everywhere. This is not optional -
+   it is one of the first things a keyboard or screen-reader user hits. */
+:focus-visible {
+  outline: 2px solid var(--color-pine);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Tabular numerals wherever data appears - schedules, visit counts,
+   dates - so digits line up in columns instead of wobbling. */
+.text-data {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -1,0 +1,114 @@
+/*
+  DESIGN TOKENS
+  =============
+  Every color, type size and spacing value the app uses should trace back to
+  a name defined here. If I ever find myself typing a raw hex code or a raw
+  pixel value in a component, that is a sign the value belongs in this file
+  instead.
+
+  Why tokens instead of hardcoded values:
+  If Compassionate Care Plus ever asks me to darken the primary color, or the
+  organization sends me real brand colors later, I change it in ONE place and
+  every button, badge and link updates together. Without tokens I would be
+  hunting through fifty files.
+
+  See docs/DESIGN_SYSTEM.md for the reasoning behind each choice.
+*/
+
+:root {
+  /* ---------- Base palette ---------- */
+  /* Deep, warm near-black. Has green in it rather than reading as flat
+     charcoal - it ties back to "pine" without being loud about it. */
+  --color-ink: #172420;
+
+  /* Warm white page background. Deliberately not the cream/beige that
+     shows up on a lot of generated pages - this one leans a little cooler
+     and cleaner. */
+  --color-paper: #faf9f6;
+
+  /* Primary. Deep green, calm and credible. Chosen specifically to avoid
+     the generic "medical blue" every healthcare template reaches for. */
+  --color-pine: #1c4a3c;
+  --color-pine-dark: #12332a;
+  --color-pine-light: #2c6552;
+
+  /* Muted surface color - section bands, table headers, subtle fills. */
+  --color-sage: #e6ede7;
+  --color-sage-dark: #cdd9cf;
+
+  /* The one accent. Used for things that need attention, never for
+     decoration. If a design has three "accent" colors, it has no accent. */
+  --color-marigold: #c98a14;
+  --color-marigold-dark: #a06f0f;
+  --color-marigold-light: #f0d9a8;
+
+  /* Secondary text, borders, disabled states. */
+  --color-slate: #5c6a66;
+  --color-slate-light: #a3aeab;
+
+  /* ---------- Semantic colors (internal application) ---------- */
+  --color-success: #2e7d5b;
+  --color-success-bg: #e5f3ec;
+  --color-warning: #b5820c;
+  --color-warning-bg: #fbf1dc;
+  --color-danger: #a32e2e;
+  --color-danger-bg: #f9e8e8;
+  --color-info: #2c5f87;
+  --color-info-bg: #e6eef4;
+
+  /* ---------- Structural neutrals ---------- */
+  --color-border: #dde3df;
+  --color-border-strong: #b9c4bf;
+
+  /* ---------- Type scale ----------
+     Named by role rather than by pixel value, so a component says
+     "I am a Heading2" not "I am 30px". These follow Tailwind v4's
+     --text-{name} / --text-{name}--line-height convention, which is
+     what makes classes like "text-h2" available automatically. */
+  --text-display: 3.5rem;
+  --text-display--line-height: 1.05;
+  --text-h1: 2.5rem;
+  --text-h1--line-height: 1.1;
+  --text-h2: 1.875rem;
+  --text-h2--line-height: 1.2;
+  --text-h3: 1.5rem;
+  --text-h3--line-height: 1.25;
+  --text-h4: 1.25rem;
+  --text-h4--line-height: 1.3;
+  --text-body-lg: 1.125rem;
+  --text-body-lg--line-height: 1.65;
+  --text-body: 1rem;
+  --text-body--line-height: 1.6;
+  --text-body-sm: 0.875rem;
+  --text-body-sm--line-height: 1.55;
+  --text-caption: 0.8125rem;
+  --text-caption--line-height: 1.4;
+  --text-label: 0.8125rem;
+  --text-label--line-height: 1.2;
+  --text-data: 0.9375rem;
+  --text-data--line-height: 1.3;
+
+  /* ---------- Spacing scale ----------
+     A restrained set so spacing stays consistent across the app instead of
+     drifting between 12px here and 14px there. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+  --space-9: 6rem;
+
+  /* ---------- Radius ----------
+     Two values only. Everything sharing one radius regardless of size is
+     one of the clearest signs of a templated design. */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+
+  /* ---------- Shadow ----------
+     One restrained shadow, used sparingly - for a raised surface like a
+     dropdown or dialog, not decorating every card. */
+  --shadow-raised: 0 4px 16px -4px rgb(23 36 32 / 0.16);
+}
