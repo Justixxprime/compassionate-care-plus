@@ -58,3 +58,42 @@ git restore <file>  # throw away my changes to one file
 ```
 
 This is the whole reason I commit often.
+
+## Root layout keeps breaking ("Missing html and body tags" / totally unstyled site)
+
+This has happened three times now, always the same cause: `src/app/layout.tsx` (the ROOT layout) gets the wrong content pasted into it - a duplicate of `src/app/(public)/layout.tsx` (the header/footer wrapper). Both files are named `layout.tsx`, which makes them very easy to confuse across two VS Code tabs.
+
+**As of this fix, this can't fail silently anymore.** `npm run dev` and `npm run build` now automatically check this file first, before starting anything else. If it's wrong, you'll see a clear red error in the terminal telling you exactly what's wrong, instead of a confusing runtime error in the browser later. Run `npm run checklayout` any time to check it manually.
+
+If you see that error, here is the correct, complete content for `src/app/layout.tsx`. Open the file, select all (`Ctrl+A`), delete, paste this, save:
+
+```tsx
+import type { Metadata } from "next";
+import "./globals.css";
+
+export const metadata: Metadata = {
+  title: "Cheliv Compassionate Care Plus",
+  description:
+    "Cheliv Compassionate Care Plus Inc. Home health care serving Texas.",
+  robots: { index: false, follow: false },
+};
+
+export default function RootLayout({ children }: LayoutProps<"/">) {
+  return (
+    <html lang="en" className="h-full antialiased">
+      <body className="min-h-full bg-white text-neutral-900">
+        <noscript>
+          <style>{`.reveal { opacity: 1 !important; transform: none !important; }`}</style>
+        </noscript>
+        {children}
+      </body>
+    </html>
+  );
+}
+```
+
+**How to tell the two files apart going forward:** look at the VS Code tab or the breadcrumb at the top of the editor, not just the file name.
+- `src/app/layout.tsx` (no parentheses in the path) - the ROOT layout. Must have `<html>` and `<body>`.
+- `src/app/(public)/layout.tsx` (has `(public)` in the path) - the PUBLIC SITE layout. Has the header, footer, and `<main>` - no `<html>` or `<body>`.
+
+If you're ever about to paste into a `layout.tsx` file, check the breadcrumb path first.

@@ -44,3 +44,13 @@ Listed early so I am not surprised.
 3. Then clean the history, or in the worst case start a fresh repository.
 
 This is much easier to avoid than to fix, which is why `.env*` is in `.gitignore` from the very first commit.
+
+## DATABASE_URL (added this phase)
+
+The connection string Prisma uses to find the local PostgreSQL database. Shape: `postgresql://USERNAME:PASSWORD@HOST:PORT/DATABASE_NAME`.
+
+**Secret.** Contains a real password. Never goes to the browser, never gets committed.
+
+**Where it comes from:** set when PostgreSQL is installed locally - see `docs/DATABASE.md` for the exact steps to get this value.
+
+**Important:** this one goes in a file literally named `.env` at the project root, not `.env.local`. Prisma's own tooling reads `.env` by default; Next.js reads both, so one file covers everything.

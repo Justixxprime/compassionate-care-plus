@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Reveal } from "@/components/motion/reveal";
 import { services } from "@/lib/services-data";
+import { serviceIcons } from "@/lib/service-icons";
 
 export default function ServicesIndexPage() {
   return (
@@ -22,19 +23,25 @@ export default function ServicesIndexPage() {
 
       <Reveal as="section" className="mx-auto max-w-4xl px-6 py-16 lg:py-24">
         <ul className="divide-y divide-border-strong border-y border-border-strong">
-          {services.map((service) => (
-            <li key={service.slug} className="py-7">
-              <Link
-                href={`/services/${service.slug}`}
-                className="group flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between"
-              >
-                <p className="text-h4 font-semibold text-ink group-hover:text-pine sm:w-64 sm:flex-none">
-                  {service.title}
-                </p>
-                <p className="text-body text-slate">{service.summary}</p>
-              </Link>
-            </li>
-          ))}
+          {services.map((service) => {
+            const Icon = serviceIcons[service.slug];
+            return (
+              <li key={service.slug} className="py-7">
+                <Link
+                  href={`/services/${service.slug}`}
+                  className="group flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6"
+                >
+                  <span className="flex h-11 w-11 flex-none items-center justify-center rounded-md bg-sage text-pine">
+                    <Icon className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <span className="text-h4 font-semibold text-ink group-hover:text-pine sm:w-56 sm:flex-none">
+                    {service.title}
+                  </span>
+                  <span className="text-body text-slate">{service.summary}</span>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       </Reveal>
     </div>

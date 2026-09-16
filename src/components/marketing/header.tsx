@@ -2,29 +2,31 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Menu, X } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
-import { primaryNav, brandName } from "./nav-links";
+import { LogoMark } from "./logo-mark";
+import { primaryNav } from "./nav-links";
 
 /*
   Header
   ======
-  No real logo exists yet (see docs/PHASE_0_ARCHITECTURE.md section 14 -
-  I do not invent a final logo). Until Compassionate Care Plus supplies
-  one, the wordmark is plain text. Swapping in a real mark later is a
-  one-line change here, not a redesign.
+  Revised after feedback that the plain-text brand name read too large
+  and too loud. Mayo Clinic's header was the reference point: a small
+  mark, a short wordmark, restrained size, lots of quiet whitespace
+  around it - the logo does not compete with the navigation for
+  attention. LogoMark is an original icon (see logo-mark.tsx), not a
+  placeholder and not a generic medical cross.
 
   The mobile menu uses a native <details>/<summary> element rather than a
   hand-built dropdown with its own JavaScript and ARIA wiring. The browser
   already knows how to make this keyboard-accessible and screen-reader
-  friendly for free; I only need to style it. If a more elaborate mobile
-  menu is wanted later (animated panel, etc.), this is the file to revisit.
+  friendly for free; I only need to style it.
 
   The header is sticky and gains a subtle shadow once the page scrolls -
   a small, purposeful bit of motion (not decoration) that keeps
-  navigation reachable on long pages and gives the site a considered,
-  "alive" feel per PHASE_0_ARCHITECTURE.md section 10. This is the reason
-  the component is a Client Component - everything else about it could
-  render on the server.
+  navigation reachable on long pages. This is the reason the component
+  is a Client Component - everything else about it could render on the
+  server.
 */
 
 export function Header() {
@@ -45,12 +47,17 @@ export function Header() {
           : "border-border shadow-none"
       }`}
     >
-      <div className="mx-auto flex h-20 max-w-6xl items-center justify-between px-6">
-        <Link
-          href="/"
-          className="font-display text-h3 font-semibold text-ink"
-        >
-          {brandName}
+      <div className="mx-auto flex h-18 max-w-6xl items-center justify-between px-6 py-3">
+        <Link href="/" className="flex items-center gap-2.5">
+          <LogoMark className="h-8 w-8 flex-none" />
+          <span className="leading-none">
+            <span className="block font-display text-body-lg font-semibold tracking-tight text-ink">
+              Cheliv
+            </span>
+            <span className="block text-caption text-slate">
+              Compassionate Care Plus
+            </span>
+          </span>
         </Link>
 
         {/* Desktop navigation */}
@@ -87,20 +94,8 @@ export function Header() {
             aria-label="Open menu"
             className="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-md border border-border-strong [&::-webkit-details-marker]:hidden"
           >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 20 20"
-              fill="none"
-              aria-hidden="true"
-            >
-              <path
-                d="M3 5h14M3 10h14M3 15h14"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-              />
-            </svg>
+            <Menu className="h-5 w-5 text-ink group-open:hidden" aria-hidden="true" />
+            <X className="hidden h-5 w-5 text-ink group-open:block" aria-hidden="true" />
           </summary>
 
           <div className="absolute right-0 top-14 w-64 rounded-md border border-border bg-white p-4 shadow-raised">

@@ -7,11 +7,21 @@ How this project is organized, and the reasoning behind it.
 ```
 compassionate-care-plus/
 ├── docs/                   All my documentation
-├── public/                 Truly public files only - never patient documents
+├── prisma/
+│   ├── schema.prisma       The database's blueprint - every table, described
+│   ├── migrations/         Created by Prisma the first time I run a migration
+│   └── seed.ts             Populates a fresh database with the org, roles, one demo admin
+├── scripts/
+│   └── check-root-layout.mjs   Guards against the root layout bug - runs automatically
+├── public/
+│   └── images/             Real photos, once I have them - see docs/IMAGES.md
 ├── src/
 │   ├── app/                Pages and routes
-│   ├── components/         Reusable UI pieces (empty until Phase 2)
-│   └── lib/                Small helpers (empty until Phase 2)
+│   ├── components/
+│   │   ├── ui/              Design system primitives (Button, Input, Card, Badge)
+│   │   └── marketing/       Public site pieces (Header, Footer, LogoMark, forms)
+│   └── lib/                 Small helpers, service data, icon mappings
+├── .env                     My real database connection string - NEVER committed
 ├── .env.example
 ├── .gitignore
 ├── next.config.ts

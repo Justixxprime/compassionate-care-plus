@@ -64,22 +64,37 @@ export default function AboutPage() {
       <div className="mx-auto max-w-4xl px-6 py-20 lg:py-28">
         {/* WHAT WE BELIEVE */}
         <Reveal>
-          <h2 className="font-display text-[clamp(1.75rem,3.5vw,2.75rem)] text-ink">
-            What we believe
-          </h2>
-          <ul className="mt-8 space-y-6">
-            {beliefs.map((item, i) => (
-              <Reveal
-                key={item}
-                as="li"
-                delay={i * 80}
-                className="flex gap-4 text-body-lg text-slate"
-              >
-                <CheckIcon />
-                {item}
-              </Reveal>
-            ))}
-          </ul>
+          <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
+            <div>
+              <h2 className="font-display text-[clamp(1.75rem,3.5vw,2.75rem)] text-ink">
+                What we believe
+              </h2>
+              <ul className="mt-8 space-y-6">
+                {beliefs.map((item, i) => (
+                  <Reveal
+                    key={item}
+                    as="li"
+                    delay={i * 80}
+                    className="flex gap-4 text-body-lg text-slate"
+                  >
+                    <CheckIcon />
+                    {item}
+                  </Reveal>
+                ))}
+              </ul>
+            </div>
+            {/* Photo: Pexels, free license, no attribution required.
+                https://www.pexels.com/photo/caregiver-adjusting-bed-in-a-prague-home-library-29372710/
+                Swap for a real photo of the actual team later - see
+                docs/IMAGES.md. */}
+            {/* eslint-disable-next-line @next/next/no-img-element -- external
+                hotlinked photo, not a local optimized asset yet */}
+            <img
+              src="https://images.pexels.com/photos/29372710/pexels-photo-29372710.jpeg?auto=compress&cs=tinysrgb&w=1200"
+              alt="A member of the Cheliv Compassionate Care Plus team"
+              className="hidden aspect-[4/5] w-full rounded-md object-cover lg:block"
+            />
+          </div>
         </Reveal>
 
         {/* STATS */}

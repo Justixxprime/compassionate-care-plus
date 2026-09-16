@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MapPin, Phone, Clock } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Reveal } from "@/components/motion/reveal";
 import { brandName } from "@/components/marketing/nav-links";
@@ -34,7 +35,8 @@ export default function ContactPage() {
       <div className="mx-auto max-w-3xl px-6 py-16 lg:py-24">
         <div className="grid gap-10 sm:grid-cols-2">
           <div>
-            <h2 className="text-label font-semibold text-slate">
+            <h2 className="flex items-center gap-2 text-label font-semibold text-slate">
+              <MapPin className="h-4 w-4 text-pine" aria-hidden="true" />
               Office location
             </h2>
             <p className="mt-2 text-body text-ink">
@@ -43,7 +45,8 @@ export default function ContactPage() {
               Stafford, TX 77477
             </p>
 
-            <h2 className="mt-8 text-label font-semibold text-slate">
+            <h2 className="mt-8 flex items-center gap-2 text-label font-semibold text-slate">
+              <Phone className="h-4 w-4 text-pine" aria-hidden="true" />
               Phone
             </h2>
             <p className="mt-2 text-body text-ink">
@@ -54,7 +57,8 @@ export default function ContactPage() {
           </div>
 
           <div>
-            <h2 className="text-label font-semibold text-slate">
+            <h2 className="flex items-center gap-2 text-label font-semibold text-slate">
+              <Clock className="h-4 w-4 text-pine" aria-hidden="true" />
               Office hours
             </h2>
             <dl className="mt-3 space-y-1">

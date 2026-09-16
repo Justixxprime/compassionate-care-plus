@@ -1,0 +1,138 @@
+// prisma/schema.prisma
+//
+// This is the database's blueprint. Every model below becomes a real
+// table once I run a migration. I am deliberately starting with ONLY the
+// identity and access tables - organizations, users, roles, permissions,
+// sessions - not the full clinical schema from PHASE_0_ARCHITECTURE.md
+// section 7 yet. Patients, visits, care plans and the rest come in
+// Milestone D, once authentication actually works end to end. Building
+// the whole schema now would mean testing none of it for weeks.
+//
+// IMPORTANT LIMITATION I RAN INTO WHILE BUILDING THIS: I cannot run any
+// Prisma commands (generate, migrate, studio) from the sandbox I build
+// in - Prisma needs to download an engine binary from
+// binaries.prisma.sh, and that domain isn't reachable from where I work.
+// That means I wrote this file by hand rather than having Prisma
+// generate or validate it for me, and the actual first migration has to
+// run on your machine - which is normal anyway, since only your machine
+// can see your local PostgreSQL database.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Organization ----------
+// Every sensitive resource eventually hangs off an organization, even
+// though there is only one organization (Cheliv Compassionate Care Plus)
+// today. See PHASE_0_ARCHITECTURE.md section 68 - this is what keeps one
+// organization's data from ever leaking into another's, if this system
+// is ever used by more than one organization.
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users User[]
+  roles Role[]
+
+  @@map("organizations")
+}
+
+// ---------- Users ----------
+// One row per person who can sign in - staff and, later, patients and
+// family members alike. passwordHash is never the plain password - see
+// src/server/auth/README.md once that exists for how hashing works.
+model User {
+  id            String    @id @default(uuid())
+  organizationId String   @map("organization_id")
+  email         String    @unique
+  passwordHash  String    @map("password_hash")
+  name          String
+  emailVerifiedAt DateTime? @map("email_verified_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  userRoles    UserRole[]
+  sessions     Session[]
+
+  @@index([organizationId])
+  @@map("users")
+}
+
+// ---------- Sessions ----------
+// A signed-in session, stored in the database rather than only in a
+// cookie. This is what lets a user see "active sessions" and revoke one
+// remotely (PHASE_0_ARCHITECTURE.md section 9), and what lets me
+// invalidate every session for a user immediately if an account is
+// compromised - a JWT-only session can't be revoked early the same way.
+model Session {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// ---------- Roles & permissions ----------
+// Roles are scoped to an organization (so "ADMIN" at one organization
+// never accidentally matches "ADMIN" at another, once there is more than
+// one organization). Permissions are global strings like
+// "patients.read" - see PHASE_0_ARCHITECTURE.md section 8 for the full
+// list this will grow into.
+model Role {
+  id             String @id @default(uuid())
+  organizationId String @map("organization_id")
+  key            String // e.g. "ADMIN", "NURSE", "CAREGIVER"
+  name           String // human readable, e.g. "Administrator"
+
+  organization    Organization     @relation(fields: [organizationId], references: [id])
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@unique([organizationId, key])
+  @@map("roles")
+}
+
+model Permission {
+  id  String @id @default(uuid())
+  key String @unique // e.g. "patients.read"
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+// Join table: which permissions a role holds.
+model RolePermission {
+  roleId       String @map("role_id")
+  permissionId String @map("permission_id")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// Join table: which roles a user holds.
+model UserRole {
+  userId String @map("user_id")
+  roleId String @map("role_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}

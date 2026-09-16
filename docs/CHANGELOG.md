@@ -1,3 +1,37 @@
+## Real logo, icon system, fuller header/footer, first database schema
+**16 September 2026**
+
+Added
+- Original logo mark (logo-mark.tsx) - no official Cheliv logo exists online
+- lucide-react icon system: services, contact page, footer
+- Full sectioned dark footer, compact redesigned header
+- Prisma schema (organizations, users, sessions, roles, permissions) and seed script
+- docs/DATABASE.md, docs/DEMO_ACCOUNTS.md (git-ignored)
+
+Fixed
+- Homepage services list de-duplicated to pull from the single services-data.ts source
+- npm arborist bug during Prisma install (clean reinstall)
+- Prisma pinned to 6.19.3 after newer versions pulled in unrelated vulnerable dependencies; deepmerge-ts override closes the remaining one - npm audit now clean
+
+Confirmed via official Texas HHSC / Medicare.gov-sourced directory listings
+- Cheliv is a real, already-licensed, operating home health (clinical) agency, license #017743
+- Service scope confirmed as clinical home health, not non-medical home care only
+
+Still open
+- Phone number discrepancy: site shows (281) 903-7551, official listings show (281) 565-3336
+
+## Guard script for the recurring layout bug, real photography
+**16 September 2026**
+
+Added
+- `scripts/check-root-layout.mjs` - automated check that runs before every `npm run dev` and `npm run build`, catching the root layout bug that has broken the site three times, before Next.js even starts
+- Real, free, Pexels-licensed photography wired into the homepage hero, homepage "who we serve" section, and About page
+- `docs/IMAGES.md` rewritten to document exactly what's live and how to replace it with real photos later
+- `next.config.ts` now allows `images.pexels.com` for a future switch to `next/image`
+
+Fixed
+- The root layout bug, again, this time with a permanent automated safeguard rather than a one-time manual fix
+
 ## Rebrand, placeholder removal, cinematic overhaul
 **15 September 2026**
 
