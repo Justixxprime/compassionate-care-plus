@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
-import { primaryNav } from "./nav-links";
+import { primaryNav, brandName } from "./nav-links";
 
 /*
   Header
@@ -50,7 +50,7 @@ export function Header() {
           href="/"
           className="font-display text-h3 font-semibold text-ink"
         >
-          Compassionate Care Plus
+          {brandName}
         </Link>
 
         {/* Desktop navigation */}

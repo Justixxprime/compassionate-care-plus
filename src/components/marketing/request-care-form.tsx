@@ -58,7 +58,7 @@ export function RequestCareForm() {
       <div className="rounded-md border border-success bg-success-bg p-6">
         <p className="text-h4 font-semibold text-ink">Request received</p>
         <p className="mt-2 text-body text-slate">
-          Thank you — someone from the care team will follow up soon. If
+          Thank you. Someone from the care team will follow up soon. If
           this is time-sensitive, call the office directly at{" "}
           <a href="tel:2819037551" className="font-medium text-pine hover:underline">
             (281) 903-7551
@@ -185,12 +185,12 @@ export function RequestCareForm() {
           id="message"
           name="message"
           rows={4}
-          placeholder="Anything that would help the care team understand the situation — please avoid sharing sensitive medical details here."
+          placeholder="Anything that would help the care team understand the situation. Please avoid sharing sensitive medical details here."
           className="w-full rounded-md border border-border-strong bg-white px-3 py-2 text-body text-ink placeholder:text-slate-light focus-visible:outline-none"
         />
         <p className="mt-1.5 text-caption text-slate">
-          Please don&rsquo;t include sensitive medical details in this form —
-          the care team will follow up to discuss next steps.
+          Please don&rsquo;t include sensitive medical details in this form.
+          The care team will follow up to discuss next steps.
         </p>
       </div>
 

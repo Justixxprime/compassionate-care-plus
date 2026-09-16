@@ -34,7 +34,7 @@ export default function DesignSystemPage() {
     <main className="mx-auto max-w-3xl space-y-12 px-6 py-16">
       <header>
         <p className="mb-2 text-label font-medium uppercase tracking-wide text-slate">
-          Internal reference — not a real page
+          Internal reference. Not a real page.
         </p>
         <h1 className="font-display text-display text-ink">Design system</h1>
         <p className="mt-3 text-body-lg text-slate">
@@ -64,16 +64,16 @@ export default function DesignSystemPage() {
           <p className="font-display text-h3 text-ink">Heading 3</p>
           <p className="text-h4 font-semibold text-ink">Heading 4</p>
           <p className="text-body-lg text-ink">
-            Body large — used for intros and lede paragraphs on the public
+            Body large. Used for intros and lede paragraphs on the public
             site.
           </p>
           <p className="text-body text-ink">
-            Body — the default paragraph size for most content.
+            Body. The default paragraph size for most content.
           </p>
           <p className="text-body-sm text-slate">
-            Body small — secondary or supporting text.
+            Body small. Secondary or supporting text.
           </p>
-          <p className="text-data text-ink">Data — 128 visits this week</p>
+          <p className="text-data text-ink">Data. 128 visits this week</p>
         </div>
       </section>
 
@@ -116,7 +116,7 @@ export default function DesignSystemPage() {
             <CardDescription>Synthetic demo data</CardDescription>
           </CardHeader>
           <p className="text-body text-ink">
-            Tuesday, 9:00 AM — Skilled nursing visit
+            Tuesday, 9:00 AM. Skilled nursing visit
           </p>
         </Card>
       </section>

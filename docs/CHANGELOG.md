@@ -1,3 +1,20 @@
+## Rebrand, placeholder removal, cinematic overhaul
+**15 September 2026**
+
+Changed
+- Brand name updated to "Cheliv Compassionate Care Plus" everywhere, driven from one shared constant
+- Removed all em dashes from visible copy (bullet markers and mid sentence punctuation)
+- Removed the development banner and every "to be confirmed" / "illustrative" label
+- How We Care, Who We Serve, Resources and Sign In rewritten from build-phase stubs into real pages
+- Homepage, About, Contact, Services rebuilt with a cinematic dark hero treatment, bold clamp() based type scale, and an animated gradient backdrop (AuroraField)
+- Added a bold "by the numbers" stat band to the homepage itself
+
+Removed
+- `development-banner.tsx` and `coming-soon-page.tsx` (no longer needed)
+
+Kept, intentionally
+- The four footer legal links still lead nowhere real, since writing actual legal text is a genuine liability regardless of the rest of the site's tone
+
 ## Phase 7 — Real request-care form
 **15 September 2026**
 

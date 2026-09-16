@@ -19,3 +19,5 @@ export const portalLinks = [
   { label: "Patient portal", href: "/sign-in" },
   { label: "Caregiver portal", href: "/sign-in" },
 ] as const;
+
+export const brandName = "Cheliv Compassionate Care Plus";

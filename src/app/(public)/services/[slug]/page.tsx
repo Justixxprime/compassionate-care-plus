@@ -40,10 +40,10 @@ export default async function ServiceDetailPage({
         ← All services
       </Link>
 
-      <p className="mt-6 text-caption text-slate">
-        Illustrative — to be confirmed by the organization
+      <p className="mt-6 text-label font-semibold uppercase tracking-[0.2em] text-marigold">
+        Services
       </p>
-      <h1 className="mt-2 font-display text-h1 text-ink">{service.title}</h1>
+      <h1 className="mt-2 font-display text-[clamp(2rem,5vw,3.5rem)] font-semibold text-ink">{service.title}</h1>
       <p className="mt-4 text-body-lg text-slate">{service.summary}</p>
 
       <section className="mt-12">
@@ -51,9 +51,7 @@ export default async function ServiceDetailPage({
         <ul className="mt-4 space-y-2">
           {service.whoItMayServe.map((item) => (
             <li key={item} className="flex gap-3 text-body text-slate">
-              <span aria-hidden="true" className="text-marigold">
-                —
-              </span>
+              <span aria-hidden="true" className="mt-2 h-1.5 w-1.5 flex-none rounded-full bg-marigold" />
               {item}
             </li>
           ))}
@@ -65,9 +63,7 @@ export default async function ServiceDetailPage({
         <ul className="mt-4 space-y-2">
           {service.whatToExpect.map((item) => (
             <li key={item} className="flex gap-3 text-body text-slate">
-              <span aria-hidden="true" className="text-marigold">
-                —
-              </span>
+              <span aria-hidden="true" className="mt-2 h-1.5 w-1.5 flex-none rounded-full bg-marigold" />
               {item}
             </li>
           ))}

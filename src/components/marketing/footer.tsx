@@ -1,14 +1,18 @@
 import Link from "next/link";
-import { primaryNav, portalLinks } from "./nav-links";
+import { primaryNav, portalLinks, brandName } from "./nav-links";
 
 /*
   Footer
   ======
-  Every legal link here (privacy, terms, accessibility, notice of privacy
-  practices) points at a placeholder page, not invented legal text. See
-  docs/PHASE_0_ARCHITECTURE.md section 88 - I do not write privacy
-  policies, consent language or HIPAA notices myself. Those come from the
-  organization or a qualified professional.
+  The four legal links (privacy, terms, accessibility, notice of privacy
+  practices) are intentionally NOT linked to real content yet - writing
+  actual privacy policy, terms, or HIPAA notice language is a genuine
+  legal exposure for the organization if done wrong, so that one boundary
+  holds regardless of how the rest of the site's tone changed. They are
+  shown as plain, unlabelled text rather than flagged "placeholder" -
+  see docs/PUBLIC_WEBSITE.md for why this is the one thing still held
+  back even though the rest of the site no longer visibly flags
+  unfinished content.
 */
 
 export function Footer() {
@@ -18,10 +22,10 @@ export function Footer() {
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <p className="font-display text-h4 font-semibold text-ink">
-              Compassionate Care Plus
+              {brandName}
             </p>
             <p className="mt-2 text-body-sm text-slate">
-              Home health care. Texas.
+              Home health care serving Texas.
               <br />
               4434 Blue Bonnet Dr, Suite 151
               <br />
@@ -72,25 +76,11 @@ export function Footer() {
           <div>
             <p className="text-label font-semibold text-ink">Legal</p>
             <ul className="mt-3 space-y-2">
-              <li>
-                <span className="text-body-sm text-slate">
-                  Privacy policy — placeholder
-                </span>
-              </li>
-              <li>
-                <span className="text-body-sm text-slate">
-                  Terms of use — placeholder
-                </span>
-              </li>
-              <li>
-                <span className="text-body-sm text-slate">
-                  Accessibility statement — placeholder
-                </span>
-              </li>
-              <li>
-                <span className="text-body-sm text-slate">
-                  Notice of privacy practices — placeholder
-                </span>
+              <li className="text-body-sm text-slate">Privacy policy</li>
+              <li className="text-body-sm text-slate">Terms of use</li>
+              <li className="text-body-sm text-slate">Accessibility statement</li>
+              <li className="text-body-sm text-slate">
+                Notice of privacy practices
               </li>
             </ul>
           </div>
@@ -98,9 +88,7 @@ export function Footer() {
 
         <div className="mt-10 border-t border-border-strong pt-6">
           <p className="text-caption text-slate">
-            © 2026 Compassionate Care Plus Inc. Development build — content
-            not yet confirmed by the organization. Not designed,
-            represented, or offered for use with real patient information.
+            © 2026 {brandName} Inc. All rights reserved.
           </p>
         </div>
       </div>
