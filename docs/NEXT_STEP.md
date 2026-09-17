@@ -1,101 +1,56 @@
 # NEXT_STEP.md
 
-**Last updated:** 16 September 2026
-**Just finished:** Real logo and icon system, a much fuller header/footer, and the first slice of the real database
+**Last updated:** 17 September 2026
+**Just finished:** Audit logging - Milestone C is now complete
 
 ---
 
-## Big finding this round: Cheliv is a real, already-operating, licensed agency
-
-Independent of this website project, Cheliv Compassionate Care Plus Inc already exists and is licensed by Texas HHSC (license #017743). Two things came out of checking this:
-
-1. **Confirmed:** it's a clinical home health agency (skilled nursing, PT/OT/ST), not just non-medical home care. The Services page content is correct as-is.
-2. **Still open:** every official directory listing shows the phone number **(281) 565-3336**, not the (281) 903-7551 currently on the site (which came from the old Cheliv mock). I have not changed this yet - need you to confirm which one is actually correct before I touch it.
-
 ## What I just completed
 
-**A real logo.** No official Cheliv logo exists online, so I designed an original mark (`logo-mark.tsx`) - an open arc in pine green cradling a small marigold point of light. Not a generic medical cross, works at small sizes.
+Added the audit log: a database table and a small library that records who did what, when, and whether it was allowed - never the content of what was viewed or changed, only that the event happened. Wired into sign-in, sign-out, and every permission denial automatically.
 
-**A redesigned header and footer.** The old header's plain-text brand name was too large and loud. It's now a compact icon-plus-two-line lockup, closer in spirit to how Mayo Clinic keeps its logo small and lets the navigation breathe. The footer went from four thin columns to a full dark, sectioned footer with real contact info and icons - not copying Mayo's exact categories, but matching the comprehensiveness.
+This finishes Milestone C (database, authentication, RBAC, audit logging). Next is Milestone D - real clinical data.
 
-**Real icons throughout**, via lucide-react: a distinct icon per service (stethoscope, activity, etc.) on both the homepage and the Services page, and location/phone/hours icons on the Contact page and in the footer.
+## IMPORTANT - this phase needs a new migration
 
-**Fixed a data duplication** I'd created earlier - the homepage had its own separate, hand-typed copy of the services list instead of using the same one Services page and detail pages pull from. Now there's exactly one source (`services-data.ts`), so a future edit can't accidentally update one page and miss another.
-
-**The database - first slice.** Installed Prisma (hit and fixed two real problems along the way - see below) and wrote the schema for organizations, users, sessions, roles, and permissions, plus a seed script that creates one demo admin account. Not the full clinical schema yet - patients, visits, care plans come in Milestone D, once auth actually works.
-
-## Two real problems I hit and fixed while installing Prisma
-
-1. **A known npm bug** (`Cannot read properties of null (reading 'edgesOut')`) hit repeatedly during install - not caused by anything in this project, a documented npm/arborist issue. Fixed with a clean reinstall.
-2. **Prisma's newest version pulls in a lot of unrelated weight** - an embedded studio UI, a MySQL driver we don't need, and real vulnerabilities in transitive dependencies. Pinned to Prisma 6.19.3 instead (mature, stable, lean) and closed the one remaining vulnerability with a package override rather than downgrading further. `npm audit` now reports zero vulnerabilities.
-
-## On the "you keep bringing stale files" problem
-
-I hear this, and here's what actually changed: before packaging this zip, I extracted it fresh into a separate folder and ran a direct file-by-file comparison against my real working files - `page.tsx`, `layout.tsx`, `header.tsx`, `footer.tsx`, the Prisma schema, everything that mattered this round. Every one matched exactly. I'm doing this check every time from now on, not just when reminded.
+I added a new table (`audit_logs`) to `prisma/schema.prisma`. This means the database on your machine needs to be updated to match - the exact command is at the bottom of this file. This is different from previous rounds, which only changed application code.
 
 ## What files were created
 
-- `src/components/marketing/logo-mark.tsx`
-- `src/lib/service-icons.tsx`
-- `prisma/schema.prisma`
-- `prisma/seed.ts`
-- `scripts/check-root-layout.mjs` (from last round, still active)
-- `docs/DATABASE.md` - full Windows walkthrough for installing PostgreSQL and running the first migration
-- `docs/DEMO_ACCOUNTS.md` - git-ignored, the demo login
+- `src/lib/audit/log.ts` - `writeAuditLog()`, `getRecentAuditLog()`
+- `docs/AUDIT_LOGGING.md`
 
 ## What files changed
 
-- `src/components/marketing/header.tsx`, `footer.tsx` - full redesign
-- `src/app/(public)/page.tsx` - services section now pulls from the shared data + icons, no more duplication
-- `src/app/(public)/services/page.tsx`, `contact/page.tsx` - icons added
-- `package.json` - Prisma, bcryptjs, lucide-react added; pinned versions and override for the vulnerability fix
-- `next.config.ts` - unchanged from last round (still allows Pexels images)
-- `docs/ENVIRONMENT_VARIABLES.md`, `docs/FOLDER_STRUCTURE.md` - updated for the database
+- `prisma/schema.prisma` - added the `AuditLog` model
+- `src/lib/auth/actions.ts` - logs `sign_in`, `sign_in_failed`, `sign_out`
+- `src/lib/auth/authorize.ts` - `requirePermission()` now logs `permission_denied` automatically whenever a check fails
+- `src/app/dashboard/page.tsx` - added a "Recent activity" section, visible only to an account holding `audit.read`, and one em-dash removed from its copy
 
-## The database setup is different from everything before it
+## What files were deleted
 
-Every previous phase, I could fully build and verify in my own environment. This one I can't - Prisma needs to reach `binaries.prisma.sh` to download its engine, which isn't reachable from where I work. I wrote `prisma/schema.prisma` and `prisma/seed.ts` by hand, carefully, but **the actual first migration has to run on your machine**. `docs/DATABASE.md` has the complete walkthrough: installing PostgreSQL, creating the database through pgAdmin, building the connection string, and running the migration and seed.
+- `src/components/marketing/development-banner.tsx` - an orphaned, unused file left over from an earlier round. Nothing imported it anymore, but it still contained an em dash and "development preview" wording, both against your standing rules. Caught this while reviewing this round's changes.
 
 ## How to test it
 
-For the design changes:
 ```bash
 npm install
+npx prisma migrate dev --name add_audit_log
 npm run dev
 ```
-Look at the header (should be much smaller now, with the logo mark), the services list on both the homepage and `/services` (icons), and the footer (much fuller, dark).
 
-For the database - this is the real test this phase. Follow `docs/DATABASE.md` start to finish: install PostgreSQL, create the database, set up `.env`, then:
+Sign out, then try signing in with the right email and a WRONG password - you should see the error message. Sign in for real. On `/dashboard`, "Recent activity" should show your sign-in, and if you look closely, the earlier failed attempt too - each with a green "allowed" or red "denied" badge and a timestamp.
+
 ```bash
-npx prisma migrate dev --name init
-npx prisma db seed
-npx prisma studio
+npm run build
+npm run lint
+npx tsc --noEmit
 ```
-Confirm you see the organization, nine roles, thirty permissions, and one demo admin user in Prisma Studio.
 
-## Known issues
+## Known issue in my own build environment, not yours
 
-- Phone number discrepancy still unresolved - see the top of this file
-- Fax number, real photos of the actual office/team still outstanding
-- Database schema only covers identity/auth so far, not clinical data yet
+`npm run build` fails in the sandbox I work in with `@prisma/client did not initialize yet` - I can't reach Prisma's servers to generate a real client there. Lint and the full TypeScript check both pass clean, which is what I actually can verify. Your machine has a real generated client, so `npm run build` should work for you.
 
 ## What comes next
 
-Once the database is confirmed working on your end, next is actually building sign-in - real authentication using these tables, replacing the current sign-in stub.
-
-## Exact next command
-
-```bash
-cd C:\Users\LENOVO\OneDrive\Desktop\compassionate-care-plus
-Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue
-npm install
-npm run dev
-```
-
-Check the design changes first (fast), then work through `docs/DATABASE.md` for the database (slower, needs a real install). When both are confirmed:
-
-```bash
-git add .
-git commit -m "Real logo, icon system, fuller header/footer, first database schema"
-git push
-```
+Milestone C is done. Milestone D starts next - the real clinical schema: patients, visits, care plans, referrals, documents.

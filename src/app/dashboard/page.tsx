@@ -1,15 +1,13 @@
+// src/app/dashboard/page.tsx
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { signOutAction } from "@/lib/auth/actions";
 import { getUserPermissions, hasPermission } from "@/lib/auth/authorize";
+import { getRecentAuditLog } from "@/lib/audit/log";
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 
-// This is deliberately bare - it exists to prove sign-in, sessions,
-// sign-out, and now RBAC actually work end to end, not to be a real
-// portal. The actual patient/family/caregiver/clinical/admin portals
-// are Milestone E.
 export default async function DashboardPage() {
   const user = await getCurrentUser();
 
@@ -21,12 +19,10 @@ export default async function DashboardPage() {
     .map((ur: { role: { name: string } }) => ur.role.name)
     .join(", ");
 
-  // Real permission checks, not a hardcoded list - this is exactly what
-  // a real page in the admin portal will do later: ask "can THIS person
-  // do THIS thing" and only render what the answer allows.
   const permissions = await getUserPermissions(user.id);
   const canManageStaff = await hasPermission(user.id, "staff.manage");
   const canReadAudit = await hasPermission(user.id, "audit.read");
+  const recentActivity = canReadAudit ? await getRecentAuditLog(10) : [];
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-20">
@@ -40,9 +36,6 @@ export default async function DashboardPage() {
         {user.email} &middot; {roleNames || "No role assigned"}
       </p>
 
-      {/* Demonstrates hasPermission() actually gating what renders -
-          these two links only appear because the checks above passed,
-          not because someone forgot to hide them for other roles. */}
       <div className="mt-8 flex flex-wrap gap-3">
         {canManageStaff && (
           <span className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "cursor-default")}>
@@ -69,11 +62,41 @@ export default async function DashboardPage() {
         </div>
       </div>
 
+      {canReadAudit && (
+        <div className="mt-10 border-t border-border pt-8">
+          <p className="text-label font-semibold text-slate">
+            Recent activity
+          </p>
+          <div className="mt-3 space-y-2">
+            {recentActivity.length === 0 ? (
+              <p className="text-body-sm text-slate">No activity recorded yet.</p>
+            ) : (
+              recentActivity.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="flex items-center justify-between rounded-sm border border-border px-3 py-2 text-body-sm"
+                >
+                  <span className="text-ink">
+                    {entry.action}
+                    {entry.actorEmail ? ` (${entry.actorEmail})` : ""}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <Badge tone={entry.outcome === "allowed" ? "success" : "danger"}>
+                      {entry.outcome}
+                    </Badge>
+                    <span className="text-caption text-slate">
+                      {entry.occurredAt.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
       <form action={signOutAction} className="mt-10">
-        <button
-          type="submit"
-          className={cn(buttonVariants({ variant: "secondary" }))}
-        >
+        <button type="submit" className={cn(buttonVariants({ variant: "secondary" }))}>
           Sign out
         </button>
       </form>

@@ -4,17 +4,13 @@
 import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { createSession, destroySession } from "@/lib/auth/session";
+import { createSession, destroySession, getCurrentUser } from "@/lib/auth/session";
+import { writeAuditLog } from "@/lib/audit/log";
 
 export interface SignInState {
   error?: string;
 }
 
-// A real, valid bcrypt hash of a password nobody uses. Compared against
-// whenever the email does not match a real user, so a login attempt for
-// an email that does not exist takes the same amount of time as one
-// that does - otherwise the response time itself would quietly confirm
-// which emails have accounts.
 const DUMMY_HASH =
   "$2a$12$CwTycUXWue0Thq9StjUM0uJ8gU8XZW/kDMS3g7wUn9zPzxpTFO.C6";
 
@@ -22,9 +18,7 @@ export async function signInAction(
   _prevState: SignInState,
   formData: FormData,
 ): Promise<SignInState> {
-  const email = String(formData.get("email") ?? "")
-    .trim()
-    .toLowerCase();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
 
   if (!email || !password) {
@@ -32,21 +26,25 @@ export async function signInAction(
   }
 
   const user = await prisma.user.findUnique({ where: { email } });
-
-  const passwordMatches = await bcrypt.compare(
-    password,
-    user?.passwordHash ?? DUMMY_HASH,
-  );
+  const passwordMatches = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
 
   if (!user || !passwordMatches) {
+    await writeAuditLog({ actorEmail: email, action: "sign_in_failed", outcome: "denied" });
     return { error: "That email and password do not match." };
   }
 
   await createSession(user.id);
+  await writeAuditLog({ actorUserId: user.id, actorEmail: user.email, action: "sign_in", outcome: "allowed" });
   redirect("/dashboard");
 }
 
 export async function signOutAction() {
+  const user = await getCurrentUser();
   await destroySession();
+
+  if (user) {
+    await writeAuditLog({ actorUserId: user.id, actorEmail: user.email, action: "sign_out", outcome: "allowed" });
+  }
+
   redirect("/sign-in");
 }
