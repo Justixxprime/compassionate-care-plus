@@ -1,3 +1,50 @@
+## Patients and relationship-based access
+**17 September 2026**
+
+Added
+- prisma/schema.prisma - Patient, CareTeamMember models (new migration required)
+- src/lib/patients.ts - getAccessiblePatients(), real relationship-based access logic
+- src/app/patients/page.tsx
+- docs/PATIENTS.md
+
+Changed
+- prisma/seed.ts - added demo.nurse@cheliv.test, three synthetic demo patients, one care-team assignment, real permission sets for ADMIN and NURSE roles
+- src/app/dashboard/page.tsx - added a link to /patients
+- docs/DEMO_ACCOUNTS.md - documents both demo accounts now
+
+Milestone D has started. First slice (patients + care team) complete.
+
+## Audit logging — Milestone C complete
+**17 September 2026**
+
+Added
+- prisma/schema.prisma - AuditLog model (new migration required)
+- src/lib/audit/log.ts - writeAuditLog, getRecentAuditLog
+- docs/AUDIT_LOGGING.md
+
+Changed
+- src/lib/auth/actions.ts - logs sign_in, sign_in_failed, sign_out
+- src/lib/auth/authorize.ts - requirePermission() logs permission_denied automatically
+- src/app/dashboard/page.tsx - added Recent activity section, gated behind audit.read
+
+Fixed
+- getRecentAuditLog's return type wasn't explicit, causing an implicit-any type error - added an explicit AuditLogEntry interface
+
+Milestone C (database, auth, RBAC, audit logging) is now complete.
+
+## RBAC enforcement layer
+**17 September 2026**
+
+Added
+- src/lib/auth/authorize.ts - hasPermission, requirePermission, getUserPermissions
+- docs/RBAC.md
+
+Changed
+- /dashboard now demonstrates real permission checks: shows the signed-in user's full permission list, conditionally renders two demo elements based on actual hasPermission() results
+
+Notes
+- NEXT_STEP.md and PHASE_STATUS.md were out of date (predated the homepage rebuild and full auth flow) - both rewritten to match actual current state
+
 ## Real logo, icon system, fuller header/footer, first database schema
 **16 September 2026**
 

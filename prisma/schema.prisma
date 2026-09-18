@@ -27,19 +27,28 @@ datasource db {
 }
 
 // ---------- Organization ----------
+// Every sensitive resource eventually hangs off an organization, even
+// though there is only one organization (Cheliv Compassionate Care Plus)
+// today. See PHASE_0_ARCHITECTURE.md section 68 - this is what keeps one
+// organization's data from ever leaking into another's, if this system
+// is ever used by more than one organization.
 model Organization {
   id        String   @id @default(uuid())
   name      String
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  users User[]
-  roles Role[]
+  users    User[]
+  roles    Role[]
+  patients Patient[]
 
   @@map("organizations")
 }
 
 // ---------- Users ----------
+// One row per person who can sign in - staff and, later, patients and
+// family members alike. passwordHash is never the plain password - see
+// src/server/auth/README.md once that exists for how hashing works.
 model User {
   id            String    @id @default(uuid())
   organizationId String   @map("organization_id")
@@ -53,12 +62,18 @@ model User {
   organization Organization @relation(fields: [organizationId], references: [id])
   userRoles    UserRole[]
   sessions     Session[]
+  careTeamMemberships CareTeamMember[]
 
   @@index([organizationId])
   @@map("users")
 }
 
 // ---------- Sessions ----------
+// A signed-in session, stored in the database rather than only in a
+// cookie. This is what lets a user see "active sessions" and revoke one
+// remotely (PHASE_0_ARCHITECTURE.md section 9), and what lets me
+// invalidate every session for a user immediately if an account is
+// compromised - a JWT-only session can't be revoked early the same way.
 model Session {
   id        String   @id @default(uuid())
   userId    String   @map("user_id")
@@ -72,11 +87,16 @@ model Session {
 }
 
 // ---------- Roles & permissions ----------
+// Roles are scoped to an organization (so "ADMIN" at one organization
+// never accidentally matches "ADMIN" at another, once there is more than
+// one organization). Permissions are global strings like
+// "patients.read" - see PHASE_0_ARCHITECTURE.md section 8 for the full
+// list this will grow into.
 model Role {
   id             String @id @default(uuid())
   organizationId String @map("organization_id")
-  key            String
-  name           String
+  key            String // e.g. "ADMIN", "NURSE", "CAREGIVER"
+  name           String // human readable, e.g. "Administrator"
 
   organization    Organization     @relation(fields: [organizationId], references: [id])
   userRoles       UserRole[]
@@ -88,13 +108,14 @@ model Role {
 
 model Permission {
   id  String @id @default(uuid())
-  key String @unique
+  key String @unique // e.g. "patients.read"
 
   rolePermissions RolePermission[]
 
   @@map("permissions")
 }
 
+// Join table: which permissions a role holds.
 model RolePermission {
   roleId       String @map("role_id")
   permissionId String @map("permission_id")
@@ -106,6 +127,7 @@ model RolePermission {
   @@map("role_permissions")
 }
 
+// Join table: which roles a user holds.
 model UserRole {
   userId String @map("user_id")
   roleId String @map("role_id")
@@ -123,17 +145,71 @@ model UserRole {
 // content of what was viewed or changed, only the fact that the action
 // happened - "clinical record viewed" gets logged, the clinical
 // record's actual content never does.
+//
+// actorUserId is nullable because a failed sign-in attempt (wrong
+// email/password) has no real user to attach to - logging failed
+// attempts against the email that was TRIED, not a real account, is
+// itself useful security signal (repeated failures against one email is
+// what a lockout policy would watch for later).
 model AuditLog {
   id           String   @id @default(uuid())
   actorUserId  String?  @map("actor_user_id")
-  actorEmail   String?  @map("actor_email")
-  action       String
-  resourceType String?  @map("resource_type")
+  actorEmail   String?  @map("actor_email") // set on failed sign-in, where there is no real user row yet
+  action       String // e.g. "sign_in", "sign_in_failed", "sign_out", "permission_denied"
+  resourceType String?  @map("resource_type") // e.g. "session", "permission"
   resourceId   String?  @map("resource_id")
-  outcome      String
+  outcome      String // "allowed" | "denied"
   occurredAt   DateTime @default(now()) @map("occurred_at")
 
   @@index([actorUserId])
   @@index([occurredAt])
   @@map("audit_logs")
+}
+
+// ---------- Patients & care team ----------
+// The first slice of Milestone D's clinical schema - deliberately just
+// this much, not the full model from PHASE_0_ARCHITECTURE.md section 7
+// yet. Visits, care plans, referrals and documents all hang off a
+// patient, so patients come first.
+//
+// synthetic data ONLY - see PHASE_0_ARCHITECTURE.md's opening rules.
+// Every patient this seed script creates is clearly fictional.
+model Patient {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  firstName      String   @map("first_name")
+  lastName       String   @map("last_name")
+  dateOfBirth    DateTime @map("date_of_birth")
+  status         String   @default("active") // active | discharged | on_hold
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization  Organization     @relation(fields: [organizationId], references: [id])
+  careTeam      CareTeamMember[]
+
+  @@index([organizationId])
+  @@map("patients")
+}
+
+// This join table is the actual mechanism behind "relationship-based
+// access" from PHASE_0_ARCHITECTURE.md section 3: a nurse can only see
+// patients they're actually assigned to, not every patient in the
+// organization. Administrative roles (ADMIN, SUPER_ADMIN,
+// CLINICAL_SUPERVISOR, CARE_COORDINATOR) bypass this and see every
+// patient - that check lives in src/lib/patients.ts, not here; this
+// table just records the real assignments.
+model CareTeamMember {
+  id         String    @id @default(uuid())
+  patientId  String    @map("patient_id")
+  userId     String    @map("user_id")
+  roleOnCase String    @map("role_on_case") // e.g. "primary_nurse", "caregiver"
+  startsAt   DateTime  @default(now()) @map("starts_at")
+  endsAt     DateTime? @map("ends_at") // null = still active on this case
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([userId])
+  @@map("care_team_members")
 }

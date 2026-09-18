@@ -1,5 +1,5 @@
-// src/app/dashboard/page.tsx
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/session";
 import { signOutAction } from "@/lib/auth/actions";
 import { getUserPermissions, hasPermission } from "@/lib/auth/authorize";
@@ -8,6 +8,10 @@ import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 
+// This is deliberately bare - it exists to prove sign-in, sessions,
+// sign-out, and now RBAC actually work end to end, not to be a real
+// portal. The actual patient/family/caregiver/clinical/admin portals
+// are Milestone E.
 export default async function DashboardPage() {
   const user = await getCurrentUser();
 
@@ -19,9 +23,16 @@ export default async function DashboardPage() {
     .map((ur: { role: { name: string } }) => ur.role.name)
     .join(", ");
 
+  // Real permission checks, not a hardcoded list - this is exactly what
+  // a real page in the admin portal will do later: ask "can THIS person
+  // do THIS thing" and only render what the answer allows.
   const permissions = await getUserPermissions(user.id);
   const canManageStaff = await hasPermission(user.id, "staff.manage");
   const canReadAudit = await hasPermission(user.id, "audit.read");
+
+  // Only actually queried when the permission check passes - this is
+  // the point of RBAC existing at all: a user without audit.read never
+  // even causes this query to run, not just "sees a hidden section."
   const recentActivity = canReadAudit ? await getRecentAuditLog(10) : [];
 
   return (
@@ -36,7 +47,13 @@ export default async function DashboardPage() {
         {user.email} &middot; {roleNames || "No role assigned"}
       </p>
 
+      {/* Demonstrates hasPermission() actually gating what renders -
+          these two links only appear because the checks above passed,
+          not because someone forgot to hide them for other roles. */}
       <div className="mt-8 flex flex-wrap gap-3">
+        <Link href="/patients" className={buttonVariants({ size: "sm" })}>
+          View patients
+        </Link>
         {canManageStaff && (
           <span className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "cursor-default")}>
             Manage staff (permission granted)
@@ -62,6 +79,9 @@ export default async function DashboardPage() {
         </div>
       </div>
 
+      {/* Only renders for someone who actually holds audit.read - this
+          is the same pattern the real security center will use later,
+          just proven here first on a bare page. */}
       {canReadAudit && (
         <div className="mt-10 border-t border-border pt-8">
           <p className="text-label font-semibold text-slate">
@@ -96,7 +116,10 @@ export default async function DashboardPage() {
       )}
 
       <form action={signOutAction} className="mt-10">
-        <button type="submit" className={cn(buttonVariants({ variant: "secondary" }))}>
+        <button
+          type="submit"
+          className={cn(buttonVariants({ variant: "secondary" }))}
+        >
           Sign out
         </button>
       </form>
