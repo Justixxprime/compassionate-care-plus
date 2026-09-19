@@ -38,3 +38,7 @@ Now logged: `visit_created`, `visit_checked_in`, `visit_checked_out`, `visit_can
 ## Update, 19 September 2026: care plan events
 
 Now logged: `care_plan_created`, `care_plan_updated`, `care_plan_goal_added`, `care_plan_goal_removed`, `care_plan_goal_met`, `care_plan_approved`, `care_plan_completed`, `care_plan_discarded`, and `access_denied` (outcome `denied`) when someone reaches for a plan their relationship does not allow, writes to a patient they are not on the team of, or tries to approve their own plan. The plan's title, summary and goals are never written to the log. Reading plans is not logged. See `docs/CARE_PLANS.md`.
+
+## Update, 19 September 2026: document events, and the first logging of reading
+
+Now logged: `document_uploaded`, `document_downloaded`, `document_archived`, and `access_denied` (outcome `denied`) for reaching a patient, or a restricted category, outside one's allowance. Downloads are the first READ events in the log, because opening a file is what an investigation asks about. Only a successful download is logged as a download. The log never holds a document's title, file name or contents. See `docs/DOCUMENTS.md`.

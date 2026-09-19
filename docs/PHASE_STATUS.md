@@ -60,9 +60,10 @@ Order follows the revised milestone plan in `PHASE_0_ARCHITECTURE.md` section 12
 ## MILESTONE D - Core operations
 - **Status:** In progress
 - **Patients & care team:** Complete (17 September 2026) - patients table, care_team_members join table, real relationship-based access logic in src/lib/patients.ts, tested via two demo accounts seeing different patient lists
-- **Visits:** Complete (19 September 2026) - visits table, src/lib/visits.ts, /visits proof page, second demo nurse, `npm run verify:access`. Running on his machine: scheduling and the visit list confirmed by his screenshots on 19 September. Not yet confirmed from him: the `verify:access` result and the nurse and nurse two click-throughs.
-- **Care plans:** Written and verified in the build environment (19 September 2026) - care_plans and care_plan_goals tables, src/lib/care-plans.ts, /care-plans proof page, four-eyes approval, locked wording once approved, `verify:access` extended to about 175 checks. **Waiting on:** his machine (migration `add_care_plans`, seed, `npm run verify:access`, click through /care-plans as all three demo accounts)
-- **Next:** documents, then referrals
+- **Visits:** Complete and confirmed on his machine (19 September 2026) - visits table, src/lib/visits.ts, /visits proof page, second demo nurse, `npm run verify:access`.
+- **Care plans:** Complete and confirmed on his machine (19 September 2026): migration applied, seed ran, `verify:access` 175 passed and 0 failed, /care-plans rendered, the red "1 Issue" badge gone. Care team writing, four-eyes approval, locked wording once approved.
+- **Documents:** Written and verified in the build environment (19 September 2026) - documents and document_files tables, src/lib/documents.ts, /documents proof page and download route, restricted categories, `verify:access` extended to 254 checks. **Waiting on:** his machine (migration `add_documents`, seed, `npm run verify:access`, click through /documents as all three demo accounts, and one hand test of the upload form with a small PDF)
+- **Next:** referrals, which finishes Milestone D
 
 ## MILESTONE E - Portals
 - **Status:** Not started

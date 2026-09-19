@@ -5,7 +5,7 @@
 // Reading code and believing it is not the same as watching it refuse.
 // This script signs in nobody and clicks nothing - it calls the same
 // service functions the pages and server actions call (src/lib/visits.ts,
-// src/lib/care-plans.ts, src/lib/patients.ts) as different people, and checks that every action
+// src/lib/care-plans.ts, src/lib/documents.ts, src/lib/patients.ts) as different people, and checks that every action
 // that SHOULD be refused IS refused, and every action that should work
 // does. Then it deletes everything it created.
 //
@@ -45,6 +45,19 @@ import {
   SUMMARY_MAX,
   TITLE_MAX,
 } from "@/lib/care-plan-constants";
+import {
+  archiveDocument,
+  getDocumentForDownload,
+  getDocumentUploadOptions,
+  listDocuments,
+  uploadDocument,
+} from "@/lib/documents";
+import {
+  MAX_DOCUMENT_BYTES,
+  TITLE_MAX as DOC_TITLE_MAX,
+  isRestrictedCategory,
+} from "@/lib/document-constants";
+import { makeDemoPdf } from "../prisma/demo-pdf";
 import { ORG_TIMEZONE, orgLocalToUtc } from "@/lib/time";
 
 // ---------- tiny test harness ----------
@@ -185,6 +198,36 @@ async function main() {
     check(`${label} cannot approve or complete anything`, rows.every((p) => !p.canApprove && !p.canComplete));
   }
   check("admin cannot edit any plan's wording (not on those care teams)", [...adminPlanLists.current, ...adminPlanLists.past].every((p) => !p.canEditContent && !p.canMarkGoals));
+
+  // ----- 2c. Documents: reading, with the demo accounts -----
+  section("2c. Reading: who sees which documents (demo accounts)");
+  const totalDocs = await prisma.document.count({ where: { organizationId: orgId, status: "active" } });
+  const adminDocs = await listDocuments(admin.id);
+  check("admin sees every active document in the organization", adminDocs.length === totalDocs, `${adminDocs.length} of ${totalDocs}`);
+  check("admin is offered Archive on every document", adminDocs.every((d) => d.canArchive));
+  for (const [label, nurse] of [["nurse one", nurse1], ["nurse two", nurse2]] as const) {
+    const mine = await assignedIds(nurse.id);
+    const rows = await listDocuments(nurse.id);
+    const theirs = await prisma.document.findMany({ where: { organizationId: orgId, status: "active", patientId: { in: mine } }, select: { id: true, category: true } });
+    const expected = theirs.filter((d) => !isRestrictedCategory(d.category));
+    const hidden = theirs.filter((d) => isRestrictedCategory(d.category));
+    check(`${label} sees only documents of their assigned patients`, rows.every((d) => mine.includes(d.patientId)));
+    check(`${label} sees NO restricted document`, rows.every((d) => !d.restricted && !isRestrictedCategory(d.category)));
+    check(`${label} sees ALL the unrestricted documents of their patients`, rows.length === expected.length, `${rows.length} of ${expected.length}`);
+    check(`${label} is not offered Archive`, rows.every((d) => !d.canArchive));
+    const someoneElses = await prisma.document.findFirst({
+      where: { organizationId: orgId, status: "active", patientId: { notIn: mine }, category: { in: ["consent_form", "physician_order", "care_correspondence"] } },
+      select: { id: true },
+    });
+    if (someoneElses) {
+      const tryOther = await getDocumentForDownload(nurse.id, someoneElses.id);
+      check(`${label} cannot download a clinical document of a patient they are not assigned to`, !tryOther.ok && errorOf(tryOther).includes("could not be found"), errorOf(tryOther));
+    }
+    if (hidden.length > 0) {
+      const tryHidden = await getDocumentForDownload(nurse.id, hidden[0].id);
+      check(`${label} cannot download a restricted document on their own patient`, !tryHidden.ok && errorOf(tryHidden).includes("could not be found"), errorOf(tryHidden));
+    }
+  }
 
   // ----- 3. Temporary people and patient for mutation tests -----
   section("3. Setting up temporary test people and a temporary patient");
@@ -617,11 +660,185 @@ async function main() {
     check("the outsider's attempts are on record as denied", (await prisma.auditLog.count({ where: { actorUserId: nurseC.id, action: "access_denied", outcome: "denied" } })) >= 8);
     check("SUPER_ADMIN's off-team writes are on record as denied", (await prisma.auditLog.count({ where: { actorUserId: admin.id, action: "access_denied", outcome: "denied", resourceId: { in: trackedResourceIds } } })) >= 3);
     check("permission refusals are on record", (await prisma.auditLog.count({ where: { actorUserId: approver.id, action: "permission_denied", outcome: "denied" } })) >= 2);
+
+    // ----- 11. Documents -----
+    // Three questions: permission, relationship, and CATEGORY. Insurance
+    // and identification documents are restricted to administrative
+    // roles. approver (ADMIN role) holds read and upload but not delete;
+    // admin (SUPER_ADMIN) holds delete too.
+    const pdf = (title: string) => makeDemoPdf(`${title} ${runId}`);
+    const pdfConsent = pdf("Consent");
+    const pdfOrder = pdf("Order");
+    const pdfInsurance = pdf("Insurance");
+    const pdfId = pdf("Identification");
+    const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 73, 72, 68, 82, 1, 2, 3]);
+    const docInput = (over: Partial<{ patientId: string; category: string; title: string; fileName: string; bytes: Uint8Array }> = {}) => ({
+      patientId: patient.id,
+      category: "consent_form",
+      title: "Signed consent",
+      fileName: "consent.pdf",
+      bytes: pdfConsent,
+      ...over,
+    });
+    const activeDocCount = () => prisma.document.count({ where: { patientId: patient.id, status: "active" } });
+    const idsIn = async (userId: string) => (await listDocuments(userId)).map((d) => d.id);
+    const same = (a: Uint8Array, b: Uint8Array) => Buffer.from(a).equals(Buffer.from(b));
+
+    section("11a. Documents: the permission gate");
+    check("no-permission account cannot list documents", await throwsAuthorization(() => listDocuments(noPerms.id)));
+    check("no-permission account cannot file a document", await throwsAuthorization(() => uploadDocument(noPerms.id, docInput())));
+    check("no-permission account cannot download", await throwsAuthorization(() => getDocumentForDownload(noPerms.id, "anything")));
+    check("no-permission account cannot archive", await throwsAuthorization(() => archiveDocument(noPerms.id, "anything")));
+    check("no-permission account gets no upload form", (await getDocumentUploadOptions(noPerms.id)) === null);
+    check("a nurse (no documents.delete) cannot archive", await throwsAuthorization(() => archiveDocument(nurseA.id, "anything")));
+    check("an ADMIN-role account (no documents.delete) cannot archive", await throwsAuthorization(() => archiveDocument(approver.id, "anything")));
+
+    section("11b. Documents: filing needs relationship AND the right category");
+    const docsBefore = await activeDocCount();
+    const offTeamDoc = await uploadDocument(nurseC.id, docInput());
+    check("nurse NOT on the team cannot file for that patient", !offTeamDoc.ok && errorOf(offTeamDoc).includes("do not have access"), errorOf(offTeamDoc));
+    const forgedDocPatient = await uploadDocument(nurseA.id, docInput({ patientId: "00000000-0000-0000-0000-00000000dead" }));
+    check("a made-up patient id is refused", !forgedDocPatient.ok && errorOf(forgedDocPatient).includes("do not have access"), errorOf(forgedDocPatient));
+    const nurseInsurance = await uploadDocument(nurseA.id, docInput({ category: "insurance", bytes: pdfInsurance, title: "Insurance card" }));
+    check("a nurse CANNOT file a restricted document (insurance)", !nurseInsurance.ok && errorOf(nurseInsurance).includes("cannot file that kind"), errorOf(nurseInsurance));
+    const nurseIdentification = await uploadDocument(nurseA.id, docInput({ category: "identification", bytes: pdfId, title: "Photo ID" }));
+    check("a nurse CANNOT file a restricted document (identification)", !nurseIdentification.ok && errorOf(nurseIdentification).includes("cannot file that kind"), errorOf(nurseIdentification));
+    check("an unknown category is refused", !(await uploadDocument(nurseA.id, docInput({ category: "top_secret" }))).ok);
+    check("none of those attempts filed anything", (await activeDocCount()) === docsBefore);
+
+    const consent = await uploadDocument(nurseA.id, docInput());
+    check("nurse on the team CAN file a clinical document", consent.ok, errorOf(consent));
+    const consentId = consent.ok ? consent.value.documentId : "";
+    trackedResourceIds.push(consentId);
+    const order = await uploadDocument(nurseB.id, docInput({ category: "physician_order", title: "Physician order", fileName: "order.pdf", bytes: pdfOrder }));
+    check("a colleague on the team CAN file one too", order.ok, errorOf(order));
+    const orderId = order.ok ? order.value.documentId : "";
+    trackedResourceIds.push(orderId);
+    const insurance = await uploadDocument(approver.id, docInput({ category: "insurance", title: "Insurance card", fileName: "card.pdf", bytes: pdfInsurance }));
+    check("an administrative role CAN file a restricted document", insurance.ok, errorOf(insurance));
+    const insuranceId = insurance.ok ? insurance.value.documentId : "";
+    trackedResourceIds.push(insuranceId);
+    const ident = await uploadDocument(admin.id, docInput({ category: "identification", title: "Photo ID", fileName: "id.pdf", bytes: pdfId }));
+    check("SUPER_ADMIN CAN file identification for a patient they are not on the team of", ident.ok, errorOf(ident));
+    const identId = ident.ok ? ident.value.documentId : "";
+    trackedResourceIds.push(identId);
+
+    const png = await uploadDocument(nurseA.id, docInput({ category: "care_correspondence", title: "Scanned letter", fileName: "C:\\fakepath\\..\\scan.pdf", bytes: pngBytes }));
+    check("a PNG is accepted", png.ok, errorOf(png));
+    const pngId = png.ok ? png.value.documentId : "";
+    trackedResourceIds.push(pngId);
+    const pngRow = pngId ? await prisma.document.findUnique({ where: { id: pngId } }) : null;
+    check("its type comes from its own bytes, not from the name it arrived with", pngRow?.contentType === "image/png");
+    check("its stored name has no folders and the right extension", pngRow?.fileName === "scan.png", pngRow?.fileName);
+
+    const beforeBad = await activeDocCount();
+    const badDocs: [string, Parameters<typeof docInput>[0]][] = [
+      ["empty title", { title: "  ", bytes: pdf("x1") }],
+      [`title over ${DOC_TITLE_MAX} characters`, { title: "x".repeat(DOC_TITLE_MAX + 1), bytes: pdf("x2") }],
+      ["empty file", { bytes: new Uint8Array(0) }],
+      ["file over the size limit", { bytes: Object.assign(new Uint8Array(MAX_DOCUMENT_BYTES + 1), { 0: 0x25, 1: 0x50, 2: 0x44, 3: 0x46, 4: 0x2d }) }],
+      ["a text file", { bytes: new TextEncoder().encode("just some words"), fileName: "notes.txt" }],
+      ["a text file renamed .pdf", { bytes: new TextEncoder().encode("just some words"), fileName: "letter.pdf" }],
+      ["a script renamed .pdf", { bytes: new TextEncoder().encode("<script>alert(1)</script>"), fileName: "invoice.pdf" }],
+    ];
+    for (const [label, over] of badDocs) {
+      const r = await uploadDocument(nurseA.id, docInput(over));
+      check(`rejects: ${label}`, !r.ok);
+    }
+    check("none of the rejected files were filed", (await activeDocCount()) === beforeBad);
+
+    const dup = await uploadDocument(nurseB.id, docInput({ title: "Same file again", fileName: "again.pdf" }));
+    check("the exact same file cannot be filed twice for a patient", !dup.ok && errorOf(dup).includes("already on file"), errorOf(dup));
+
+    await prisma.patient.update({ where: { id: patient.id }, data: { status: "on_hold" } });
+    const heldDoc = await uploadDocument(approver.id, docInput({ title: "Held", bytes: pdf("held") }));
+    check("cannot file for a patient who is on hold", !heldDoc.ok && errorOf(heldDoc).includes("active"), errorOf(heldDoc));
+    await prisma.patient.update({ where: { id: patient.id }, data: { status: "active" } });
+
+    const optsDocA = (await getDocumentUploadOptions(nurseA.id)) ?? { patients: [], categories: [] };
+    check("nurse is offered the patients they are assigned to", optsDocA.patients.some((p) => p.patientId === patient.id));
+    check("nurse is offered ONLY the three clinical categories", optsDocA.categories.length === 3 && optsDocA.categories.every((c) => !isRestrictedCategory(c.key)));
+    const optsDocApprover = (await getDocumentUploadOptions(approver.id)) ?? { patients: [], categories: [] };
+    check("an administrative role is offered all five categories", optsDocApprover.categories.length === 5);
+    check("nurse off the team is offered nothing for this patient", ((await getDocumentUploadOptions(nurseC.id)) ?? { patients: [] }).patients.every((p) => p.patientId !== patient.id));
+
+    section("11c. Documents: who sees what is on file");
+    const docListA = await idsIn(nurseA.id);
+    check("nurse sees the consent, the order and the letter", [consentId, orderId, pngId].every((id) => docListA.includes(id)));
+    check("nurse does NOT see the insurance card or the ID", !docListA.includes(insuranceId) && !docListA.includes(identId));
+    const docListB = await idsIn(nurseB.id);
+    check("a colleague on the team sees the same set", [consentId, orderId, pngId].every((id) => docListB.includes(id)) && !docListB.includes(insuranceId) && !docListB.includes(identId));
+    const docListC = await idsIn(nurseC.id);
+    check("nurse off the team sees none of this patient's documents", ![consentId, orderId, pngId, insuranceId, identId].some((id) => docListC.includes(id)));
+    const listApprover = await idsIn(approver.id);
+    check("an administrative role sees all five, restricted included", [consentId, orderId, pngId, insuranceId, identId].every((id) => listApprover.includes(id)));
+    const listAdmin = await listDocuments(admin.id);
+    check("SUPER_ADMIN sees all five and can archive", [consentId, orderId, pngId, insuranceId, identId].every((id) => listAdmin.some((d) => d.id === id && d.canArchive)));
+    check("the restricted ones are labelled restricted", listAdmin.filter((d) => [insuranceId, identId].includes(d.id)).every((d) => d.restricted));
+
+    section("11d. Documents: downloading is checked on its own");
+    const downloadsBefore = await prisma.auditLog.count({ where: { action: "document_downloaded", actorUserId: nurseA.id } });
+    const got = await getDocumentForDownload(nurseA.id, consentId);
+    check("nurse on the team CAN download the consent", got.ok, errorOf(got));
+    check("the bytes that come back are exactly the bytes that went in", got.ok && same(got.value.bytes, pdfConsent));
+    check("it comes back typed as a PDF with a clean name", got.ok && got.value.contentType === "application/pdf" && got.value.fileName === "consent.pdf");
+    const gotByColleague = await getDocumentForDownload(nurseB.id, consentId);
+    check("a colleague on the team CAN download it too", gotByColleague.ok, errorOf(gotByColleague));
+    const restrictedDl = await getDocumentForDownload(nurseA.id, insuranceId);
+    check("nurse CANNOT download a restricted document, even on their own patient", !restrictedDl.ok && errorOf(restrictedDl).includes("could not be found"), errorOf(restrictedDl));
+    const forgedDl = await getDocumentForDownload(nurseA.id, "00000000-0000-0000-0000-00000000f11e");
+    trackedResourceIds.push("00000000-0000-0000-0000-00000000f11e");
+    check("a restricted document looks exactly like one that does not exist", !forgedDl.ok && errorOf(forgedDl) === errorOf(restrictedDl), errorOf(forgedDl));
+    const outsiderDl = await getDocumentForDownload(nurseC.id, consentId);
+    check("nurse off the team gets the same 'not found'", !outsiderDl.ok && errorOf(outsiderDl) === errorOf(restrictedDl), errorOf(outsiderDl));
+    const adminRestricted = await getDocumentForDownload(approver.id, insuranceId);
+    check("an administrative role CAN download the insurance card", adminRestricted.ok && same(adminRestricted.value.bytes, pdfInsurance), errorOf(adminRestricted));
+    const adminId = await getDocumentForDownload(admin.id, identId);
+    check("SUPER_ADMIN CAN download the ID", adminId.ok && same(adminId.value.bytes, pdfId), errorOf(adminId));
+    const downloadsAfter = await prisma.auditLog.count({ where: { action: "document_downloaded", actorUserId: nurseA.id } });
+    check("only the download that succeeded was logged as a download", downloadsAfter - downloadsBefore === 1, `${downloadsAfter - downloadsBefore}`);
+
+    section("11e. Documents: archiving hides a document and keeps it");
+    const archived = await archiveDocument(admin.id, pngId);
+    check("SUPER_ADMIN CAN archive a document", archived.ok, errorOf(archived));
+    const archivedRow = await prisma.document.findUniqueOrThrow({ where: { id: pngId } });
+    check("archiving recorded who and when", archivedRow.status === "archived" && archivedRow.archivedById === admin.id && archivedRow.archivedAt !== null);
+    const archivedAgain = await archiveDocument(admin.id, pngId);
+    check("cannot archive twice", !archivedAgain.ok, errorOf(archivedAgain));
+    check("an archived document leaves every list", !(await idsIn(nurseA.id)).includes(pngId) && !(await idsIn(approver.id)).includes(pngId) && !(await listDocuments(admin.id)).some((d) => d.id === pngId));
+    const archivedDl = await getDocumentForDownload(approver.id, pngId);
+    check("an archived document cannot be downloaded, even by an administrator", !archivedDl.ok, errorOf(archivedDl));
+    const stillStored = await prisma.documentFile.count({ where: { documentId: pngId } });
+    check("but nothing was deleted: the file is still on record", stillStored === 1);
+    const forgedArchive = await archiveDocument(admin.id, "00000000-0000-0000-0000-00000000a4c1");
+    trackedResourceIds.push("00000000-0000-0000-0000-00000000a4c1");
+    check("archiving a made-up id is refused as not found", !forgedArchive.ok && errorOf(forgedArchive).includes("could not be found"), errorOf(forgedArchive));
+
+    section("11f. Documents: the audit trail (reading is logged too)");
+    const docAudit = (action: string, actorUserId: string) => prisma.auditLog.count({ where: { action, actorUserId } });
+    check("document_uploaded logged for the nurse", (await docAudit("document_uploaded", nurseA.id)) >= 2);
+    check("document_uploaded logged for the administrative filer", (await docAudit("document_uploaded", approver.id)) === 1);
+    check("document_downloaded logged for a colleague", (await docAudit("document_downloaded", nurseB.id)) === 1);
+    check("document_downloaded logged for the administrator", (await docAudit("document_downloaded", approver.id)) === 1);
+    check("document_archived logged", (await docAudit("document_archived", admin.id)) === 1);
+    check("the nurse's reach for restricted documents is on record as denied", (await prisma.auditLog.count({ where: { actorUserId: nurseA.id, action: "access_denied", outcome: "denied" } })) >= 4);
+    check("the outsider's attempts are on record as denied", (await prisma.auditLog.count({ where: { actorUserId: nurseC.id, action: "access_denied", outcome: "denied", resourceType: { in: ["document", "patient"] } } })) >= 2);
   } finally {
     // ----- Cleanup: leave the database exactly as it was found -----
     section("Cleaning up");
     try {
-      // Care plans first: they point at the patient and at the temporary
+      // Documents first of all: they point at the patient and at the
+      // temporary people, and both are protected while a document exists.
+      // The file bytes go with their document. This also catches any
+      // document a FAILING check let through.
+      const leftoverDocs = await prisma.document.findMany({
+        where: { OR: [{ patientId: patientId || "none" }, { uploadedById: { in: createdUserIds } }] },
+        select: { id: true },
+      });
+      trackedResourceIds.push(...leftoverDocs.map((d) => d.id));
+      await prisma.document.deleteMany({ where: { id: { in: leftoverDocs.map((d) => d.id) } } });
+
+      // Care plans next: they point at the patient and at the temporary
       // people, and both are protected from deletion while a plan
       // exists. Goals go with their plan. This also catches any plan a
       // FAILING check let through, so a failed run leaves nothing behind.
@@ -650,7 +867,7 @@ async function main() {
         },
       });
       await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } }); // user roles cascade
-      console.log("  removed the temporary patient, visits, care plans, people and their audit entries");
+      console.log("  removed the temporary patient, visits, care plans, documents, people and their audit entries");
     } catch (err) {
       console.error("  CLEANUP FAILED - check Prisma Studio for rows named Verify or Testpatient:", err);
       failures.push("cleanup");

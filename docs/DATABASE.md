@@ -143,3 +143,7 @@ This is a development-only account with an intentionally simple, documented pass
 ## Update, 19 September 2026: care plans
 
 Two new tables: `care_plans` and `care_plan_goals`. A plan belongs to a patient and an organization and records who wrote it, who approved it and when. Goals belong to a plan and are deleted with it, though plans themselves are never hard-deleted by the app. Foreign keys to patients and users are `Restrict`, so a patient or staff account that has plans cannot be removed by accident. Run `npx prisma migrate dev --name add_care_plans` after pulling this round. Then `npx prisma db seed` adds the new permission and two synthetic plans.
+
+## Update, 19 September 2026: documents
+
+Two new tables: `documents` (details: patient, uploader, category, title, cleaned file name, type, size, SHA-256 fingerprint, status, who archived it and when) and `document_files` (just the bytes, one row per document, deleted with it). The bytes are kept apart so no list can load them by accident. For this demo they live in the database; real patient files belong in encrypted object storage, which is a paid-service decision still to be made. Foreign keys to patients and users are `Restrict`. Run `npx prisma migrate dev --name add_documents`, then `npx prisma db seed`.

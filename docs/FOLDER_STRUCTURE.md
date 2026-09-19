@@ -85,3 +85,10 @@ Every permission check lives in the service layer. That means there is exactly o
 - `src/app/care-plans/` - `page.tsx`, `create-plan-form.tsx`, `plan-controls.tsx`
 - `src/lib/care-plans.ts`, `care-plan-constants.ts`, `care-plans-actions.ts`
 - `docs/CARE_PLANS.md`
+
+## Update, 19 September 2026: documents
+
+- `src/app/documents/` - `page.tsx`, `upload-document-form.tsx`, `archive-button.tsx`, `[id]/download/route.ts`
+- `src/lib/documents.ts`, `document-constants.ts`, `documents-actions.ts`
+- `prisma/demo-pdf.ts`
+- `docs/DOCUMENTS.md`

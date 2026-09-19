@@ -1,3 +1,29 @@
+## Documents - fourth slice of Milestone D
+**19 September 2026**
+
+Added
+- prisma/schema.prisma - Document and DocumentFile models (new migration required: add_documents). No new permission: documents.read, documents.upload and documents.delete already existed.
+- src/lib/documents.ts - listDocuments, getDocumentUploadOptions, uploadDocument, getDocumentForDownload, archiveDocument: every document rule in one file
+- src/lib/document-constants.ts - categories and which are restricted (unknown categories fail closed), size limits, file type detection from the file's own bytes, file name cleaning
+- src/lib/documents-actions.ts - thin server actions for upload and archive
+- src/app/documents/ - page.tsx, upload-document-form.tsx, archive-button.tsx, and [id]/download/route.ts (the only door the file bytes leave through)
+- prisma/demo-pdf.ts - builds small real PDFs by hand, no new dependency
+- docs/DOCUMENTS.md
+
+Changed
+- prisma/seed.ts - five synthetic documents (Eleanor: consent, physician order, insurance card; Marcus: consent, photo ID), created only when none exist. The insurance card and the photo ID are in restricted categories.
+- scripts/verify-access.ts - new sections 2c and 11a to 11f, cleanup extended to documents. 254 checks now.
+- next.config.ts - Server Action request limit raised from 1 MB to 3 MB so a 2 MB document can be uploaded
+- src/app/dashboard/page.tsx - "View documents" link, shown only to accounts holding documents.read
+- docs: RBAC, AUDIT_LOGGING, DATABASE, FOLDER_STRUCTURE, DEMO_ACCOUNTS, PHASE_STATUS, NEXT_STEP, PROJECT_HANDOFF, CONTINUATION_PROMPT
+
+Verified in the build environment (real Postgres, real generated Prisma client)
+- tsc --noEmit clean, eslint clean, `next build` succeeds (/documents and /documents/[id]/download are dynamic)
+- verify:access: 254 passed, 0 failed. With eight rules deliberately broken one at a time (list filter, category rule everywhere, category check on download, file type from bytes, download audit, archived still downloadable, relationship check on download, duplicate check) it failed on those rules each time, and the database was left clean.
+- Real HTTP against the built app with real sessions: admin downloaded all five documents; nurse one got only Eleanor's consent and order; nurse two only Marcus's consent; the insurance card, the photo ID, another patient's document and a made-up id all returned the same 404 with the same words to a nurse; signed out gets 401; headers include attachment, nosniff and no-store; a downloaded file is a valid PDF
+- Root layout and homepage name-checked (see NEXT_STEP)
+- NOT tested end to end: the upload form's server action over real HTTP (no browser in the build environment). The upload rules underneath it are fully tested.
+
 ## Care plans - third slice of Milestone D
 **19 September 2026**
 

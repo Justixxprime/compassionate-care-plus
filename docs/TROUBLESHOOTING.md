@@ -121,3 +121,11 @@ Click the badge to read it. If it mentions attributes on `<body>` that "didn't m
 ## A "coming soon" or "placeholder" file survives after a zip
 
 Zip files add and overwrite files but never delete. If an old file was removed from the project (for example `src/components/marketing/coming-soon-page.tsx`), delete it yourself: `Remove-Item src\components\marketing\coming-soon-page.tsx`.
+
+## Uploading a document fails with "body exceeded" or a size error
+
+Server Action requests are capped at 1 MB by default. `next.config.ts` raises that to 3 MB so a 2 MB document can travel. If you changed that file, restart `npm run dev`. The real limit is 2 MB and is enforced by the server code, so a bigger file is refused with a plain message either way.
+
+## A document upload is refused as "Only PDF, PNG and JPEG files can be filed"
+
+The type is read from the file's own first bytes, not from its name. A file that was renamed, or a "PDF" that is really something else, is refused on purpose. Open the file and re-export it as a real PDF.

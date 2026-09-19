@@ -31,6 +31,7 @@ export default async function DashboardPage() {
   const canReadAudit = await hasPermission(user.id, "audit.read");
   const canReadVisits = await hasPermission(user.id, "visits.read");
   const canReadCarePlans = await hasPermission(user.id, "care_plans.read");
+  const canReadDocuments = await hasPermission(user.id, "documents.read");
 
   // Only actually queried when the permission check passes - this is
   // the point of RBAC existing at all: a user without audit.read never
@@ -64,6 +65,11 @@ export default async function DashboardPage() {
         {canReadCarePlans && (
           <Link href="/care-plans" className={buttonVariants({ size: "sm" })}>
             View care plans
+          </Link>
+        )}
+        {canReadDocuments && (
+          <Link href="/documents" className={buttonVariants({ size: "sm" })}>
+            View documents
           </Link>
         )}
         {canManageStaff && (

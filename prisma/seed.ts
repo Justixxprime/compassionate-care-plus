@@ -8,14 +8,17 @@
 // (src/lib/patients.ts) can be tested for real, not just trusted - and a
 // handful of synthetic visits spread across them (src/lib/visits.ts), and
 // two synthetic care plans, one active and one waiting for approval
-// (src/lib/care-plans.ts).
+// (src/lib/care-plans.ts), and five synthetic documents, two of them in
+// restricted categories (src/lib/documents.ts).
 //
 // Run with: npx prisma db seed
 // (this is wired up in package.json - see the "prisma" block)
 
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { createHash } from "node:crypto";
 import { ORG_TIMEZONE, orgLocalToUtc } from "../src/lib/time";
+import { makeDemoPdf } from "./demo-pdf";
 
 const prisma = new PrismaClient();
 
@@ -409,6 +412,49 @@ async function main() {
     console.log("2 synthetic demo care plans ready");
   } else {
     console.log(`Care plans already exist (${existingPlanCount}), leaving them alone`);
+  }
+
+  // --- Synthetic demo documents ---
+  // Small real PDFs (see prisma/demo-pdf.ts), so they can actually be
+  // downloaded and opened. Eleanor gets a consent, a physician order and
+  // an insurance card; Marcus gets a consent and a photo ID. The
+  // insurance card and the ID are in RESTRICTED categories: the admin can
+  // see them, the nurses never can. Priya has none. Like visits and
+  // plans, only created when the organization has no documents yet.
+  const existingDocumentCount = await prisma.document.count({
+    where: { organizationId: org.id },
+  });
+
+  if (existingDocumentCount === 0) {
+    const eleanorDocs = patients[0];
+    const documentDefs = [
+      { patient: eleanorDocs, by: demoAdmin, category: "consent_form", title: "Signed consent to treat", file: "consent-to-treat.pdf" },
+      { patient: eleanorDocs, by: demoNurse, category: "physician_order", title: "Physician order: skilled nursing visits", file: "physician-order.pdf" },
+      { patient: eleanorDocs, by: demoAdmin, category: "insurance", title: "Insurance card (front and back)", file: "insurance-card.pdf" },
+      { patient: marcus, by: demoAdmin, category: "consent_form", title: "Signed consent to treat", file: "consent-to-treat.pdf" },
+      { patient: marcus, by: demoAdmin, category: "identification", title: "Photo identification", file: "photo-id.pdf" },
+    ] as const;
+
+    for (const def of documentDefs) {
+      const bytes = makeDemoPdf(`${def.title} - ${def.patient.firstName} ${def.patient.lastName}`);
+      await prisma.document.create({
+        data: {
+          organizationId: org.id,
+          patientId: def.patient.id,
+          uploadedById: def.by.id,
+          category: def.category,
+          title: def.title,
+          fileName: def.file,
+          contentType: "application/pdf",
+          sizeBytes: bytes.length,
+          sha256: createHash("sha256").update(bytes).digest("hex"),
+          file: { create: { data: Buffer.from(bytes) } },
+        },
+      });
+    }
+    console.log(`${documentDefs.length} synthetic demo documents ready`);
+  } else {
+    console.log(`Documents already exist (${existingDocumentCount}), leaving them alone`);
   }
 
   console.log("Seed complete.");

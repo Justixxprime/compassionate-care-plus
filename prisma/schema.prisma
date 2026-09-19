@@ -43,6 +43,7 @@ model Organization {
   patients  Patient[]
   visits    Visit[]
   carePlans CarePlan[]
+  documents Document[]
 
   @@map("organizations")
 }
@@ -69,6 +70,8 @@ model User {
   scheduledVisits     Visit[]          @relation("VisitScheduler")
   authoredCarePlans   CarePlan[]       @relation("CarePlanAuthor")
   approvedCarePlans   CarePlan[]       @relation("CarePlanApprover")
+  uploadedDocuments   Document[]       @relation("DocumentUploader")
+  archivedDocuments   Document[]       @relation("DocumentArchiver")
 
   @@index([organizationId])
   @@map("users")
@@ -194,6 +197,7 @@ model Patient {
   careTeam      CareTeamMember[]
   visits        Visit[]
   carePlans     CarePlan[]
+  documents     Document[]
 
   @@index([organizationId])
   @@map("patients")
@@ -336,4 +340,82 @@ model CarePlanGoal {
 
   @@index([carePlanId])
   @@map("care_plan_goals")
+}
+
+// ---------- Documents ----------
+// The fourth slice of Milestone D. A document is one file filed against
+// one patient: a signed consent, a physician order, an insurance card, a
+// scan of an ID. Files are the most sensitive thing this system holds
+// after the clinical record itself, so this table asks a question the
+// earlier slices did not: not only WHICH PATIENT, but WHAT KIND of
+// document.
+//
+// Who may see, file and archive a document is decided in
+// src/lib/documents.ts:
+//
+//   1. PERMISSION   documents.read / .upload / .delete
+//   2. RELATIONSHIP the patient must be one this person can reach
+//                   (getPatientScope in src/lib/patients.ts)
+//   3. CATEGORY     insurance and identification documents are
+//                   RESTRICTED: only administrative roles can see them.
+//                   A nurse on the care team sees the clinical paperwork
+//                   (consents, orders, correspondence) but never the
+//                   scan of the patient's ID or insurance card, and a
+//                   restricted document does not even appear to exist to
+//                   them.
+//
+// The file's bytes live in their own table (document_files) so that no
+// list or search of documents can ever pull file contents into memory by
+// accident; a query has to ask for the bytes on purpose.
+//
+// For this demo the bytes are stored in the database, which is free and
+// keeps everything testable on one machine. A real deployment should
+// move them to encrypted object storage with short-lived download
+// links. That is a paid-service decision and is deliberately NOT made
+// here; everything outside src/lib/documents.ts is unaware of where the
+// bytes live, so the swap changes one file. See docs/DOCUMENTS.md.
+//
+// Documents are never hard-deleted. "Archive" hides one from every list
+// and download and keeps the row and bytes on record.
+//
+// The audit log records that a document was uploaded, DOWNLOADED and
+// archived - the first place in this project where reading is logged -
+// never what the document said.
+model Document {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  patientId      String    @map("patient_id")
+  uploadedById   String    @map("uploaded_by_id")
+  category       String // list and restricted flags live in src/lib/document-constants.ts
+  title          String
+  fileName       String    @map("file_name")
+  contentType    String    @map("content_type") // decided by reading the file's own bytes, never by what the browser claimed
+  sizeBytes      Int       @map("size_bytes")
+  sha256         String // fingerprint of the bytes: integrity, and stops the same file being filed twice
+  status         String    @default("active") // active | archived
+  archivedAt     DateTime? @map("archived_at")
+  archivedById   String?   @map("archived_by_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  patient      Patient       @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  uploadedBy   User          @relation("DocumentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+  archivedBy   User?         @relation("DocumentArchiver", fields: [archivedById], references: [id], onDelete: Restrict)
+  file         DocumentFile?
+
+  @@index([organizationId, status])
+  @@index([patientId])
+  @@index([patientId, sha256])
+  @@map("documents")
+}
+
+// The bytes of one document. One row per document, deleted with it.
+model DocumentFile {
+  documentId String @id @map("document_id")
+  data       Bytes
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@map("document_files")
 }

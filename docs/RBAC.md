@@ -33,3 +33,7 @@ The "no fine-grained per-resource checks yet" gap above is closing. Visits (see 
 ## Update, 19 September 2026: a third question for clinical content
 
 Care plans (see `docs/CARE_PLANS.md`) add a third check on top of permission and relationship: to WRITE clinical content, the person must also be on that patient's care team right now (`isActiveCareTeamMember` in `src/lib/patients.ts`). A role with every permission, like SUPER_ADMIN, can read every plan but cannot write one for a patient it is not assigned to. Approving adds one more rule: the author of a plan can never approve it. New permission `care_plans.create`; permissions in use for care plans: `care_plans.read`, `.create`, `.update`, `.approve`. NURSE holds read, create and update. ADMIN holds read and approve.
+
+## Update, 19 September 2026: a category question for documents
+
+Documents (see `docs/DOCUMENTS.md`) ask permission, relationship, and a third question that is about the KIND of document: insurance and identification are restricted to administrative roles, so a nurse on the care team sees consents and orders but never the ID or insurance scan. No new permission was needed: `documents.read`, `documents.upload` and `documents.delete` already existed. NURSE holds read and upload. ADMIN holds read and upload. Only SUPER_ADMIN holds delete (archive).
