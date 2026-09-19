@@ -135,3 +135,11 @@ This is a development-only account with an intentionally simple, documented pass
 **"database does not exist"** - the database name in the connection string doesn't match what I created in pgAdmin. Check for typos, `cheliv_dev` should match exactly.
 
 **Prisma commands hang or fail to download something** - this is the one step that genuinely needs a good internet connection, since it's downloading Prisma's engine files. Try again, or check if something on the network (a VPN, a firewall) is blocking it.
+
+## Update, 19 September 2026: the visits table
+
+`visits` - one scheduled home visit: patient, clinician, who scheduled it, visit type, status (`scheduled`, `in_progress`, `completed`, `cancelled`, `missed`), the scheduled start and end, and the actual check-in and check-out times. No clinical content on purpose. Never hard-deleted: cancelling changes the status and the row stays. Foreign keys to patients and users are `Restrict`, so a patient or staff member with visits cannot be deleted out from under them. Migration name: `add_visits`. See `docs/VISITS.md`.
+
+## Update, 19 September 2026: care plans
+
+Two new tables: `care_plans` and `care_plan_goals`. A plan belongs to a patient and an organization and records who wrote it, who approved it and when. Goals belong to a plan and are deleted with it, though plans themselves are never hard-deleted by the app. Foreign keys to patients and users are `Restrict`, so a patient or staff account that has plans cannot be removed by accident. Run `npx prisma migrate dev --name add_care_plans` after pulling this round. Then `npx prisma db seed` adds the new permission and two synthetic plans.

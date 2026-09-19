@@ -11,6 +11,12 @@
 // THEN relationship (are they actually on this patient's care team, or
 // do they hold a role that legitimately sees everyone). Both parts
 // matter - this file is deliberately the only place that logic lives.
+//
+// Visits (src/lib/visits.ts) and every clinical slice after them reuse
+// the relationship half through getPatientScope() and canAccessPatient()
+// below, instead of writing their own copy. One rule, one place: two
+// copies of an access rule is how they slowly drift apart, and one of
+// them ends up quietly more permissive than the other.
 
 import "server-only";
 import { prisma } from "@/lib/prisma";
@@ -26,12 +32,119 @@ const ADMINISTRATIVE_ROLE_KEYS = [
   "CARE_COORDINATOR",
 ] as const;
 
-interface PatientSummary {
+export interface PatientSummary {
   id: string;
   firstName: string;
   lastName: string;
   dateOfBirth: Date;
   status: string;
+}
+
+// What a person is allowed to reach, by relationship. This is the answer
+// to "which patients?" - separate from "may they do this KIND of thing?",
+// which is a permission (requirePermission) and is checked by the caller.
+//
+//   organization - an administrative role: every patient in their own
+//                  organization
+//   assigned     - everyone else: only the listed patients, each one a
+//                  care team assignment that is still active
+export type PatientScope =
+  | { kind: "organization"; organizationId: string }
+  | { kind: "assigned"; organizationId: string; patientIds: string[] };
+
+// A care team assignment counts while it has no end date, or its end
+// date is still in the future. Exported so anything that asks "is this
+// person on this patient's care team right now?" uses the same test.
+export function activeAssignmentFilter(now: Date = new Date()) {
+  return { OR: [{ endsAt: null }, { endsAt: { gt: now } }] };
+}
+
+export async function getPatientScope(userId: string): Promise<PatientScope> {
+  // The organization comes from the user's own row, never from anything
+  // passed in - a caller cannot ask for someone else's organization.
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: userId },
+    include: { userRoles: { include: { role: true } } },
+  });
+
+  const isAdministrative = user.userRoles.some((ur) =>
+    (ADMINISTRATIVE_ROLE_KEYS as readonly string[]).includes(ur.role.key),
+  );
+
+  if (isAdministrative) {
+    return { kind: "organization", organizationId: user.organizationId };
+  }
+
+  // Everyone else: only patients they're actually on the care team for,
+  // and only while that assignment is still active. The patient must
+  // also belong to their own organization - defense in depth, since a
+  // care team row pointing across organizations should never exist.
+  const memberships = await prisma.careTeamMember.findMany({
+    where: {
+      userId,
+      ...activeAssignmentFilter(),
+      patient: { organizationId: user.organizationId },
+    },
+    select: { patientId: true },
+  });
+
+  return {
+    kind: "assigned",
+    organizationId: user.organizationId,
+    patientIds: Array.from(new Set(memberships.map((m) => m.patientId))),
+  };
+}
+
+// Does an already-computed scope include this ONE patient? Split out from
+// canAccessPatient so code that needs the scope for other reasons too
+// (like visits, which also branch on scope.kind) can ask without a
+// second round trip to work out the same scope again.
+export async function scopeAllowsPatient(
+  scope: PatientScope,
+  patientId: string,
+): Promise<boolean> {
+  if (scope.kind === "assigned") {
+    return scope.patientIds.includes(patientId);
+  }
+
+  const count = await prisma.patient.count({
+    where: { id: patientId, organizationId: scope.organizationId },
+  });
+  return count > 0;
+}
+
+// Is this person on this patient's care team RIGHT NOW? Stricter than
+// getPatientScope: an administrative role can REACH every patient, but
+// only the people actually assigned to a patient are "on the team".
+// Writing clinical content (care plans, later notes) asks this question
+// in addition to the scope question. Uses the same activeAssignmentFilter
+// as everything else, so "active" means the same thing everywhere.
+export async function isActiveCareTeamMember(
+  userId: string,
+  patientId: string,
+  organizationId: string,
+): Promise<boolean> {
+  const count = await prisma.careTeamMember.count({
+    where: {
+      userId,
+      patientId,
+      ...activeAssignmentFilter(),
+      patient: { organizationId },
+    },
+  });
+  return count > 0;
+}
+
+// Can this person reach this ONE patient, by relationship? Used before
+// creating or changing anything that hangs off a patient (a visit, later
+// a care plan). Says nothing about permissions - callers check those
+// with requirePermission first.
+export async function canAccessPatient(
+  userId: string,
+  patientId: string,
+): Promise<boolean> {
+  const scope = await getPatientScope(userId);
+  return scopeAllowsPatient(scope, patientId);
 }
 
 export async function getAccessiblePatients(
@@ -40,38 +153,13 @@ export async function getAccessiblePatients(
   // Hard stop first - no permission, no query even runs.
   await requirePermission(userId, "patients.read");
 
-  const userRoles = await prisma.userRole.findMany({
-    where: { userId },
-    include: { role: true },
+  const scope = await getPatientScope(userId);
+
+  return prisma.patient.findMany({
+    where:
+      scope.kind === "organization"
+        ? { organizationId: scope.organizationId }
+        : { organizationId: scope.organizationId, id: { in: scope.patientIds } },
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
   });
-
-  const isAdministrative = userRoles.some((ur: { role: { key: string } }) =>
-    (ADMINISTRATIVE_ROLE_KEYS as readonly string[]).includes(ur.role.key),
-  );
-
-  if (isAdministrative) {
-    // Sees every patient in their organization - found via their own
-    // user row rather than trusting an organizationId passed in from
-    // anywhere else.
-    const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-    return prisma.patient.findMany({
-      where: { organizationId: user.organizationId },
-      orderBy: { lastName: "asc" },
-    });
-  }
-
-  // Everyone else: only patients they're actually on the care team for,
-  // and only while that assignment is still active (endsAt is null or
-  // in the future).
-  const memberships = await prisma.careTeamMember.findMany({
-    where: {
-      userId,
-      OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }],
-    },
-    include: { patient: true },
-  });
-
-  return memberships
-    .map((m: { patient: PatientSummary }) => m.patient)
-    .sort((a: PatientSummary, b: PatientSummary) => a.lastName.localeCompare(b.lastName));
 }

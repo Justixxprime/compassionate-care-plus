@@ -4,16 +4,16 @@ Order follows the revised milestone plan in `PHASE_0_ARCHITECTURE.md` section 12
 
 ---
 
-## PHASE 0 — Research, requirements and architecture
-- **Status:** Complete — 15 September 2026
+## PHASE 0 - Research, requirements and architecture
+- **Status:** Complete - 15 September 2026
 
-## PHASE 1 — Project initialization
-- **Status:** Complete — 15 September 2026
+## PHASE 1 - Project initialization
+- **Status:** Complete - 15 September 2026
 
-## PHASE 2 — Design system
-- **Status:** Complete — 15 September 2026
+## PHASE 2 - Design system
+- **Status:** Complete - 15 September 2026
 
-## PHASES 3 & 4 — Public website foundation + homepage
+## PHASES 3 & 4 - Public website foundation + homepage
 - **Status:** Complete
 - **Date:** 15 September 2026
 - **Files:** public layout, header, footer, nav data, hero illustration, homepage, 8 pages (7 placeholder stubs + sign-in stub)
@@ -21,7 +21,7 @@ Order follows the revised milestone plan in `PHASE_0_ARCHITECTURE.md` section 12
 - **Known issues:** all content beyond the shell is placeholder, clearly labelled; request-care and sign-in are stubs
 - **Next action:** Phase 5 - service pages
 
-## PHASE 5 — Public service pages
+## PHASE 5 - Public service pages
 - **Status:** Complete
 - **Date:** 15 September 2026
 - **Files:** `src/lib/services-data.ts`, real `/services` index, `/services/[slug]` dynamic detail pages
@@ -29,7 +29,7 @@ Order follows the revised milestone plan in `PHASE_0_ARCHITECTURE.md` section 12
 - **Known issues:** content is illustrative, clearly labelled
 - **Next action:** Phase 6 - about, care approach and trust content
 
-## PHASE 6 — About, care approach and trust content
+## PHASE 6 - About, care approach and trust content
 - **Status:** Complete
 - **Date:** 15 September 2026
 - **Files:** real `/about` and `/contact` pages
@@ -37,7 +37,7 @@ Order follows the revised milestone plan in `PHASE_0_ARCHITECTURE.md` section 12
 - **Known issues:** address/phone/stats still placeholder pending confirmation
 - **Next action:** Phase 7 - request care form
 
-## PHASE 7 — Contact and request care
+## PHASE 7 - Contact and request care
 - **Status:** Complete
 - **Date:** 15 September 2026
 - **Files:** real `/request-care` page and form component
@@ -45,7 +45,7 @@ Order follows the revised milestone plan in `PHASE_0_ARCHITECTURE.md` section 12
 - **Known issues:** form doesn't send/save anywhere yet - no backend exists; "Cheliv" naming question still open
 - **Next action:** Phase 8 - authentication architecture (starts Milestone C)
 
-## MILESTONE C — Spine: database, auth, API, RBAC, audit
+## MILESTONE C - Spine: database, auth, API, RBAC, audit
 - **Status:** Complete
 - **Date:** 17 September 2026
 - **Database:** organizations, users, sessions, roles, permissions, audit_logs. Migrated and seeded successfully on his machine, demo admin account exists.
@@ -57,13 +57,15 @@ Order follows the revised milestone plan in `PHASE_0_ARCHITECTURE.md` section 12
 - **Tests:** lint and `tsc --noEmit` clean; `npm run build` cannot run in the sandbox this gets built in (Prisma client can't be generated there - reachable and working on his machine)
 - **Next action:** Milestone D - the real clinical schema (patients, visits, care plans, referrals, documents)
 
-## MILESTONE D — Core operations
+## MILESTONE D - Core operations
 - **Status:** In progress
 - **Patients & care team:** Complete (17 September 2026) - patients table, care_team_members join table, real relationship-based access logic in src/lib/patients.ts, tested via two demo accounts seeing different patient lists
-- **Next:** visits, then care plans, then documents and referrals
+- **Visits:** Complete (19 September 2026) - visits table, src/lib/visits.ts, /visits proof page, second demo nurse, `npm run verify:access`. Running on his machine: scheduling and the visit list confirmed by his screenshots on 19 September. Not yet confirmed from him: the `verify:access` result and the nurse and nurse two click-throughs.
+- **Care plans:** Written and verified in the build environment (19 September 2026) - care_plans and care_plan_goals tables, src/lib/care-plans.ts, /care-plans proof page, four-eyes approval, locked wording once approved, `verify:access` extended to about 175 checks. **Waiting on:** his machine (migration `add_care_plans`, seed, `npm run verify:access`, click through /care-plans as all three demo accounts)
+- **Next:** documents, then referrals
 
-## MILESTONE E — Portals
+## MILESTONE E - Portals
 - **Status:** Not started
 
-## MILESTONE F — Production readiness
+## MILESTONE F - Production readiness
 - **Status:** Not started

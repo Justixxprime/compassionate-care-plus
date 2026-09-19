@@ -40,7 +40,9 @@ model Organization {
 
   users    User[]
   roles    Role[]
-  patients Patient[]
+  patients  Patient[]
+  visits    Visit[]
+  carePlans CarePlan[]
 
   @@map("organizations")
 }
@@ -63,6 +65,10 @@ model User {
   userRoles    UserRole[]
   sessions     Session[]
   careTeamMemberships CareTeamMember[]
+  assignedVisits      Visit[]          @relation("VisitClinician")
+  scheduledVisits     Visit[]          @relation("VisitScheduler")
+  authoredCarePlans   CarePlan[]       @relation("CarePlanAuthor")
+  approvedCarePlans   CarePlan[]       @relation("CarePlanApprover")
 
   @@index([organizationId])
   @@map("users")
@@ -186,6 +192,8 @@ model Patient {
 
   organization  Organization     @relation(fields: [organizationId], references: [id])
   careTeam      CareTeamMember[]
+  visits        Visit[]
+  carePlans     CarePlan[]
 
   @@index([organizationId])
   @@map("patients")
@@ -212,4 +220,120 @@ model CareTeamMember {
   @@index([patientId])
   @@index([userId])
   @@map("care_team_members")
+}
+
+// ---------- Visits ----------
+// The second slice of Milestone D. A visit is one scheduled home visit:
+// which patient, which clinician, what kind of visit, when, and where it
+// stands (scheduled -> in_progress -> completed, or cancelled / missed).
+//
+// Deliberately NO clinical content here - no notes, vitals or
+// documentation. Those are separate, more sensitive tables that come
+// later (PHASE_0_ARCHITECTURE.md section 7: visit_notes, clinical_notes).
+// A visit row only says that a visit is happening, never what was found.
+//
+// Who may see or change a visit is decided in src/lib/visits.ts, using
+// the same two-part rule as patients: a role permission (visits.read,
+// visits.create, visits.update) AND a relationship to the patient.
+//
+// organizationId is carried on the row even though there is one
+// organization today - PHASE_0_ARCHITECTURE.md section 7, every
+// tenant-scoped table carries it.
+//
+// Visits are never hard-deleted. Cancelling changes status and stays on
+// record, because "this visit was cancelled, by whom, and when" is
+// something a real organization may need to answer later.
+model Visit {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  patientId      String    @map("patient_id")
+  clinicianId    String    @map("clinician_id") // the staff member doing the visit
+  scheduledById  String    @map("scheduled_by_id") // who put it on the calendar
+  visitType      String    @map("visit_type") // e.g. "skilled_nursing" - list lives in src/lib/visit-constants.ts
+  status         String    @default("scheduled") // scheduled | in_progress | completed | cancelled | missed
+  scheduledStart DateTime  @map("scheduled_start")
+  scheduledEnd   DateTime  @map("scheduled_end")
+  checkedInAt    DateTime? @map("checked_in_at")
+  checkedOutAt   DateTime? @map("checked_out_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  patient      Patient      @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  clinician    User         @relation("VisitClinician", fields: [clinicianId], references: [id], onDelete: Restrict)
+  scheduledBy  User         @relation("VisitScheduler", fields: [scheduledById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, scheduledStart])
+  @@index([patientId])
+  @@index([clinicianId])
+  @@map("visits")
+}
+
+// ---------- Care plans ----------
+// The third slice of Milestone D. A care plan says what the care team is
+// trying to achieve for one patient, as a short summary plus a list of
+// goals. It is the first table here that holds real clinical CONTENT
+// (the words a clinician wrote), so its access rules are stricter than
+// visits.
+//
+// Who may see, write and approve a plan is decided in
+// src/lib/care-plans.ts. Three questions are asked, not two:
+//
+//   1. PERMISSION   care_plans.read / .create / .update / .approve
+//   2. RELATIONSHIP the patient must be one this person can reach
+//                   (getPatientScope in src/lib/patients.ts)
+//   3. TEAM         WRITING clinical content additionally requires being
+//                   on that patient's care team right now. An
+//                   administrator can read every plan and approve them,
+//                   but does not write clinical content for patients they
+//                   are not on the care team of.
+//
+// A plan goes draft -> active (approved by someone OTHER than the author)
+// -> completed. A draft can be discarded (archived). Once a plan is
+// active its wording is locked: what was approved cannot be quietly
+// changed. Plans are never hard-deleted.
+//
+// Deliberately NOT here yet: versions/revision history, diagnoses,
+// interventions, signatures. Those come with the clinical record.
+model CarePlan {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  patientId      String    @map("patient_id")
+  authorId       String    @map("author_id") // who wrote the draft
+  approvedById   String?   @map("approved_by_id") // who made it active
+  title          String
+  summary        String
+  status         String    @default("draft") // draft | active | completed | archived
+  approvedAt     DateTime? @map("approved_at")
+  completedAt    DateTime? @map("completed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  patient      Patient       @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  author       User          @relation("CarePlanAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  approvedBy   User?         @relation("CarePlanApprover", fields: [approvedById], references: [id], onDelete: Restrict)
+  goals        CarePlanGoal[]
+
+  @@index([organizationId, status])
+  @@index([patientId])
+  @@map("care_plans")
+}
+
+// One goal inside a plan. Goals are added while the plan is a draft and
+// can be removed then; once the plan is active they are locked, except
+// that a goal can be marked met as the patient makes progress.
+model CarePlanGoal {
+  id          String    @id @default(uuid())
+  carePlanId  String    @map("care_plan_id")
+  description String
+  status      String    @default("open") // open | met
+  position    Int       @default(0)
+  metAt       DateTime? @map("met_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  carePlan CarePlan @relation(fields: [carePlanId], references: [id], onDelete: Cascade)
+
+  @@index([carePlanId])
+  @@map("care_plan_goals")
 }

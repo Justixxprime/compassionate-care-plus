@@ -25,7 +25,7 @@ src/app/(public)/
 
 **Real, working:** the layout shell, navigation (desktop + mobile), the homepage's structure and copy pattern, the FAQ accordion, the request-care and sign-in entry points existing as real links rather than 404s.
 
-**Placeholder, clearly marked:** every service name, every "who we serve" specific, the address in the footer, all four legal documents, and the FAQ answers themselves. The service list on the homepage (skilled nursing, PT, OT, etc.) uses standard home-health industry categories as *illustrative examples* - labelled "Illustrative — to be confirmed by the organization" directly on the page - not asserted as this organization's actual services.
+**Placeholder, clearly marked:** every service name, every "who we serve" specific, the address in the footer, all four legal documents, and the FAQ answers themselves. The service list on the homepage (skilled nursing, PT, OT, etc.) uses standard home-health industry categories as *illustrative examples* - labelled "Illustrative - to be confirmed by the organization" directly on the page - not asserted as this organization's actual services.
 
 Every non-homepage page beyond the shell is a `ComingSoonPage` stub: honest about what it is, states which phase builds the real version, and exists so no nav link 404s.
 
@@ -47,8 +47,8 @@ Every non-homepage page beyond the shell is a `ComingSoonPage` stub: honest abou
 
 `generateStaticParams()` in `[slug]/page.tsx` tells Next.js to pre-build one page per service at build time - all six render as static HTML, same as every other public page.
 
-Every service's content still carries the same "illustrative — to be confirmed" label as the homepage's service list, for the same reason: these are standard home-health industry categories used as example content, not a confirmed fact about what Compassionate Care Plus offers.
+Every service's content still carries the same "illustrative - to be confirmed" label as the homepage's service list, for the same reason: these are standard home-health industry categories used as example content, not a confirmed fact about what Compassionate Care Plus offers.
 
 ## What's not built yet
 
-The real about/trust content, the real request-care form (currently a stub - the real one needs the fields specified in section 19 of the architecture doc, without collecting sensitive medical information through a public form), and real contact details. These are Phases 6–7.
+The real about/trust content, the real request-care form (currently a stub - the real one needs the fields specified in section 19 of the architecture doc, without collecting sensitive medical information through a public form), and real contact details. These are Phases 6-7.

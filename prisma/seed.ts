@@ -2,16 +2,20 @@
 //
 // Populates a fresh database with the minimum needed to sign in and test
 // the system: the organization, the permission list, roles with real
-// permission sets (SUPER_ADMIN, ADMIN, NURSE so far), two demo accounts
-// (an admin and a nurse), and three synthetic demo patients - one of
-// which the nurse is actually assigned to, so relationship-based access
-// (src/lib/patients.ts) can be tested for real, not just trusted.
+// permission sets (SUPER_ADMIN, ADMIN, NURSE so far), three demo accounts
+// (an admin and two nurses), three synthetic demo patients - each nurse
+// assigned to a different one, so relationship-based access
+// (src/lib/patients.ts) can be tested for real, not just trusted - and a
+// handful of synthetic visits spread across them (src/lib/visits.ts), and
+// two synthetic care plans, one active and one waiting for approval
+// (src/lib/care-plans.ts).
 //
 // Run with: npx prisma db seed
 // (this is wired up in package.json - see the "prisma" block)
 
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { ORG_TIMEZONE, orgLocalToUtc } from "../src/lib/time";
 
 const prisma = new PrismaClient();
 
@@ -28,6 +32,7 @@ const PERMISSIONS = [
   "clinical_records.create",
   "clinical_records.update",
   "care_plans.read",
+  "care_plans.create",
   "care_plans.update",
   "care_plans.approve",
   "visits.read",
@@ -101,7 +106,7 @@ async function main() {
     NURSE: [
       "patients.read",
       "clinical_records.read", "clinical_records.create", "clinical_records.update",
-      "care_plans.read",
+      "care_plans.read", "care_plans.create", "care_plans.update",
       "visits.read", "visits.create", "visits.update", "visits.document",
       "documents.read", "documents.upload",
       "messages.read", "messages.send",
@@ -248,6 +253,163 @@ async function main() {
   console.log(
     `Demo nurse assigned to: ${assignedPatient.firstName} ${assignedPatient.lastName}`,
   );
+
+  // --- A second demo nurse, assigned to a DIFFERENT patient ---
+  // With only one nurse, "sees only their own patients' visits" could be
+  // confused with "sees nothing else exists". A second nurse on Marcus
+  // Delgado makes it provable both ways: each nurse sees exactly their
+  // own patient's visits, and the admin sees everyone's. Priya Raman
+  // deliberately has nobody on her care team - an unassigned patient, the
+  // situation a care coordinator will eventually work from.
+  const demoNurse2 = await prisma.user.upsert({
+    where: { email: "demo.nurse2@cheliv.test" },
+    update: {},
+    create: {
+      organizationId: org.id,
+      email: "demo.nurse2@cheliv.test",
+      passwordHash: demoPasswordHash, // same demo password, see docs/DEMO_ACCOUNTS.md
+      name: "Demo Nurse Two",
+    },
+  });
+  await prisma.userRole.upsert({
+    where: { userId_roleId: { userId: demoNurse2.id, roleId: nurseRole.id } },
+    update: {},
+    create: { userId: demoNurse2.id, roleId: nurseRole.id },
+  });
+  console.log(`Demo nurse two ready: ${demoNurse2.email}`);
+
+  const marcus = patients[1];
+  const existingAssignment2 = await prisma.careTeamMember.findFirst({
+    where: { patientId: marcus.id, userId: demoNurse2.id },
+  });
+  if (!existingAssignment2) {
+    await prisma.careTeamMember.create({
+      data: {
+        patientId: marcus.id,
+        userId: demoNurse2.id,
+        roleOnCase: "primary_nurse",
+      },
+    });
+  }
+  console.log(
+    `Demo nurse two assigned to: ${marcus.firstName} ${marcus.lastName}`,
+  );
+
+  // --- Synthetic demo visits ---
+  // Dates are worked out from the day the seed runs, in office time, so
+  // there are always some recent and some upcoming visits. Visits have no
+  // natural unique field to upsert on, so this only creates them when the
+  // organization has none yet - safe to run repeatedly, and it will not
+  // duplicate them. To refresh the dates later, delete the rows in
+  // Prisma Studio (or run "npx prisma migrate reset", which also re-seeds).
+  const existingVisitCount = await prisma.visit.count({
+    where: { organizationId: org.id },
+  });
+
+  if (existingVisitCount === 0) {
+    // "YYYY-MM-DD" for the given number of days from today, in office time.
+    const orgDay = (offsetDays: number) =>
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: ORG_TIMEZONE,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000));
+
+    const visitDefs = [
+      // Eleanor Whitfield, with the first demo nurse
+      { patient: patients[0], clinician: demoNurse, type: "skilled_nursing", day: -7, time: "10:00", minutes: 60, status: "completed" },
+      { patient: patients[0], clinician: demoNurse, type: "skilled_nursing", day: -3, time: "10:00", minutes: 60, status: "completed" },
+      { patient: patients[0], clinician: demoNurse, type: "skilled_nursing", day: 1, time: "10:00", minutes: 60, status: "scheduled" },
+      { patient: patients[0], clinician: demoNurse, type: "skilled_nursing", day: 4, time: "14:00", minutes: 45, status: "scheduled" },
+      // Marcus Delgado, with the second demo nurse
+      { patient: marcus, clinician: demoNurse2, type: "physical_therapy", day: -2, time: "09:00", minutes: 60, status: "completed" },
+      { patient: marcus, clinician: demoNurse2, type: "physical_therapy", day: 2, time: "09:00", minutes: 60, status: "scheduled" },
+    ] as const;
+
+    for (const def of visitDefs) {
+      const start = orgLocalToUtc(`${orgDay(def.day)}T${def.time}`);
+      if (!start) throw new Error("Seed produced an invalid visit date");
+      const end = new Date(start.getTime() + def.minutes * 60000);
+      const done = def.status === "completed";
+
+      await prisma.visit.create({
+        data: {
+          organizationId: org.id,
+          patientId: def.patient.id,
+          clinicianId: def.clinician.id,
+          scheduledById: demoAdmin.id,
+          visitType: def.type,
+          status: def.status,
+          scheduledStart: start,
+          scheduledEnd: end,
+          checkedInAt: done ? start : null,
+          checkedOutAt: done ? end : null,
+        },
+      });
+    }
+    console.log(`${visitDefs.length} synthetic demo visits ready`);
+  } else {
+    console.log(`Visits already exist (${existingVisitCount}), leaving them alone`);
+  }
+
+  // --- Synthetic demo care plans ---
+  // Eleanor Whitfield gets an ACTIVE plan (written by the first nurse,
+  // approved by the admin), with one goal already met. Marcus Delgado gets
+  // a DRAFT written by the second nurse and waiting for the admin to
+  // approve it - which lets the approval step be clicked through for real.
+  // Priya Raman has no plan. Like visits, plans have no natural unique
+  // field, so these are only created when the organization has none yet.
+  const existingPlanCount = await prisma.carePlan.count({
+    where: { organizationId: org.id },
+  });
+
+  if (existingPlanCount === 0) {
+    const now = new Date();
+    const eleanor = patients[0];
+
+    await prisma.carePlan.create({
+      data: {
+        organizationId: org.id,
+        patientId: eleanor.id,
+        authorId: demoNurse.id,
+        approvedById: demoAdmin.id,
+        approvedAt: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000),
+        status: "active",
+        title: "Steady recovery at home",
+        summary:
+          "Eleanor is recovering at home and wants to stay independent. The team is focused on safe movement around the house, taking medicines on time, and keeping her comfortable and confident.",
+        goals: {
+          create: [
+            { position: 0, description: "Walk to the mailbox and back with her walker, twice a week." },
+            { position: 1, description: "Take every medicine on time using a weekly pill organizer.", status: "met", metAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000) },
+            { position: 2, description: "Keep the floors clear of loose rugs and cords." },
+          ],
+        },
+      },
+    });
+
+    await prisma.carePlan.create({
+      data: {
+        organizationId: org.id,
+        patientId: marcus.id,
+        authorId: demoNurse2.id,
+        status: "draft",
+        title: "Rebuilding strength after a hospital stay",
+        summary:
+          "Marcus is building his strength back after time in hospital. The plan focuses on safe daily exercises with his therapist and getting up from a chair without help.",
+        goals: {
+          create: [
+            { position: 0, description: "Stand up from a kitchen chair without using his hands, five times in a row." },
+            { position: 1, description: "Complete the daily exercise routine on at least five days each week." },
+          ],
+        },
+      },
+    });
+    console.log("2 synthetic demo care plans ready");
+  } else {
+    console.log(`Care plans already exist (${existingPlanCount}), leaving them alone`);
+  }
 
   console.log("Seed complete.");
 }

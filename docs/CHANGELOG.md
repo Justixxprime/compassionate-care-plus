@@ -1,3 +1,58 @@
+## Care plans - third slice of Milestone D
+**19 September 2026**
+
+Added
+- prisma/schema.prisma - CarePlan and CarePlanGoal models (new migration required: add_care_plans)
+- src/lib/care-plans.ts - listCarePlans, getPlanCreateOptions, createCarePlan, updateCarePlan, addGoal, removeGoal, markGoalMet, changePlanStatus: every care plan rule in one file
+- src/lib/care-plan-constants.ts - statuses, the transition table, size limits
+- src/lib/care-plans-actions.ts - thin server actions, identity from the session only
+- src/app/care-plans/page.tsx, create-plan-form.tsx, plan-controls.tsx - bare proof page
+- docs/CARE_PLANS.md
+
+Changed
+- src/lib/patients.ts - added isActiveCareTeamMember(), the "on this patient's team right now" test, built on the same activeAssignmentFilter. Nothing that existed was changed.
+- prisma/seed.ts - new permission care_plans.create (31 permissions now), NURSE now holds care_plans.create and care_plans.update, two synthetic care plans (Eleanor active, Marcus draft) created only when none exist
+- scripts/verify-access.ts - new sections 2b and 10a to 10i, cleanup extended to care plans. About 175 checks now.
+- src/app/dashboard/page.tsx - "View care plans" link, shown only to accounts holding care_plans.read
+- src/app/layout.tsx - added suppressHydrationWarning to <body> so browser extensions (Grammarly, ColorZilla) that add attributes to the page no longer raise a development warning. The html, body and globals.css import are all still there and the root layout guard passes.
+- docs: RBAC, AUDIT_LOGGING, DATABASE, FOLDER_STRUCTURE, TROUBLESHOOTING, DEMO_ACCOUNTS, PHASE_STATUS, NEXT_STEP, PROJECT_HANDOFF, CONTINUATION_PROMPT
+- Em dashes removed from the docs (standing rule: none anywhere)
+
+Removed
+- src/components/marketing/coming-soon-page.tsx - unused since every stub page got real content, and it still contained "This page is a placeholder" wording
+
+Verified in the build environment (real Postgres, real generated Prisma client)
+- tsc --noEmit clean, eslint clean, `next build` succeeds (/care-plans is dynamic)
+- verify:access: 175 passed, 0 failed. With five rules deliberately broken (four-eyes, team requirement on create, locked wording, relationship check, one active plan) it failed on exactly those rules each time, and the database was left clean.
+- The rendered /care-plans page fetched with real sessions: admin sees both plans with Approve/Discard on Marcus's draft and Complete on Eleanor's plan, no edit boxes; nurse one sees only Eleanor's plan; nurse two sees only Marcus's draft with edit controls and no Approve; signed-out is redirected to /sign-in
+- Root layout and homepage name-checked: src/app/layout.tsx has html, body and the globals.css import; src/app/(public)/page.tsx is the real cinematic homepage and differs from about/page.tsx
+
+## Visits - second slice of Milestone D
+**19 September 2026**
+
+Added
+- prisma/schema.prisma - Visit model (new migration required: add_visits)
+- src/lib/visits.ts - listVisits, getSchedulingOptions, scheduleVisit, changeVisitStatus: every visit rule in one file
+- src/lib/visit-constants.ts - visit types, statuses, the status transition table
+- src/lib/visits-actions.ts - thin server actions, identity from the session only
+- src/lib/time.ts - office time (America/Chicago) helpers, daylight-saving safe, no date library
+- src/app/visits/page.tsx, schedule-visit-form.tsx, visit-actions.tsx - bare proof page with a scheduling form and status buttons
+- scripts/verify-access.ts and scripts/stubs/server-only.ts, tsconfig.scripts.json - `npm run verify:access`, about 70 checks that try to break the access rules against a real local database, then clean up
+- docs/VISITS.md, docs/CONTINUATION_PROMPT.md
+
+Changed
+- src/lib/patients.ts - the relationship rule is now shared: getPatientScope(), scopeAllowsPatient(), canAccessPatient(), activeAssignmentFilter(). getAccessiblePatients() behaves exactly as before (re-verified: admin sees 3, nurse sees 1)
+- prisma/seed.ts - added demo.nurse2@cheliv.test (assigned to Marcus Delgado) and 6 synthetic visits, created only when no visits exist yet
+- src/app/dashboard/page.tsx - "View visits" link, shown only to accounts holding visits.read
+- package.json - added the verify:access script
+- docs/PATIENTS.md, RBAC.md, AUDIT_LOGGING.md, DATABASE.md, TROUBLESHOOTING.md - short additions
+- docs/DEMO_ACCOUNTS.md - restored the missing admin section, added nurse two
+
+Verified in the build environment (a real Postgres and a real generated Prisma client this time, not a stub)
+- tsc --noEmit clean, eslint clean, `next build` succeeds (/visits is dynamic)
+- verify:access: 69 passed, 0 failed; with two rules deliberately broken it failed on exactly those rules
+- The rendered /visits page, fetched with real sessions: admin sees all 6 visits, nurse one sees only Eleanor's 4, nurse two sees only Marcus's 2, signed-out is redirected to /sign-in
+
 ## Patients and relationship-based access
 **17 September 2026**
 
@@ -14,7 +69,7 @@ Changed
 
 Milestone D has started. First slice (patients + care team) complete.
 
-## Audit logging — Milestone C complete
+## Audit logging - Milestone C complete
 **17 September 2026**
 
 Added
@@ -96,7 +151,7 @@ Removed
 Kept, intentionally
 - The four footer legal links still lead nowhere real, since writing actual legal text is a genuine liability regardless of the rest of the site's tone
 
-## Phase 7 — Real request-care form
+## Phase 7 - Real request-care form
 **15 September 2026**
 
 Added
@@ -117,7 +172,7 @@ Added
 - Motion system: scroll-reveal (`Reveal`), animated stat count-up (`StatCounter`), hero entrance animation, sticky header with scroll shadow - all respecting prefers-reduced-motion, with a noscript fallback for reveal content
 - Real confirmed content: office address, phone, and About page stats (previously placeholders, now confirmed real by the project owner)
 
-## Phase 6 — About and contact content
+## Phase 6 - About and contact content
 **15 September 2026**
 
 Added
@@ -127,7 +182,7 @@ Added
 Notes
 - Structure and copy style informed by a mock site built while learning (Cheliv Compassionate Care Plus) - specific facts (address, phone, stats) kept as placeholders pending confirmation they belong to this organization
 
-## Phase 5 — Public service pages
+## Phase 5 - Public service pages
 **15 September 2026**
 
 Added
@@ -138,7 +193,7 @@ Added
 Fixed
 - Documented and instructed removal of a leftover `src/app/page.tsx` that a prior ZIP delivery didn't clean up on the user's machine, which was causing the old Phase 2 placeholder to display instead of the real homepage
 
-## Phases 3 & 4 — Public website foundation and homepage
+## Phases 3 & 4 - Public website foundation and homepage
 **15 September 2026**
 
 Added
@@ -154,7 +209,7 @@ Changed
 
 # CHANGELOG
 
-## Phase 2 — Design system
+## Phase 2 - Design system
 **15 September 2026**
 
 Added
@@ -169,7 +224,7 @@ Changed
 - `globals.css` rewritten to wire tokens into Tailwind's theme
 - Homepage updated to use real tokens instead of Phase 1 placeholder grays
 
-## Phase 1 — Project initialization
+## Phase 1 - Project initialization
 **15 September 2026**
 
 Added
@@ -187,7 +242,7 @@ Changed
 Removed
 - Generator extras `AGENTS.md` and `CLAUDE.md`
 
-## Phase 0 — Architecture
+## Phase 0 - Architecture
 **15 September 2026**
 
 - Planned the whole platform: roles, feature tiers, sitemaps, database, RBAC, security, design direction, cloud, phases, risks

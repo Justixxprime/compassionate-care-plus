@@ -1,7 +1,7 @@
-# CHELIV COMPASSIONATE CARE PLUS — PROJECT CONTINUATION BRIEF
-## Complete state as of 18 September 2026, written to continue this build perfectly in a new conversation
+# CHELIV COMPASSIONATE CARE PLUS - PROJECT CONTINUATION BRIEF
+## Complete state as of 19 September 2026, written to continue this build perfectly in a new conversation
 
-Paste this whole document as the first message in a new conversation. It replaces the previous docs/PROJECT_HANDOFF.md, which was accurate up through Milestone C but is now out of date.
+Paste this whole document as the first message in a new conversation. It replaces the previous docs/PROJECT_HANDOFF.md, which was accurate up through visits but is now out of date (care plans were added on 19 September 2026).
 
 ---
 
@@ -16,6 +16,10 @@ Paste this whole document as the first message in a new conversation. It replace
 **Deployed:** compassionate-care-plus.vercel.app, auto-deploys from main.
 
 **A file-integrity lesson that must not be relearned.** src/app/layout.tsx (the ROOT layout, needs html, body, import "./globals.css") and src/app/(public)/layout.tsx (the PUBLIC SITE layout, header/footer wrapper, must NOT have html/body) share the filename layout.tsx and have been repeatedly confused across VS Code tabs, causing a "Missing html and body tags" runtime error or a totally unstyled deployed site, three or four separate times. This is now guarded against automatically, see section 8. Before ever delivering a file again, confirm directly, by name, that src/app/layout.tsx and src/app/(public)/page.tsx are correct in whatever is being shipped. Don't just trust the general process; say so explicitly every time.
+
+**Working across several Claude accounts.** J builds this project across two or more Claude accounts and returns to earlier ones. So: (a) every reply ends with a fresh, self-contained continuation prompt he can paste into another account (the current one is always in docs/CONTINUATION_PROMPT.md); (b) when picking up from an upload, read EVERY code file and EVERY .md file top to end, clone the GitHub repo, and find the exact stopping point before building; (c) explain non-coding things in ultra-simple language.
+
+**Privacy note, flagged once.** The repo is public, and this very file names the owner, his city, and says the site is a surprise for him. Anyone who finds the repo could read that. J's decision whether to make the repo private or trim this file.
 
 ---
 
@@ -62,19 +66,32 @@ Still genuinely unconfirmed, not urgent: real fax number (none ever evidenced, c
 | Fonts | Self-hosted via fontsource, Source Serif 4 display, IBM Plex Sans body | No Google Fonts network dependency at all |
 | A package override worth knowing about | deepmerge-ts forced to ^8.0.2 via package.json overrides | Prisma 6.19.3's config loader depends on a vulnerable version; overriding closes it without downgrading Prisma further. npm audit currently reports zero vulnerabilities. |
 
-A standing environment constraint, not a bug to fix: the sandbox this gets built in cannot reach binaries.prisma.sh, so npm run build always fails there specifically with "@prisma/client did not initialize yet". This is expected every single round. Lint and npx tsc --noEmit are what actually get verified in that environment; the user's own machine has a real generated Prisma client and builds fine.
+**Real testing in the sandbox is now possible (learned 19 September 2026).** The sandbox still cannot reach binaries.prisma.sh, so the normal `prisma generate` and `migrate` fail there. But this recipe works, and gives a REAL generated client and a REAL Postgres, far better than the old "lint and tsc only" approach. Do it in a COPY of the project, never in the shipped source:
+
+1. `apt-get install postgresql`; start it with `pg_ctlcluster 16 main start` (it stops between tool calls, so start it inside every command that needs it); set a postgres password and create a scratch database.
+2. In the copy: add `engineType = "client"` to the generator block in schema.prisma; `npm i @prisma/adapter-pg@6.19.3 pg@8`; pass `adapter: new PrismaPg({ connectionString })` to `new PrismaClient(...)` in src/lib/prisma.ts and prisma/seed.ts.
+3. Create a dummy executable and set `PRISMA_SCHEMA_ENGINE_BINARY` and `PRISMA_QUERY_ENGINE_LIBRARY` to it, plus `PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1`. Then `npx prisma generate` works.
+4. `migrate dev` still cannot run, so apply the migration SQL folders with psql (for a NEW model, hand-write equivalent SQL for the sandbox only; J generates the real migration on his machine with `npx prisma migrate dev --name <name>`, and it is never shipped from the sandbox).
+5. `npx next typegen` before `tsc --noEmit` (LayoutProps is generated). `npx next build` then works too.
+6. Standalone scripts (like scripts/verify-access.ts) run with `tsx --tsconfig tsconfig.scripts.json`, which stubs the Next-only "server-only" import.
+7. To render real pages: insert a row into the sessions table with psql for a demo user, `next start`, and `curl -b "ccp_session=<id>"`.
+
+Also: test the tests. Deliberately break a rule in the copy and confirm verify-access fails on exactly that rule.
 
 ---
 
 ## 4. Full current file structure
 
 compassionate-care-plus/
-- docs/ (16 files, see section 15)
+- docs/ (18 files, see section 15)
 - prisma/
-  - schema.prisma (10 models, see section 5)
-  - seed.ts (org, 30 permissions, 9 roles with 3 having real permission sets, 2 demo accounts, 3 synthetic patients, 1 care-team assignment)
+  - schema.prisma (13 models, see section 5)
+  - seed.ts (org, 31 permissions, 9 roles with 3 having real permission sets, 3 demo accounts, 3 synthetic patients, 2 care-team assignments, 6 synthetic visits and 2 synthetic care plans, each set created only if none exist)
 - scripts/
   - check-root-layout.mjs (runs automatically via predev/prebuild hooks)
+  - verify-access.ts (`npm run verify:access`, about 175 checks against a real LOCAL database, refuses to run otherwise)
+  - stubs/server-only.ts (lets standalone scripts import server code)
+- tsconfig.scripts.json (used only by scripts)
 - public/images/ (empty, real photos go here eventually, see docs/IMAGES.md)
 - src/app/
   - layout.tsx (ROOT layout, html/body/metadata/globals.css import)
@@ -89,6 +106,8 @@ compassionate-care-plus/
   - sign-in/page.tsx and sign-in/sign-in-form.tsx (client component, useActionState + signInAction)
   - dashboard/page.tsx (bare proof page, session, permissions, recent activity)
   - patients/page.tsx (bare proof page, relationship-based access)
+  - visits/page.tsx, schedule-visit-form.tsx, visit-actions.tsx (bare proof page: list, schedule form, status buttons)
+  - care-plans/page.tsx, create-plan-form.tsx, plan-controls.tsx (bare proof page: plan cards, start form, approve/complete/discard, goal controls)
   - design-system/page.tsx (internal reference, not linked from nav)
 - src/components/
   - ui/ Button, Input, Label, Card, Badge
@@ -99,27 +118,34 @@ compassionate-care-plus/
   - cn.ts (class-merging utility)
   - services-data.ts (single source of truth for all 6 services)
   - service-icons.tsx (slug to lucide icon mapping)
-  - patients.ts (getAccessiblePatients, the real access-control logic)
+  - patients.ts (getAccessiblePatients plus the SHARED relationship rule: getPatientScope, scopeAllowsPatient, canAccessPatient, activeAssignmentFilter, and isActiveCareTeamMember for the stricter "on this patient's team" test)
+  - visits.ts (listVisits, getSchedulingOptions, scheduleVisit, changeVisitStatus: every visit rule lives here)
+  - visit-constants.ts (types, statuses, VISIT_TRANSITIONS state machine)
+  - visits-actions.ts (thin server actions)
+  - care-plans.ts (listCarePlans, getPlanCreateOptions, createCarePlan, updateCarePlan, addGoal, removeGoal, markGoalMet, changePlanStatus: every care plan rule lives here)
+  - care-plan-constants.ts (statuses, PLAN_TRANSITIONS state machine, size limits)
+  - care-plans-actions.ts (thin server actions)
+  - time.ts (office time America/Chicago, DST-safe, no date library)
   - auth/session.ts, auth/actions.ts, auth/authorize.ts
   - audit/log.ts
 - package.json, next.config.ts (allows images.pexels.com as a remote pattern)
 - .env (real DATABASE_URL, never committed), .env.example
 
-One file that's still present but genuinely orphaned/unused: src/components/marketing/coming-soon-page.tsx, nothing imports it anymore since every stub page got real content. Safe to delete whenever noticed; not urgent.
+The orphaned src/components/marketing/coming-soon-page.tsx was deleted on 19 September 2026 (it still said "This page is a placeholder"). Because zips never delete files, J has to Remove-Item his own copy once. If it ever reappears in a zip diff, delete it again.
 
 ---
 
 ## 5. Database schema, exactly as it stands
 
-Ten models, in prisma/schema.prisma:
+Thirteen models, in prisma/schema.prisma:
 
 Identity/auth (Milestone C): Organization, User, Session, Role, Permission, RolePermission (join), UserRole (join), AuditLog
 
-Clinical, first slice (Milestone D, just started): Patient, CareTeamMember (join, this is what makes relationship-based access real)
+Clinical (Milestone D): Patient, CareTeamMember (join, this is what makes relationship-based access real), Visit (patient, clinician, scheduledBy, type, status, scheduled start/end, actual check in/out; NO clinical content; never hard-deleted; Restrict foreign keys), CarePlan (patient, author, approvedBy, title, summary, status draft/active/completed/archived, approvedAt, completedAt; the first table with real clinical content; never hard-deleted; Restrict foreign keys) and CarePlanGoal (belongs to a plan, cascades with it; open or met)
 
 Every table uses @id @default(uuid()) for primary keys, @map("snake_case") throughout so the actual Postgres columns are snake_case while Prisma's TypeScript side stays camelCase. AuditLog.actorUserId is nullable specifically because a failed sign-in attempt against a nonexistent email has no real user row to attach to, logging the attempted email is still the point.
 
-Not built yet, deliberately: visits, care plans, clinical notes, documents, referrals, consents, messaging, notifications, tasks. Each is meant to come as its own round, not all at once, see the original architecture doc's "do not build everything at once."
+Not built yet, deliberately: clinical notes, documents, referrals, consents, messaging, notifications, tasks. Each is meant to come as its own round, not all at once, see the original architecture doc's "do not build everything at once."
 
 ---
 
@@ -143,7 +169,7 @@ src/lib/auth/authorize.ts, the single path every permission check goes through:
 
 Permissions live in the database (permissions, role_permissions, user_roles tables), not hardcoded in TypeScript, granting a role a new permission later is a data change, not a redeploy.
 
-Real permission sets defined so far: SUPER_ADMIN (all 30), ADMIN (broad administrative set), NURSE (14 permissions, clinical-focused). The remaining six roles (CAREGIVER, CARE_COORDINATOR, CLINICAL_SUPERVISOR, PATIENT, AUTHORIZED_FAMILY, REFERRAL_PARTNER) intentionally hold zero permissions still, each one's real set is its own piece of design work, not something to rush.
+Real permission sets defined so far: SUPER_ADMIN (all 31), ADMIN (broad administrative set, includes care_plans.read and care_plans.approve but not create or update), NURSE (16 permissions, clinical-focused, includes care_plans.read/create/update but not approve). The remaining six roles (CAREGIVER, CARE_COORDINATOR, CLINICAL_SUPERVISOR, PATIENT, AUTHORIZED_FAMILY, REFERRAL_PARTNER) intentionally hold zero permissions still, each one's real set is its own piece of design work, not something to rush.
 
 ---
 
@@ -157,7 +183,7 @@ This does not mean the bug can never resurface on the user's local disk, it mean
 
 ## 9. Audit logging, what's recorded and what never is
 
-src/lib/audit/log.ts. Logged automatically: sign_in, sign_in_failed (tied to the attempted email, not a user row), sign_out, permission_denied. Never logged: the content of what was viewed or changed, only that the event happened. writeAuditLog swallows its own errors (logs to server console) rather than throwing, so a broken audit write is never the reason a real sign-in fails for someone.
+src/lib/audit/log.ts. Logged automatically: sign_in, sign_in_failed (tied to the attempted email, not a user row), sign_out, permission_denied. Since 19 September also: visit_created, visit_checked_in, visit_checked_out, visit_cancelled, visit_marked_missed, and access_denied (outcome denied) for relationship refusals. Since the care plans round also: care_plan_created, care_plan_updated, care_plan_goal_added, care_plan_goal_removed, care_plan_goal_met, care_plan_approved, care_plan_completed, care_plan_discarded. Never logged: the content of what was viewed or changed, only that the event happened. writeAuditLog swallows its own errors (logs to server console) rather than throwing, so a broken audit write is never the reason a real sign-in fails for someone.
 
 Shown on /dashboard as "Recent activity," visible only to an account holding audit.read.
 
@@ -171,16 +197,41 @@ This was verified working on the user's actual machine, not just reviewed as cod
 
 ---
 
-## 11. Demo accounts, both real and working
+## 10b. Visits, built and verified in the build environment on 19 September 2026
 
-Documented in git-ignored docs/DEMO_ACCOUNTS.md. Password for both: ChangeMe123!
+Full detail in docs/VISITS.md. Summary of the rules, all in src/lib/visits.ts: every operation needs the role permission (visits.read/create/update) AND a relationship to the patient via getPatientScope. Administrative roles (SUPER_ADMIN, ADMIN, CLINICAL_SUPERVISOR, CARE_COORDINATOR) see every visit and can schedule for any active care-team member of an active patient. Everyone else sees visits of patients they are actively assigned to (including colleagues' visits on the same patient), schedules only for themselves, and changes only their own visits. Statuses: scheduled to in_progress to completed via check in / check out; cancel and mark missed from scheduled only; completed, cancelled and missed are final. No double-booking; visit start must be within 1 day past to 365 days ahead; lengths 30/45/60/90/120. Denials are audited and answered vaguely (nonexistent and off-limits look identical).
+
+Evidence: tsc, eslint, next build clean; verify:access 69 passed, 0 failed, and it fails on exactly the rules deliberately broken; rendered /visits fetched with real sessions showed admin 6 visits, nurse one 4 (Eleanor), nurse two 2 (Marcus). NOT YET verified on J's own machine (needs migration add_visits, seed, verify:access, browser click-through).
+
+Known gaps (also in VISITS.md): double-booking has a tiny race (real fix is a DB exclusion constraint, Milestone E); activeAssignmentFilter ignores startsAt; reading visits is not audit-logged; CAREGIVER cannot see visits yet; CARE_COORDINATOR and CLINICAL_SUPERVISOR hold no permissions yet.
+
+---
+
+## 10c. Care plans, built and verified in the build environment on 19 September 2026
+
+Full detail in docs/CARE_PLANS.md. Every rule lives in src/lib/care-plans.ts. THREE questions, not two: role permission (care_plans.read/create/update/approve), relationship to the patient via getPatientScope, and, for WRITING, being on THAT patient's care team right now (isActiveCareTeamMember). Reading needs the first two. Administrative roles read every plan and can approve and complete them, but do not write clinical content for patients they are not on the team of (SUPER_ADMIN holds every permission and is still refused). Any team member can edit a patient's draft (a plan belongs to the team). Approving: needs care_plans.approve, never the author (four eyes, even for someone holding every permission), needs at least one goal, refused if the patient already has an active plan. Statuses: draft to active (approve), active to completed (complete), draft to archived (discard, by the team or an approver); completed and archived are final. A patient has at most one draft and one active plan; a new draft may be written while one is active. Once active, wording and goals are LOCKED, only marking a goal met still works. Denials are audited (access_denied) and a plan that does not exist looks identical to one the person may not reach. Limits: title 120, summary 2000, goal 300, 15 goals.
+
+Demo data: Eleanor Whitfield has an active plan (written by Demo Nurse, approved by Demo Admin, one goal met). Marcus Delgado has a draft written by Demo Nurse Two. Priya Raman has none.
+
+Evidence: tsc, eslint, next build clean; verify:access 175 passed, 0 failed; five rules deliberately broken in a copy (four-eyes, team requirement on create, locked wording, the relationship check, one active plan) and the script failed on exactly those rules each time; rendered /care-plans fetched with real sessions showed admin both plans with Approve/Discard on Marcus's draft and Complete on Eleanor's, nurse one only Eleanor's, nurse two only Marcus's with edit controls and no Approve. NOT YET verified on J's own machine (needs migration add_care_plans, seed, verify:access, browser click-through, and deleting his copy of coming-soon-page.tsx).
+
+Known gaps (also in CARE_PLANS.md): the one-active-plan rule is enforced in code with a tiny race, the real fix is a hand-written partial unique index migration step later; no revision history; reading plans is not audit-logged; goals are plain text; CLINICAL_SUPERVISOR (the natural real-world approver) and CARE_COORDINATOR hold no permissions yet; patients and families cannot see plans yet.
+
+Also changed in that round: src/app/layout.tsx now has suppressHydrationWarning on <body> (a browser extension such as Grammarly or ColorZilla adding attributes had probably caused a red "1 Issue" badge in J's screenshot; unconfirmed, ask him what the badge says if it persists).
+
+---
+
+## 11. Demo accounts, all real and working
+
+Documented in git-ignored docs/DEMO_ACCOUNTS.md. Password for all three: ChangeMe123! (see also the /care-plans column in docs/DEMO_ACCOUNTS.md)
 
 | Account | Role | Sees on /patients |
 |---|---|---|
 | demo.admin@cheliv.test | SUPER_ADMIN | All three synthetic patients |
 | demo.nurse@cheliv.test | NURSE | Only Eleanor Whitfield |
+| demo.nurse2@cheliv.test | NURSE | Only Marcus Delgado |
 
-Three synthetic demo patients exist: Eleanor Whitfield, Marcus Delgado, Priya Raman, all clearly fictional.
+Three synthetic demo patients exist: Eleanor Whitfield, Marcus Delgado, Priya Raman, all clearly fictional. Priya has nobody on her care team on purpose (the future unassigned-patient case), so she cannot be scheduled.
 
 ---
 
@@ -197,7 +248,7 @@ Three real, free-licensed Pexels photos are hotlinked (not scraped, not download
 - Milestone A (Foundations): Complete
 - Milestone B (Public website): Complete
 - Milestone C (Database, auth, RBAC, audit logging): Complete
-- Milestone D (Core clinical operations): In progress. Patients and care team relationships done and proven working. Next, in order: visits, then care plans, then documents and referrals, each its own round.
+- Milestone D (Core clinical operations): In progress. Patients and care team relationships done and proven working on J's machine. Visits done, scheduling and the visit list confirmed on J's machine by screenshots on 19 September (his verify:access result and the nurse click-throughs not yet reported). Care plans written and verified in the build environment (19 September 2026), waiting on J's machine. Next, in order: documents, then referrals, each its own round.
 - Milestone E (Portals): Not started
 - Milestone F (Production readiness): Not started
 
@@ -210,19 +261,20 @@ Full detail and reasoning in docs/PHASE_0_ARCHITECTURE.md (the original plan) an
 - Zombie dev server processes on Windows have repeatedly held port 3000 across terminal sessions. If a port conflict shows up, taskkill /F /IM node.exe then restart clean, and confirm the terminal shows no "port in use" warning before trusting anything on screen.
 - ZIP extraction never deletes files, only adds/overwrites, and has at least once silently skipped overwriting a specific file on a conflict prompt. Any file that needs deleting gets an explicit Remove-Item instruction, every time.
 - A real, reproducible npm arborist bug (Cannot read properties of null, reading edgesOut) hits unpredictably in this project on fresh installs, not caused by any specific package. Fix: delete node_modules and package-lock.json, then npm install, sometimes needs a couple of tries.
-- Browser extensions cause harmless hydration-mismatch console warnings (cz-shortcut-listen from ColorZilla, data-gr-ext-installed from Grammarly, etc.), not real bugs, don't chase them.
-- My own sandbox's npm run build always fails with a Prisma client initialization error, expected, not a signal anything is actually wrong. Lint and tsc --noEmit are the real verification there.
+- Browser extensions cause harmless hydration-mismatch warnings (cz-shortcut-listen from ColorZilla, data-gr-ext-installed from Grammarly, etc.), not real bugs. Since 19 September the root layout's <body> has suppressHydrationWarning, which silences those. If a red "1 Issue" badge still shows, ask J to click it and read it out.
+- The sandbox can now build and test for real using the recipe in section 3 (a scratch Postgres plus a Rust-free Prisma client). The old "build always fails there" note is obsolete.
+- Postgres in the sandbox stops between tool calls: start it inside every command that needs it.
 
 ---
 
 ## 15. Full docs folder, for reference
 
-AUDIT_LOGGING.md, CHANGELOG.md, DATABASE.md, DEMO_ACCOUNTS.md (git-ignored), DESIGN_SYSTEM.md, ENVIRONMENT_VARIABLES.md, FOLDER_STRUCTURE.md, IMAGES.md, NEXT_STEP.md, PATIENTS.md, PHASE_0_ARCHITECTURE.md, PHASE_STATUS.md, PROJECT_HANDOFF.md (this file), PUBLIC_WEBSITE.md, RBAC.md, TROUBLESHOOTING.md, ULTRA_BABY_STEPS.md.
+AUDIT_LOGGING.md, CHANGELOG.md, DATABASE.md, DEMO_ACCOUNTS.md (git-ignored), DESIGN_SYSTEM.md, ENVIRONMENT_VARIABLES.md, FOLDER_STRUCTURE.md, IMAGES.md, NEXT_STEP.md, CARE_PLANS.md, PATIENTS.md, PHASE_0_ARCHITECTURE.md, PHASE_STATUS.md, PROJECT_HANDOFF.md (this file), PUBLIC_WEBSITE.md, RBAC.md, TROUBLESHOOTING.md, ULTRA_BABY_STEPS.md, VISITS.md, CONTINUATION_PROMPT.md.
 
 ---
 
 ## 16. What to do first in the new conversation
 
-Ask: has the latest migration (add_patients_and_care_team) actually run, and did both demo accounts show the expected, different patient lists on /patients? The screenshots from 18 September already confirm yes, if that's still true, move straight into visits, the next slice of Milestone D. Design it the same way patients were: a real schema addition, a real access-control question (who can see/create/edit a visit), a seed update that makes the answer testable with the existing demo accounts, not just trusted.
+Ask J whether the care plans round has run on his machine: `npx prisma migrate dev --name add_care_plans`, `npx prisma db seed` (expect "31 permissions ready" and "2 synthetic demo care plans ready"), `npm run verify:access` (expect 175 passed, 0 failed), a click-through of /care-plans as all three demo accounts, and whether the red "1 Issue" badge is gone. Also confirm his earlier visits checks: verify:access result and the nurse and nurse two click-throughs of /visits. If he reports problems, fix those first. If it passed, commit it and move to the next slice, documents. Design it the same way patients, visits and care plans were: a real schema addition (metadata only, no file storage decisions that cost money without asking), a real access-control question (who can see, upload and download a document, and does it need the team question as well), a seed update that makes the answer testable with the existing demo accounts, and a check added to scripts/verify-access.ts that tries to break it, plus proof the check can fail by breaking a rule in a copy. Reuse getPatientScope and isActiveCareTeamMember, do not copy the rules.
 
 Also confirm whether real photography has arrived yet. The phone number is settled and should not be raised again.

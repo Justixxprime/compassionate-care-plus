@@ -18,7 +18,7 @@ Node.js is either not installed, or the terminal was opened before it was instal
 
 ## "Port 3000 is already in use"
 
-Something else is using it — often a dev server I forgot to stop.
+Something else is using it - often a dev server I forgot to stop.
 
 ```bash
 npm run dev -- -p 3001
@@ -39,7 +39,7 @@ The TypeScript server got confused. Press `Ctrl + Shift + P`, type "TypeScript: 
 
 ## "Module not found: Can't resolve '@/components/...'"
 
-Either the file does not exist at that path, or the capitalization is different. Windows does not care about capital letters in filenames but the build server does — `Button.tsx` and `button.tsx` are different files as far as deployment is concerned. I keep filenames consistent.
+Either the file does not exist at that path, or the capitalization is different. Windows does not care about capital letters in filenames but the build server does - `Button.tsx` and `button.tsx` are different files as far as deployment is concerned. I keep filenames consistent.
 
 ## git says "fatal: not a git repository"
 
@@ -97,3 +97,27 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
 - `src/app/(public)/layout.tsx` (has `(public)` in the path) - the PUBLIC SITE layout. Has the header, footer, and `<main>` - no `<html>` or `<body>`.
 
 If you're ever about to paste into a `layout.tsx` file, check the breadcrumb path first.
+
+## verify:access says "Refusing to run"
+
+`npm run verify:access` only runs when `DATABASE_URL` points at your own machine (localhost). It creates and deletes rows to test the access rules, so it must never touch anything real. If your `.env` points at localhost and you still see this, check the URL has `@localhost:` in it.
+
+## verify:access says the demo accounts are missing
+
+Run `npx prisma db seed` first. It needs `demo.admin`, `demo.nurse` and `demo.nurse2`.
+
+## verify:access reports "CLEANUP FAILED"
+
+Open Prisma Studio (`npx prisma studio`) and delete any patient whose last name starts with `Testpatient`, and any user whose email starts with `verify-`. Then run it again.
+
+## /visits shows no visits after the seed
+
+The seed only creates demo visits when the organization has none. If old visits exist, it leaves them alone. To refresh the demo dates, delete the rows in the `visits` table in Prisma Studio and run `npx prisma db seed` again.
+
+## A red "1 Issue" badge in the corner of the page while developing
+
+Click the badge to read it. If it mentions attributes on `<body>` that "didn't match" (for example `cz-shortcut-listen` from ColorZilla, or `data-gr-ext-installed` from Grammarly), it is a browser extension editing the page before React finished, not a bug in the project. `src/app/layout.tsx` now has `suppressHydrationWarning` on `<body>`, which silences exactly that. If the badge still shows after that, it is something else, so click it and read what it says.
+
+## A "coming soon" or "placeholder" file survives after a zip
+
+Zip files add and overwrite files but never delete. If an old file was removed from the project (for example `src/components/marketing/coming-soon-page.tsx`), delete it yourself: `Remove-Item src\components\marketing\coming-soon-page.tsx`.

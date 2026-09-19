@@ -71,4 +71,17 @@ page  →  service  →  repository  →  database
          (checks permission here)
 ```
 
-Every permission check lives in the service layer. That means there is exactly one path to patient data, and it is guarded. If pages queried the database directly, every new page would be a new chance to forget a check — and in a healthcare system, forgetting a check is the whole problem.
+Every permission check lives in the service layer. That means there is exactly one path to patient data, and it is guarded. If pages queried the database directly, every new page would be a new chance to forget a check - and in a healthcare system, forgetting a check is the whole problem.
+
+## Added 19 September 2026 (visits)
+
+- `src/lib/visits.ts`, `visit-constants.ts`, `visits-actions.ts`, `time.ts`
+- `src/app/visits/` - `page.tsx`, `schedule-visit-form.tsx`, `visit-actions.tsx`
+- `scripts/verify-access.ts`, `scripts/stubs/server-only.ts`
+- `tsconfig.scripts.json` - used only by scripts, never by the app
+
+## Update, 19 September 2026: care plans
+
+- `src/app/care-plans/` - `page.tsx`, `create-plan-form.tsx`, `plan-controls.tsx`
+- `src/lib/care-plans.ts`, `care-plan-constants.ts`, `care-plans-actions.ts`
+- `docs/CARE_PLANS.md`

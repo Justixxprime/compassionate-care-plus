@@ -30,3 +30,11 @@ If writing an audit entry itself fails for some reason, that failure gets logged
 - No dedicated audit log PAGE yet with real filtering/search - that's the Security Center, Milestone F
 - Doesn't log clinical events yet (patient viewed, document downloaded, etc.) - those events don't exist yet, since the clinical schema itself is Milestone D
 - No retention policy decided yet (how long entries are kept)
+
+## Update, 19 September 2026: visit events
+
+Now logged: `visit_created`, `visit_checked_in`, `visit_checked_out`, `visit_cancelled`, `visit_marked_missed`, and `access_denied` (outcome `denied`) when someone reaches for a patient or visit their relationship does not allow. As before, only that it happened is recorded, never content. Reading a list of visits is not logged. See `docs/VISITS.md` for why.
+
+## Update, 19 September 2026: care plan events
+
+Now logged: `care_plan_created`, `care_plan_updated`, `care_plan_goal_added`, `care_plan_goal_removed`, `care_plan_goal_met`, `care_plan_approved`, `care_plan_completed`, `care_plan_discarded`, and `access_denied` (outcome `denied`) when someone reaches for a plan their relationship does not allow, writes to a patient they are not on the team of, or tries to approve their own plan. The plan's title, summary and goals are never written to the log. Reading plans is not logged. See `docs/CARE_PLANS.md`.

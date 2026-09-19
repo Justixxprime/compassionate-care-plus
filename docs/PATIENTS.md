@@ -31,3 +31,13 @@ Same password for both, in `docs/DEMO_ACCOUNTS.md` (git-ignored). Sign in as eac
 Everything that actually hangs off a patient: visits, care plans, clinical notes, documents, referrals, consents, messaging. Those come as their own rounds, not all folded into this one - see PHASE_0_ARCHITECTURE.md's "do not build everything at once."
 
 Also not built: a real patient management UI (create, edit, search, filter). `/patients` right now is a bare list proving the access model works, the same way `/dashboard` proved authentication works before any real portal existed.
+
+## Update, 19 September 2026: the rule is now shared
+
+The relationship half of the rule moved into small reusable functions in `src/lib/patients.ts`, so visits (and every clinical slice after them) use the same code instead of copying it:
+
+- `getPatientScope(userId)` - answers "which patients?": every patient in the organization (administrative roles) or only the actively assigned ones (everyone else).
+- `scopeAllowsPatient(scope, patientId)` and `canAccessPatient(userId, patientId)` - answer "this ONE patient?".
+- `activeAssignmentFilter()` - the single definition of "still on the care team".
+
+`getAccessiblePatients()` behaves exactly as before. This was re-checked after the change: the demo admin still sees all three patients and the demo nurse still sees only Eleanor Whitfield. There is now also a second demo nurse, on Marcus Delgado. See `docs/VISITS.md`.

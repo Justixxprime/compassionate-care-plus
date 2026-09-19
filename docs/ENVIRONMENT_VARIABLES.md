@@ -39,7 +39,7 @@ Listed early so I am not surprised.
 
 ## If I ever commit a secret by accident
 
-1. Treat it as leaked. Do not just delete the line — it stays in Git history.
+1. Treat it as leaked. Do not just delete the line - it stays in Git history.
 2. Rotate it immediately: change the password, regenerate the key.
 3. Then clean the history, or in the worst case start a fresh repository.
 
