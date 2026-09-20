@@ -37,3 +37,7 @@ Care plans (see `docs/CARE_PLANS.md`) add a third check on top of permission and
 ## Update, 19 September 2026: a category question for documents
 
 Documents (see `docs/DOCUMENTS.md`) ask permission, relationship, and a third question that is about the KIND of document: insurance and identification are restricted to administrative roles, so a nurse on the care team sees consents and orders but never the ID or insurance scan. No new permission was needed: `documents.read`, `documents.upload` and `documents.delete` already existed. NURSE holds read and upload. ADMIN holds read and upload. Only SUPER_ADMIN holds delete (archive).
+
+## Update, 20 September 2026: reach and fields for referrals
+
+Referrals (see `docs/REFERRALS.md`) ask permission, REACH and FIELDS. Reach differs for the two shapes of referral: one about someone who is not yet a patient is reachable by administrative roles only, and an accepted one is reachable by whoever can reach that patient. Fields: office details (outside contact, office notes, the reason for a decline) are administrative only and are never selected from the database for anyone else. No new permission was needed: `referrals.read` and `referrals.manage` already existed. ADMIN and SUPER_ADMIN hold both. NURSE now holds `referrals.read`. Recording a referral also needs administrative reach, so a role that holds `referrals.manage` with only "assigned patients" reach cannot record or see an unlinked referral. Accepting a referral into a NEW patient record also needs `patients.create`.

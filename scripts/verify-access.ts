@@ -5,7 +5,7 @@
 // Reading code and believing it is not the same as watching it refuse.
 // This script signs in nobody and clicks nothing - it calls the same
 // service functions the pages and server actions call (src/lib/visits.ts,
-// src/lib/care-plans.ts, src/lib/documents.ts, src/lib/patients.ts) as different people, and checks that every action
+// src/lib/care-plans.ts, src/lib/documents.ts, src/lib/referrals.ts, src/lib/patients.ts) as different people, and checks that every action
 // that SHOULD be refused IS refused, and every action that should work
 // does. Then it deletes everything it created.
 //
@@ -57,6 +57,21 @@ import {
   TITLE_MAX as DOC_TITLE_MAX,
   isRestrictedCategory,
 } from "@/lib/document-constants";
+import {
+  canRecordReferrals,
+  changeReferralStatus,
+  createReferral,
+  listReferrals,
+  updateReferral,
+  type ReferralDetailsInput,
+} from "@/lib/referrals";
+import {
+  REFERRAL_CONTACT_NAME_MAX,
+  REFERRAL_NAME_MAX,
+  REFERRAL_NOTE_MAX,
+  REFERRAL_REASON_MAX,
+  REFERRAL_SOURCE_ORG_MAX,
+} from "@/lib/referral-constants";
 import { makeDemoPdf } from "../prisma/demo-pdf";
 import { ORG_TIMEZONE, orgLocalToUtc } from "@/lib/time";
 
@@ -229,6 +244,41 @@ async function main() {
     }
   }
 
+  // ----- 2d. Referrals: reading, with the demo accounts -----
+  section("2d. Reading: who sees which referrals (demo accounts)");
+  const totalReferrals = await prisma.referral.count({ where: { organizationId: orgId } });
+  const adminReferrals = await listReferrals(admin.id);
+  const adminReferralRows = [...adminReferrals.open, ...adminReferrals.closed];
+  check("admin sees every referral in the organization", adminReferralRows.length === totalReferrals, `${adminReferralRows.length} of ${totalReferrals}`);
+  check("admin sees people who are not patients yet", adminReferralRows.some((r) => r.patientId === null));
+  check("admin sees the office details on every referral", adminReferralRows.every((r) => r.office !== null));
+  check("admin can manage referrals", adminReferrals.canManage);
+  for (const [label, nurse] of [["nurse one", nurse1], ["nurse two", nurse2]] as const) {
+    const mine = await assignedIds(nurse.id);
+    const lists = await listReferrals(nurse.id);
+    const rows = [...lists.open, ...lists.closed];
+    const expected = await prisma.referral.count({ where: { organizationId: orgId, patientId: { in: mine } } });
+    check(`${label} sees only referrals linked to their assigned patients`, rows.every((r) => r.patientId !== null && mine.includes(r.patientId)));
+    check(`${label} sees ALL referrals linked to their assigned patients`, rows.length === expected, `${rows.length} of ${expected}`);
+    check(`${label} sees no referral about someone who is not a patient`, rows.every((r) => r.patientId !== null));
+    check(`${label} gets NO office details on any referral`, rows.every((r) => r.office === null));
+    check(`${label} can read the reason for referral`, rows.every((r) => r.reason.length > 0));
+    check(`${label} cannot manage, edit or decide anything`, !lists.canManage && rows.every((r) => !r.canEdit && r.actions.length === 0 && r.matchingPatient === null));
+
+    // The office columns must not merely be hidden: their text must not
+    // be anywhere in what this person was handed.
+    const shown = JSON.stringify(lists);
+    const officeRows = await prisma.referral.findMany({
+      where: { organizationId: orgId, patientId: { in: mine } },
+      select: { sourceContactName: true, sourceContactPhone: true, officeNotes: true, decisionNote: true },
+    });
+    const officeValues = officeRows.flatMap((o) => [o.sourceContactName, o.sourceContactPhone, o.officeNotes, o.decisionNote]).filter((v): v is string => !!v);
+    check(`${label}'s referral data contains none of the office text`, officeValues.length > 0 && officeValues.every((v) => !shown.includes(v)), `${officeValues.length} office values checked`);
+
+    const strangers = await prisma.referral.findMany({ where: { organizationId: orgId, patientId: null }, select: { lastName: true } });
+    check(`${label}'s referral data never mentions a person who is not a patient`, strangers.length > 0 && strangers.every((s) => !shown.includes(s.lastName)), `${strangers.length} people checked`);
+  }
+
   // ----- 3. Temporary people and patient for mutation tests -----
   section("3. Setting up temporary test people and a temporary patient");
   const nurseRole = await prisma.role.findFirstOrThrow({ where: { organizationId: orgId, key: "NURSE" } });
@@ -252,6 +302,7 @@ async function main() {
   const trackedResourceIds: string[] = [];
   const visitIds: string[] = [];
   let patientId = "";
+  let tempRoleId = ""; // the temporary referral manager role (section 12)
 
   try {
     const nurseA = await makeUser("a", nurseRole.id); // on the team
@@ -823,11 +874,336 @@ async function main() {
     check("document_archived logged", (await docAudit("document_archived", admin.id)) === 1);
     check("the nurse's reach for restricted documents is on record as denied", (await prisma.auditLog.count({ where: { actorUserId: nurseA.id, action: "access_denied", outcome: "denied" } })) >= 4);
     check("the outsider's attempts are on record as denied", (await prisma.auditLog.count({ where: { actorUserId: nurseC.id, action: "access_denied", outcome: "denied", resourceType: { in: ["document", "patient"] } } })) >= 2);
+
+    // ----- 12. Referrals -----
+    // Its own block, so the helper names used here (bad, dup, offered...)
+    // never collide with the names the earlier sections already took.
+    {
+    section("12a. Referrals: an account without the permission is stopped, and a read-only account cannot change anything");
+    const coordinatorRole = await prisma.role.findFirstOrThrow({ where: { organizationId: orgId, key: "CARE_COORDINATOR" } });
+    const referralPerms = await prisma.permission.findMany({ where: { key: { in: ["referrals.read", "referrals.manage"] } } });
+    check("the two referral permissions exist", referralPerms.length === 2);
+    // A temporary role that holds ONLY the two referral permissions. Paired
+    // with the administrative CARE_COORDINATOR role (which holds no
+    // permissions of its own) it makes a manager with administrative reach
+    // but WITHOUT patients.create. On its own it makes a manager whose
+    // reach is only "my assigned patients". Both are shapes the real roles
+    // do not have yet, and both are exactly what a rule must survive.
+    const tempRole = await prisma.role.create({ data: { organizationId: orgId, key: `VERIFY_${runId}`, name: "Verify referral manager" } });
+    tempRoleId = tempRole.id;
+    await prisma.rolePermission.createMany({ data: referralPerms.map((p) => ({ roleId: tempRole.id, permissionId: p.id })) });
+    const manager = await makeUser("manager", coordinatorRole.id); // administrative reach, referrals.read + manage, NO patients.create
+    await prisma.userRole.create({ data: { userId: manager.id, roleId: tempRole.id } });
+    const remote = await makeUser("remote", tempRole.id); // referrals.read + manage, but reach is only assigned patients
+    console.log("  ready: a manager without patients.create, and a manager whose reach is only assigned patients");
+
+    const person = (over: Partial<ReferralDetailsInput> = {}): ReferralDetailsInput => ({
+      firstName: "Verify",
+      lastName: `Testpatient${runId}`,
+      dateOfBirth: "1950-01-01",
+      sourceType: "hospital",
+      sourceOrganization: "Verify Hospital",
+      sourceContactName: "Verify Contact",
+      sourceContactPhone: "(281) 555-0100",
+      requestedService: "skilled_nursing",
+      urgency: "routine",
+      reason: "Verify reason text.",
+      officeNotes: "Verify office note.",
+      ...over,
+    });
+    const referralCount = () => prisma.referral.count({ where: { createdById: { in: createdUserIds } } });
+    const referralRow = (id: string) => prisma.referral.findUniqueOrThrow({ where: { id } });
+    const idOf = (r: { ok: boolean; value?: { referralId: string } }) => (r.ok && r.value ? r.value.referralId : "");
+    const FORGED_REFERRAL = "00000000-0000-0000-0000-00000000f0f0";
+    trackedResourceIds.push(FORGED_REFERRAL);
+
+    check("no-permission account cannot list referrals", await throwsAuthorization(() => listReferrals(noPerms.id)));
+    check("no-permission account cannot record a referral", await throwsAuthorization(() => createReferral(noPerms.id, person())));
+    check("no-permission account cannot edit a referral", await throwsAuthorization(() => updateReferral(noPerms.id, FORGED_REFERRAL, person())));
+    check("no-permission account cannot decide a referral", await throwsAuthorization(() => changeReferralStatus(noPerms.id, FORGED_REFERRAL, "start_review")));
+    check("no-permission account gets no referral form", !(await canRecordReferrals(noPerms.id)));
+
+    // A nurse holds referrals.read only.
+    check("a nurse CAN list referrals (read permission)", !(await throwsAuthorization(() => listReferrals(nurseA.id))));
+    check("a nurse cannot record a referral (no manage permission)", await throwsAuthorization(() => createReferral(nurseA.id, person())));
+    check("a nurse cannot edit a referral", await throwsAuthorization(() => updateReferral(nurseA.id, FORGED_REFERRAL, person())));
+    check("a nurse cannot decide a referral", await throwsAuthorization(() => changeReferralStatus(nurseA.id, FORGED_REFERRAL, "start_review")));
+    check("a nurse gets no referral form", !(await canRecordReferrals(nurseA.id)));
+    check("the refusals were written to the audit log", (await prisma.auditLog.count({ where: { actorUserId: nurseA.id, action: "permission_denied", resourceId: "referrals.manage" } })) >= 3);
+    check("administrative reach with manage gets the form", (await canRecordReferrals(manager.id)) && (await canRecordReferrals(approver.id)));
+    check("manage permission WITHOUT administrative reach gets no form", !(await canRecordReferrals(remote.id)));
+
+    // ----- 12b. Recording -----
+    section("12b. Referrals: recording, validation and duplicates");
+    const refA = await createReferral(approver.id, person());
+    const refAId = idOf(refA);
+    check("an administrator CAN record a referral", refA.ok, errorOf(refA));
+    trackedResourceIds.push(refAId);
+    const rowA = refAId ? await referralRow(refAId) : null;
+    check("it starts as received, unlinked and undecided", rowA?.status === "received" && rowA.patientId === null && rowA.decidedById === null);
+    check("it records who recorded it", rowA?.createdById === approver.id);
+
+    const dup = await createReferral(manager.id, person({ firstName: "VERIFY", lastName: `testpatient${runId}` }));
+    check("a second OPEN referral for the same person is refused (capital letters ignored)", !dup.ok && errorOf(dup).includes("already an open referral"), errorOf(dup));
+
+    const remoteCreate = await createReferral(remote.id, person({ lastName: `Remote${runId}` }));
+    check("manage permission without administrative reach CANNOT record a referral", !remoteCreate.ok && errorOf(remoteCreate).includes("cannot record"), errorOf(remoteCreate));
+    check("that attempt is on record as denied", (await prisma.auditLog.count({ where: { actorUserId: remote.id, action: "access_denied", outcome: "denied", resourceType: "referral" } })) >= 1);
+
+    const beforeBad = await referralCount();
+    const bad: [string, Partial<ReferralDetailsInput>][] = [
+      ["blank first name", { firstName: "  " }],
+      ["blank last name", { lastName: "" }],
+      ["name over the limit", { firstName: "x".repeat(REFERRAL_NAME_MAX + 1) }],
+      ["impossible birth date", { dateOfBirth: "1950-02-30" }],
+      ["birth date in the future", { dateOfBirth: "2999-01-01" }],
+      ["birth date before 1900", { dateOfBirth: "1899-12-31" }],
+      ["birth date in the wrong format", { dateOfBirth: "01/01/1950" }],
+      ["unknown source", { sourceType: "a_friend_of_a_friend" }],
+      ["unknown kind of care", { requestedService: "surgery" }],
+      ["unknown urgency", { urgency: "yesterday" }],
+      ["blank reason", { reason: "   " }],
+      ["reason over the limit", { reason: "x".repeat(REFERRAL_REASON_MAX + 1) }],
+      ["organization name over the limit", { sourceOrganization: "x".repeat(REFERRAL_SOURCE_ORG_MAX + 1) }],
+      ["contact name over the limit", { sourceContactName: "x".repeat(REFERRAL_CONTACT_NAME_MAX + 1) }],
+      ["phone that is not a phone", { sourceContactPhone: "call me" }],
+      ["phone that is too short", { sourceContactPhone: "12345" }],
+      ["office notes over the limit", { officeNotes: "x".repeat(REFERRAL_NOTE_MAX + 1) }],
+    ];
+    for (const [label, over] of bad) {
+      const r = await createReferral(approver.id, person({ lastName: `Bad${runId}`, ...over }));
+      check(`refuses: ${label}`, !r.ok, "it was accepted");
+    }
+    check("none of the invalid referrals were saved", (await referralCount()) === beforeBad, `${(await referralCount()) - beforeBad} extra rows`);
+
+    const refB = await createReferral(manager.id, person({ lastName: `Second${runId}`, dateOfBirth: "1961-06-06", urgency: "urgent" }));
+    const refBId = idOf(refB);
+    check("a manager (administrative reach, no patients.create) CAN record a referral", refB.ok, errorOf(refB));
+    trackedResourceIds.push(refBId);
+
+    // ----- 12c. Reading an unlinked referral -----
+    section("12c. Referrals: a person who is not a patient yet is visible to administrators only");
+    const asApprover = await listReferrals(approver.id);
+    const seenByApprover = [...asApprover.open, ...asApprover.closed].find((r) => r.id === refAId);
+    check("the administrator sees it", !!seenByApprover);
+    check("with the office details", seenByApprover?.office?.sourceContactName === "Verify Contact" && seenByApprover.office.sourceContactPhone === "(281) 555-0100");
+    const asManager = await listReferrals(manager.id);
+    check("the manager with administrative reach sees it, with office details", [...asManager.open, ...asManager.closed].some((r) => r.id === refAId && r.office !== null));
+    for (const [label, who] of [["nurse A (on the temporary patient's care team)", nurseA], ["nurse B (a colleague on that team)", nurseB], ["nurse C (not on the team)", nurseC], ["the manager whose reach is only assigned patients", remote]] as const) {
+      const lists = await listReferrals(who.id);
+      const rows = [...lists.open, ...lists.closed];
+      check(`${label} does not see it`, !rows.some((r) => r.id === refAId));
+      check(`${label} is handed no trace of the person's name`, !JSON.stringify(lists).includes(`Testpatient${runId}`));
+    }
+    check("the manager whose reach is only assigned patients cannot manage", !(await listReferrals(remote.id)).canManage);
+
+    // ----- 12d. Editing -----
+    section("12d. Referrals: editing an open referral");
+    const editOthers = await updateReferral(remote.id, refAId, person());
+    const editForged = await updateReferral(remote.id, FORGED_REFERRAL, person());
+    check("a manager without administrative reach cannot edit it", !editOthers.ok && errorOf(editOthers).includes("could not be found"), errorOf(editOthers));
+    check("...and hears exactly what they hear for an id that does not exist", errorOf(editOthers) === errorOf(editForged), `"${errorOf(editOthers)}" vs "${errorOf(editForged)}"`);
+    check("those attempts are on record as denied", (await prisma.auditLog.count({ where: { actorUserId: remote.id, action: "access_denied", resourceType: "referral" } })) >= 3);
+
+    const edited = await updateReferral(manager.id, refAId, person({ reason: "Verify reason, edited.", officeNotes: "Verify office note, edited.", urgency: "urgent" }));
+    check("a manager CAN edit an open referral", edited.ok, errorOf(edited));
+    const afterEdit = await referralRow(refAId);
+    check("the edit is saved", afterEdit.reason === "Verify reason, edited." && afterEdit.officeNotes === "Verify office note, edited." && afterEdit.urgency === "urgent");
+    const badEdit = await updateReferral(manager.id, refAId, person({ reason: "   " }));
+    check("an invalid edit is refused and changes nothing", !badEdit.ok && (await referralRow(refAId)).reason === "Verify reason, edited.");
+    const toBoth = await updateReferral(manager.id, refAId, person({ lastName: `Second${runId}`, dateOfBirth: "1961-06-06" }));
+    check("an edit that would duplicate another open referral is refused", !toBoth.ok && errorOf(toBoth).includes("already an open referral"), errorOf(toBoth));
+
+    // ----- 12e. The status machine -----
+    section("12e. Referrals: the status machine");
+    const skip = await changeReferralStatus(approver.id, refAId, "accept");
+    check("cannot accept a referral that has not been reviewed", !skip.ok && errorOf(skip).includes("cannot be changed"), errorOf(skip));
+    check("a nurse cannot start a review", await throwsAuthorization(() => changeReferralStatus(nurseA.id, refAId, "start_review")));
+    const remoteStart = await changeReferralStatus(remote.id, refAId, "start_review");
+    check("a manager without administrative reach cannot start a review (it does not exist to them)", !remoteStart.ok && errorOf(remoteStart).includes("could not be found"), errorOf(remoteStart));
+    const nonsense = await changeReferralStatus(approver.id, refAId, "delete_everything");
+    check("an action that does not exist is refused", !nonsense.ok && errorOf(nonsense).includes("not recognised"), errorOf(nonsense));
+    check("nothing changed so far", (await referralRow(refAId)).status === "received");
+
+    const review = await changeReferralStatus(approver.id, refAId, "start_review");
+    check("an administrator CAN start a review", review.ok, errorOf(review));
+    const afterReview = await referralRow(refAId);
+    check("it is now in review, and starting a review is not yet a decision", afterReview.status === "in_review" && afterReview.decidedById === null && afterReview.decidedAt === null);
+    const reviewTwice = await changeReferralStatus(approver.id, refAId, "start_review");
+    check("a review cannot be started twice", !reviewTwice.ok && errorOf(reviewTwice).includes("cannot be changed"), errorOf(reviewTwice));
+
+    // Declining needs a written reason.
+    const declineNoNote = await changeReferralStatus(manager.id, refBId, "decline");
+    const declineBlank = await changeReferralStatus(manager.id, refBId, "decline", { note: "   " });
+    const declineLong = await changeReferralStatus(manager.id, refBId, "decline", { note: "x".repeat(REFERRAL_NOTE_MAX + 1) });
+    check("declining without a reason is refused", !declineNoNote.ok && !declineBlank.ok && !declineLong.ok);
+    check("nothing changed after those refusals", (await referralRow(refBId)).status === "received");
+    const declined = await changeReferralStatus(manager.id, refBId, "decline", { note: "Verify: outside the area we serve." });
+    check("declining a received referral, with a reason, works", declined.ok, errorOf(declined));
+    const declinedRow = await referralRow(refBId);
+    check("the decision, decider, time and reason are recorded", declinedRow.status === "declined" && declinedRow.decidedById === manager.id && declinedRow.decidedAt !== null && declinedRow.decisionNote === "Verify: outside the area we serve.");
+    for (const action of ["accept", "withdraw", "start_review", "decline"]) {
+      const again = await changeReferralStatus(approver.id, refBId, action, { note: "Verify again." });
+      check(`a declined referral is final: ${action} is refused`, !again.ok && errorOf(again).includes("cannot be changed"), errorOf(again));
+    }
+    const editFinal = await updateReferral(approver.id, refBId, person({ lastName: `Second${runId}`, dateOfBirth: "1961-06-06" }));
+    check("a declined referral can no longer be edited", !editFinal.ok && errorOf(editFinal).includes("no longer be edited"), errorOf(editFinal));
+
+    const refC = await createReferral(approver.id, person({ lastName: `Third${runId}`, dateOfBirth: "1972-03-03" }));
+    const refCId = idOf(refC);
+    trackedResourceIds.push(refCId);
+    const withdrawNoNote = await changeReferralStatus(approver.id, refCId, "withdraw");
+    check("withdrawing without a reason is refused", !withdrawNoNote.ok);
+    const withdrawn = await changeReferralStatus(approver.id, refCId, "withdraw", { note: "Verify: the family found other help." });
+    check("withdrawing, with a reason, works", withdrawn.ok, errorOf(withdrawn));
+    check("it is final and the reason is recorded", (await referralRow(refCId)).status === "withdrawn" && (await referralRow(refCId)).decisionNote === "Verify: the family found other help.");
+
+    const refF = await createReferral(approver.id, person({ lastName: `Fourth${runId}`, dateOfBirth: "1983-04-04" }));
+    const refFId = idOf(refF);
+    trackedResourceIds.push(refFId);
+    await changeReferralStatus(approver.id, refFId, "start_review");
+    const declineFromReview = await changeReferralStatus(approver.id, refFId, "decline", { note: "Verify: not eligible." });
+    check("a referral in review can be declined too", declineFromReview.ok && (await referralRow(refFId)).status === "declined", errorOf(declineFromReview));
+
+    // ----- 12f. Accepting: linking to a patient -----
+    section("12f. Referrals: accepting links the referral to the right patient, never a duplicate");
+    const inReview = [...(await listReferrals(approver.id)).open].find((r) => r.id === refAId);
+    check("while in review, the administrator is told a patient with this name and birth date already exists", inReview?.matchingPatient?.id === patient.id, JSON.stringify(inReview?.matchingPatient));
+    const patientTotal = () => prisma.patient.count({ where: { organizationId: orgId } });
+    const patientsBefore = await patientTotal();
+
+    check("a manager WITHOUT patients.create cannot accept and create a new patient", await throwsAuthorization(() => changeReferralStatus(manager.id, refAId, "accept")));
+    const createDup = await changeReferralStatus(approver.id, refAId, "accept");
+    check("creating a new patient is refused when this person already is one", !createDup.ok && errorOf(createDup).includes("already exists"), errorOf(createDup));
+    const toForged = await changeReferralStatus(approver.id, refAId, "accept", { existingPatientId: "00000000-0000-0000-0000-00000000beef" });
+    check("linking to a made-up patient id is refused", !toForged.ok && errorOf(toForged).includes("do not have access"), errorOf(toForged));
+    const wrongPerson = adminPatients.find((p) => p.id !== patient.id);
+    const toWrong = wrongPerson ? await changeReferralStatus(approver.id, refAId, "accept", { existingPatientId: wrongPerson.id }) : null;
+    check("linking to a DIFFERENT person's patient record is refused", !!toWrong && !toWrong.ok && errorOf(toWrong).includes("do not match"), toWrong ? errorOf(toWrong) : "no other patient");
+    await prisma.patient.update({ where: { id: patient.id }, data: { status: "on_hold" } });
+    const toHeld = await changeReferralStatus(approver.id, refAId, "accept", { existingPatientId: patient.id });
+    check("linking to a patient who is not active is refused", !toHeld.ok && errorOf(toHeld).includes("active"), errorOf(toHeld));
+    await prisma.patient.update({ where: { id: patient.id }, data: { status: "active" } });
+    const stillReview = await referralRow(refAId);
+    check("after all those refusals the referral is still in review and unlinked", stillReview.status === "in_review" && stillReview.patientId === null);
+    check("and no patient was created", (await patientTotal()) === patientsBefore);
+
+    const linked = await changeReferralStatus(manager.id, refAId, "accept", { existingPatientId: patient.id });
+    check("linking to the matching patient works, and needs only referrals.manage", linked.ok, errorOf(linked));
+    const linkedRow = await referralRow(refAId);
+    check("it is accepted, linked to that patient, decided by the manager", linkedRow.status === "accepted" && linkedRow.patientId === patient.id && linkedRow.decidedById === manager.id && linkedRow.decidedAt !== null);
+    check("no new patient was created", (await patientTotal()) === patientsBefore);
+    const editAccepted = await updateReferral(approver.id, refAId, person());
+    check("an accepted referral can no longer be edited", !editAccepted.ok && errorOf(editAccepted).includes("no longer be edited"), errorOf(editAccepted));
+
+    // ----- 12g. Who sees a LINKED referral, and how much -----
+    section("12g. Referrals: once linked, the patient's care team sees it, without the office details");
+    for (const [label, who] of [["nurse A (on the team)", nurseA], ["nurse B (a colleague on the team)", nurseB]] as const) {
+      const lists = await listReferrals(who.id);
+      const row = [...lists.open, ...lists.closed].find((r) => r.id === refAId);
+      check(`${label} sees it`, !!row);
+      check(`${label} can read the reason`, row?.reason === "Verify reason, edited.");
+      check(`${label} gets no office details`, row?.office === null);
+      check(`${label} cannot edit or decide it`, !!row && !row.canEdit && row.actions.length === 0);
+      const shown = JSON.stringify(lists);
+      check(`${label} is handed none of the office text`, !shown.includes("Verify Contact") && !shown.includes("(281) 555-0100") && !shown.includes("Verify office note"));
+    }
+    const asOutsider = await listReferrals(nurseC.id);
+    check("nurse C (not on the team) still does not see it", ![...asOutsider.open, ...asOutsider.closed].some((r) => r.id === refAId));
+    const adminView = [...(await listReferrals(approver.id)).closed].find((r) => r.id === refAId);
+    check("the administrator sees it with office details and the linked patient's name", adminView?.office?.sourceContactName === "Verify Contact" && adminView.patientName === `Verify Testpatient${runId}`);
+
+    const remoteBefore = await listReferrals(remote.id);
+    check("the assigned-reach manager does not see it before joining the team", ![...remoteBefore.open, ...remoteBefore.closed].some((r) => r.id === refAId));
+    await prisma.careTeamMember.create({ data: { patientId: patient.id, userId: remote.id, roleOnCase: "primary_nurse" } });
+    const remoteAfter = await listReferrals(remote.id);
+    const remoteRow = [...remoteAfter.open, ...remoteAfter.closed].find((r) => r.id === refAId);
+    check("after joining the team they see it", !!remoteRow);
+    check("but still get no office details, even holding referrals.manage", remoteRow?.office === null && !JSON.stringify(remoteAfter).includes("Verify Contact"));
+    check("and still cannot manage anything", !remoteAfter.canManage && !!remoteRow && remoteRow.actions.length === 0 && !remoteRow.canEdit);
+    const remoteEditLinked = await changeReferralStatus(remote.id, refAId, "decline", { note: "Verify: trying anyway." });
+    check("and cannot decide it", !remoteEditLinked.ok);
+    check("and still cannot record a new referral", !(await createReferral(remote.id, person({ lastName: `Remote2${runId}` }))).ok);
+
+    // ----- 12h. Accepting a person who is not yet a patient -----
+    section("12h. Referrals: accepting creates the patient record, once");
+    const newFirst = "Verify";
+    const newLast = `Newperson${runId}`;
+    const refD = await createReferral(approver.id, person({ firstName: newFirst, lastName: newLast, dateOfBirth: "1960-05-05" }));
+    const refDId = idOf(refD);
+    trackedResourceIds.push(refDId);
+    await changeReferralStatus(approver.id, refDId, "start_review");
+    const matchBefore = [...(await listReferrals(approver.id)).open].find((r) => r.id === refDId);
+    check("for someone who is not a patient, no existing patient is offered", matchBefore?.matchingPatient === null);
+    const patientsBeforeNew = await patientTotal();
+    check("a manager without patients.create cannot create the patient", await throwsAuthorization(() => changeReferralStatus(manager.id, refDId, "accept")));
+    check("...and nothing was created", (await patientTotal()) === patientsBeforeNew && (await referralRow(refDId)).status === "in_review");
+    const created = await changeReferralStatus(approver.id, refDId, "accept");
+    check("an administrator with patients.create CAN accept and create the patient", created.ok, errorOf(created));
+    const createdPatientId = created.ok ? created.value.patientId : null;
+    if (createdPatientId) trackedResourceIds.push(createdPatientId);
+    const newPatient = createdPatientId ? await prisma.patient.findUnique({ where: { id: createdPatientId }, include: { careTeam: true } }) : null;
+    check("exactly one patient was created", (await patientTotal()) === patientsBeforeNew + 1);
+    check("with the referral's name and date of birth, active, in this organization", !!newPatient && newPatient.firstName === newFirst && newPatient.lastName === newLast && newPatient.dateOfBirth.toISOString().slice(0, 10) === "1960-05-05" && newPatient.status === "active" && newPatient.organizationId === orgId);
+    check("with nobody on the care team yet", !!newPatient && newPatient.careTeam.length === 0);
+    const dRow = await referralRow(refDId);
+    check("the referral is accepted and linked to it", dRow.status === "accepted" && dRow.patientId === createdPatientId);
+    check("administrators can see the new patient", !!createdPatientId && (await getAccessiblePatients(approver.id)).some((p) => p.id === createdPatientId));
+    check("no nurse sees that patient's referral (nobody is assigned)", ![...(await listReferrals(nurseA.id)).closed].some((r) => r.id === refDId));
+
+    // The same person referred again later: a patient now, so link, never duplicate.
+    const refD2 = await createReferral(approver.id, person({ firstName: newFirst, lastName: newLast, dateOfBirth: "1960-05-05", requestedService: "physical_therapy" }));
+    const refD2Id = idOf(refD2);
+    check("a new referral for someone who is already a patient can be recorded once the old one is closed", refD2.ok, errorOf(refD2));
+    trackedResourceIds.push(refD2Id);
+    await changeReferralStatus(approver.id, refD2Id, "start_review");
+    const offered = [...(await listReferrals(approver.id)).open].find((r) => r.id === refD2Id);
+    check("this time the existing patient is offered", offered?.matchingPatient?.id === createdPatientId);
+    const dup2 = await changeReferralStatus(approver.id, refD2Id, "accept");
+    check("creating a second patient record for the same person is refused", !dup2.ok && errorOf(dup2).includes("already exists"), errorOf(dup2));
+    const link2 = await changeReferralStatus(approver.id, refD2Id, "accept", { existingPatientId: createdPatientId });
+    check("linking the new referral to the existing patient works", link2.ok, errorOf(link2));
+    check("and there is still only one new patient", (await patientTotal()) === patientsBeforeNew + 1);
+
+    // ----- 12i. The audit trail -----
+    section("12i. Referrals: the audit trail");
+    const refAudit = (action: string, actorUserId: string) => prisma.auditLog.count({ where: { action, actorUserId } });
+    check("referral_created logged for the administrator (five referrals)", (await refAudit("referral_created", approver.id)) === 5);
+    check("referral_created logged for the manager", (await refAudit("referral_created", manager.id)) === 1);
+    check("referral_updated logged for the manager", (await refAudit("referral_updated", manager.id)) === 1);
+    check("referral_review_started logged (four reviews)", (await refAudit("referral_review_started", approver.id)) === 4);
+    check("referral_declined logged for both deciders", (await refAudit("referral_declined", manager.id)) === 1 && (await refAudit("referral_declined", approver.id)) === 1);
+    check("referral_withdrawn logged", (await refAudit("referral_withdrawn", approver.id)) === 1);
+    check("referral_accepted logged for each acceptance", (await refAudit("referral_accepted", manager.id)) === 1 && (await refAudit("referral_accepted", approver.id)) === 2);
+    check("patient_created logged", (await refAudit("patient_created", approver.id)) === 1);
+    const auditText = JSON.stringify(await prisma.auditLog.findMany({ where: { actorUserId: { in: createdUserIds } }, select: { action: true, resourceType: true, resourceId: true, outcome: true, actorEmail: true } }));
+    check("the audit log never holds what a referral said", !auditText.includes("Verify reason") && !auditText.includes("Verify Contact") && !auditText.includes("(281) 555-0100") && !auditText.includes("Verify office note") && !auditText.includes("outside the area"));
+    }
   } finally {
     // ----- Cleanup: leave the database exactly as it was found -----
     section("Cleaning up");
     try {
-      // Documents first of all: they point at the patient and at the
+      // Referrals first of all: they point at the patient, at any patient
+      // made by accepting one, and at the temporary people, and all of
+      // those are protected while a referral exists. This also catches any
+      // referral a FAILING check let through.
+      const leftoverReferrals = await prisma.referral.findMany({
+        where: { OR: [{ patientId: patientId || "none" }, { createdById: { in: createdUserIds } }, { decidedById: { in: createdUserIds } }] },
+        select: { id: true, patientId: true },
+      });
+      trackedResourceIds.push(...leftoverReferrals.map((r) => r.id));
+      await prisma.referral.deleteMany({ where: { id: { in: leftoverReferrals.map((r) => r.id) } } });
+      // Patients made by accepting a referral during this run. Only ones
+      // this script named ("Verify ... Newperson<run id>") are ever
+      // deleted, so a failing check can never take a real patient with it.
+      const madePatients = await prisma.patient.findMany({
+        where: { organizationId: orgId, firstName: "Verify", lastName: { contains: runId }, id: { not: patientId || "none" } },
+        select: { id: true },
+      });
+      trackedResourceIds.push(...madePatients.map((p) => p.id));
+      await prisma.patient.deleteMany({ where: { id: { in: madePatients.map((p) => p.id) } } });
+
+      // Documents next: they point at the patient and at the
       // temporary people, and both are protected while a document exists.
       // The file bytes go with their document. This also catches any
       // document a FAILING check let through.
@@ -867,7 +1243,8 @@ async function main() {
         },
       });
       await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } }); // user roles cascade
-      console.log("  removed the temporary patient, visits, care plans, documents, people and their audit entries");
+      if (tempRoleId) await prisma.role.delete({ where: { id: tempRoleId } }); // its permission rows cascade
+      console.log("  removed the temporary patients, visits, care plans, documents, referrals, people, role and their audit entries");
     } catch (err) {
       console.error("  CLEANUP FAILED - check Prisma Studio for rows named Verify or Testpatient:", err);
       failures.push("cleanup");

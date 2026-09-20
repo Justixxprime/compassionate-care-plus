@@ -114,3 +114,39 @@ export function formatOrgTime(date: Date): string {
 export function formatOrgTimeRange(start: Date, end: Date): string {
   return `${formatOrgTime(start)} to ${formatOrgTime(end)}`;
 }
+
+// A calendar date with no time of day, such as a date of birth. A form
+// gives "1948-03-14"; we store it as midnight UTC and always show it in
+// UTC too, so the day never shifts by one depending on where the server
+// or the person happens to be. (The visit helpers above are for a moment
+// in time in Texas; a birthday is not a moment, it is a day.)
+// Returns null for anything that is not a real date, so February 30th is
+// refused instead of quietly becoming March 2nd.
+export function parseCalendarDate(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+  if (!match) return null;
+
+  const y = Number(match[1]);
+  const mo = Number(match[2]);
+  const d = Number(match[3]);
+
+  const date = new Date(Date.UTC(y, mo - 1, d));
+  if (
+    date.getUTCFullYear() !== y ||
+    date.getUTCMonth() !== mo - 1 ||
+    date.getUTCDate() !== d
+  ) {
+    return null;
+  }
+  return date;
+}
+
+// "Mar 14, 1948" - a calendar date stored as midnight UTC.
+export function formatCalendarDate(date: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}

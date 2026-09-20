@@ -9,7 +9,9 @@
 // handful of synthetic visits spread across them (src/lib/visits.ts), and
 // two synthetic care plans, one active and one waiting for approval
 // (src/lib/care-plans.ts), and five synthetic documents, two of them in
-// restricted categories (src/lib/documents.ts).
+// restricted categories (src/lib/documents.ts), and six synthetic
+// referrals: three already accepted and linked to the demo patients, and
+// three about people who are not patients (src/lib/referrals.ts).
 //
 // Run with: npx prisma db seed
 // (this is wired up in package.json - see the "prisma" block)
@@ -113,6 +115,7 @@ async function main() {
       "visits.read", "visits.create", "visits.update", "visits.document",
       "documents.read", "documents.upload",
       "messages.read", "messages.send",
+      "referrals.read",
       "tasks.read",
     ],
   };
@@ -455,6 +458,164 @@ async function main() {
     console.log(`${documentDefs.length} synthetic demo documents ready`);
   } else {
     console.log(`Documents already exist (${existingDocumentCount}), leaving them alone`);
+  }
+
+  // --- Synthetic demo referrals ---
+  // Six referrals, all about fictional people, made to make the access
+  // rules testable with the three demo accounts:
+  //   - Eleanor, Marcus and Priya each have the referral that brought
+  //     them in, ACCEPTED and linked to their patient record. The nurse
+  //     on a patient's team sees that patient's referral (with the
+  //     reason, without the office details); the admin sees all three.
+  //   - Walter Brennan (in review, urgent), Grace Holloway (just
+  //     received) and Tomas Reyes (declined) are not patients, so no
+  //     nurse can see them at all. Only the admin can.
+  // Every phone number uses the 555-01xx range, which is reserved for
+  // fiction. Like visits, plans and documents, these are only created
+  // when the organization has no referrals yet.
+  const existingReferralCount = await prisma.referral.count({
+    where: { organizationId: org.id },
+  });
+
+  if (existingReferralCount === 0) {
+    const day = 24 * 60 * 60 * 1000;
+    const nowMs = Date.now();
+    const [eleanorRef, marcusRef, priyaRef] = patients;
+
+    const referralDefs = [
+      {
+        who: patientDefs[0],
+        patientId: eleanorRef.id,
+        status: "accepted",
+        daysAgo: 21,
+        decided: true,
+        sourceType: "hospital",
+        sourceOrganization: "Riverbend Regional Hospital",
+        sourceContactName: "Dana Okafor",
+        sourceContactPhone: "(281) 555-0142",
+        requestedService: "skilled_nursing",
+        urgency: "urgent",
+        reason:
+          "Hip replacement surgery, sent home from hospital. Needs nursing visits for wound checks and a review of her new medicines.",
+        officeNotes: "Discharge planner called ahead. Family wants morning visits.",
+        decisionNote: null,
+      },
+      {
+        who: patientDefs[1],
+        patientId: marcusRef.id,
+        status: "accepted",
+        daysAgo: 14,
+        decided: true,
+        sourceType: "physician_office",
+        sourceOrganization: "Lakeside Family Medicine",
+        sourceContactName: "Nurse Ruiz",
+        sourceContactPhone: "(281) 555-0177",
+        requestedService: "physical_therapy",
+        urgency: "routine",
+        reason:
+          "Weak and unsteady after a long hospital stay. Needs physical therapy to rebuild strength and move safely around the house.",
+        officeNotes: "Doctor's order arrived by fax.",
+        decisionNote: null,
+      },
+      {
+        who: patientDefs[2],
+        patientId: priyaRef.id,
+        status: "accepted",
+        daysAgo: 6,
+        decided: true,
+        sourceType: "family",
+        sourceOrganization: null,
+        sourceContactName: "Anand Raman",
+        sourceContactPhone: "(281) 555-0119",
+        requestedService: "skilled_nursing",
+        urgency: "routine",
+        reason:
+          "Diabetes with a foot wound that is slow to heal. Needs nursing visits for wound care and help understanding her medicines.",
+        officeNotes: "Son is the main contact. Nobody is on the care team yet.",
+        decisionNote: null,
+      },
+      {
+        who: { firstName: "Walter", lastName: "Brennan", dateOfBirth: new Date("1939-08-21") },
+        patientId: null,
+        status: "in_review",
+        daysAgo: 2,
+        decided: false,
+        sourceType: "hospital",
+        sourceOrganization: "Riverbend Regional Hospital",
+        sourceContactName: "Dana Okafor",
+        sourceContactPhone: "(281) 555-0142",
+        requestedService: "occupational_therapy",
+        urgency: "urgent",
+        reason:
+          "Went home yesterday after a fall that broke his wrist. Lives alone and needs help with dressings and with getting dressed and bathing safely.",
+        officeNotes: "Checking his coverage before accepting.",
+        decisionNote: null,
+      },
+      {
+        who: { firstName: "Grace", lastName: "Holloway", dateOfBirth: new Date("1971-02-09") },
+        patientId: null,
+        status: "received",
+        daysAgo: 0,
+        decided: false,
+        sourceType: "self",
+        sourceOrganization: null,
+        sourceContactName: null,
+        sourceContactPhone: "(281) 555-0163",
+        requestedService: "skilled_nursing",
+        urgency: "routine",
+        reason:
+          "Newly told she has a heart condition and would like help learning to take her medicines and change what she eats.",
+        officeNotes: null,
+        decisionNote: null,
+      },
+      {
+        who: { firstName: "Tomas", lastName: "Reyes", dateOfBirth: new Date("1966-12-30") },
+        patientId: null,
+        status: "declined",
+        daysAgo: 9,
+        decided: true,
+        sourceType: "physician_office",
+        sourceOrganization: "Lakeside Family Medicine",
+        sourceContactName: "Nurse Ruiz",
+        sourceContactPhone: "(281) 555-0177",
+        requestedService: "home_health_aide",
+        urgency: "routine",
+        reason: "Needs help with bathing and daily tasks after a stroke.",
+        officeNotes: null,
+        decisionNote:
+          "Home is outside the area we serve. Called the doctor's office so they could find a closer agency.",
+      },
+    ] as const;
+
+    for (const def of referralDefs) {
+      const createdAt = new Date(nowMs - def.daysAgo * day);
+      await prisma.referral.create({
+        data: {
+          organizationId: org.id,
+          patientId: def.patientId,
+          createdById: demoAdmin.id,
+          decidedById: def.decided ? demoAdmin.id : null,
+          decidedAt: def.decided ? new Date(createdAt.getTime() + day) : null,
+          firstName: def.who.firstName,
+          lastName: def.who.lastName,
+          dateOfBirth: def.who.dateOfBirth,
+          sourceType: def.sourceType,
+          sourceOrganization: def.sourceOrganization,
+          sourceContactName: def.sourceContactName,
+          sourceContactPhone: def.sourceContactPhone,
+          requestedService: def.requestedService,
+          urgency: def.urgency,
+          reason: def.reason,
+          officeNotes: def.officeNotes,
+          decisionNote: def.decisionNote,
+          status: def.status,
+          createdAt,
+        },
+      });
+    }
+    console.log(`${referralDefs.length} synthetic demo referrals ready`);
+  } else {
+    console.log(`Referrals already exist (${existingReferralCount}), leaving them alone`);
   }
 
   console.log("Seed complete.");

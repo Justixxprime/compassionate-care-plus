@@ -44,6 +44,7 @@ model Organization {
   visits    Visit[]
   carePlans CarePlan[]
   documents Document[]
+  referrals Referral[]
 
   @@map("organizations")
 }
@@ -72,6 +73,8 @@ model User {
   approvedCarePlans   CarePlan[]       @relation("CarePlanApprover")
   uploadedDocuments   Document[]       @relation("DocumentUploader")
   archivedDocuments   Document[]       @relation("DocumentArchiver")
+  createdReferrals    Referral[]       @relation("ReferralCreator")
+  decidedReferrals    Referral[]       @relation("ReferralDecider")
 
   @@index([organizationId])
   @@map("users")
@@ -198,6 +201,7 @@ model Patient {
   visits        Visit[]
   carePlans     CarePlan[]
   documents     Document[]
+  referrals     Referral[]
 
   @@index([organizationId])
   @@map("patients")
@@ -418,4 +422,59 @@ model DocumentFile {
   document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@map("document_files")
+}
+
+// ---------- Referrals ----------
+// A referral is a request for the organization to take on someone's
+// care: a hospital discharge planner, a physician's office, a family
+// member or the person themselves asks. It usually arrives BEFORE the
+// person is a patient, which is the difference from every other model
+// in this file: patientId is empty until the referral is accepted, and
+// an unlinked referral has no care team to check. See
+// docs/REFERRALS.md for the access rules.
+//
+// Three layers of visibility, all decided in src/lib/referrals.ts:
+//   1. Summary (who, source, service, urgency, status): anyone who may
+//      see the referral at all.
+//   2. Clinical reason: the same people. A nurse on the care team of the
+//      linked patient legitimately needs it.
+//   3. Office details (outside contact, office notes, decision note):
+//      administrative roles only. Everyone else's query never selects
+//      these columns.
+// An unlinked referral is visible to administrative roles only, because
+// the person is not a patient yet and nobody has a relationship to them.
+//
+// Referrals are never hard-deleted. Accepted, declined and withdrawn
+// are final states.
+model Referral {
+  id                 String    @id @default(uuid())
+  organizationId     String    @map("organization_id")
+  patientId          String?   @map("patient_id") // set only when the referral is accepted
+  createdById        String    @map("created_by_id")
+  decidedById        String?   @map("decided_by_id")
+  decidedAt          DateTime? @map("decided_at")
+  firstName          String    @map("first_name")
+  lastName           String    @map("last_name")
+  dateOfBirth        DateTime  @map("date_of_birth")
+  sourceType         String    @map("source_type") // hospital | physician_office | family | self | other
+  sourceOrganization String?   @map("source_organization")
+  sourceContactName  String?   @map("source_contact_name") // office details
+  sourceContactPhone String?   @map("source_contact_phone") // office details
+  requestedService   String    @map("requested_service") // a visit type key from src/lib/visit-constants.ts
+  urgency            String    @default("routine") // routine | urgent
+  reason             String // clinical: why care is being requested
+  officeNotes        String?   @map("office_notes") // office details
+  decisionNote       String?   @map("decision_note") // office details: why it was declined or withdrawn
+  status             String    @default("received") // received | in_review | accepted | declined | withdrawn
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  patient      Patient?     @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  createdBy    User         @relation("ReferralCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  decidedBy    User?        @relation("ReferralDecider", fields: [decidedById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status])
+  @@index([patientId])
+  @@map("referrals")
 }

@@ -1,7 +1,7 @@
 # CHELIV COMPASSIONATE CARE PLUS - PROJECT CONTINUATION BRIEF
-## Complete state as of 19 September 2026, written to continue this build perfectly in a new conversation
+## Complete state as of 20 September 2026, written to continue this build perfectly in a new conversation
 
-Paste this whole document as the first message in a new conversation. It replaces the previous docs/PROJECT_HANDOFF.md, which was accurate up through visits but is now out of date (documents were added on 19 September 2026).
+Paste this whole document as the first message in a new conversation. It replaces the previous docs/PROJECT_HANDOFF.md, which was accurate up through visits but is now out of date (referrals were added on 20 September 2026, which finished Milestone D).
 
 ---
 
@@ -83,13 +83,13 @@ Also: test the tests. Deliberately break a rule in the copy and confirm verify-a
 ## 4. Full current file structure
 
 compassionate-care-plus/
-- docs/ (19 files, see section 15)
+- docs/ (23 files, see section 15)
 - prisma/
-  - schema.prisma (15 models, see section 5)
-  - seed.ts (org, 31 permissions, 9 roles with 3 having real permission sets, 3 demo accounts, 3 synthetic patients, 2 care-team assignments, 6 synthetic visits, 2 synthetic care plans and 5 synthetic documents (2 in restricted categories), each set created only if none exist)
+  - schema.prisma (16 models, see section 5)
+  - seed.ts (org, 31 permissions, 9 roles with 3 having real permission sets, 3 demo accounts, 3 synthetic patients, 2 care-team assignments, 6 synthetic visits, 2 synthetic care plans, 5 synthetic documents (2 in restricted categories) and 6 synthetic referrals, each set created only if none exist)
 - scripts/
   - check-root-layout.mjs (runs automatically via predev/prebuild hooks)
-  - verify-access.ts (`npm run verify:access`, 254 checks against a real LOCAL database, refuses to run otherwise)
+  - verify-access.ts (`npm run verify:access`, 407 checks against a real LOCAL database, refuses to run otherwise)
   - stubs/server-only.ts (lets standalone scripts import server code)
 - tsconfig.scripts.json (used only by scripts)
 - public/images/ (empty, real photos go here eventually, see docs/IMAGES.md)
@@ -109,6 +109,7 @@ compassionate-care-plus/
   - visits/page.tsx, schedule-visit-form.tsx, visit-actions.tsx (bare proof page: list, schedule form, status buttons)
   - care-plans/page.tsx, create-plan-form.tsx, plan-controls.tsx (bare proof page: plan cards, start form, approve/complete/discard, goal controls)
   - documents/page.tsx, upload-document-form.tsx, archive-button.tsx, [id]/download/route.ts (bare proof page: list, upload form, archive, and the download route, the only door file bytes leave through)
+  - referrals/page.tsx, create-referral-form.tsx, referral-controls.tsx, referral-fields.tsx (bare proof page: open and closed referral cards, record form, edit, start review, accept, decline, withdraw)
   - design-system/page.tsx (internal reference, not linked from nav)
 - src/components/
   - ui/ Button, Input, Label, Card, Badge
@@ -129,7 +130,10 @@ compassionate-care-plus/
   - documents.ts (listDocuments, getDocumentUploadOptions, uploadDocument, getDocumentForDownload, archiveDocument: every document rule lives here)
   - document-constants.ts (categories and which are restricted, size limits, file type detection from bytes, file name cleaning)
   - documents-actions.ts (thin server actions for upload and archive)
-  - time.ts (office time America/Chicago, DST-safe, no date library)
+  - referrals.ts (listReferrals, canRecordReferrals, createReferral, updateReferral, changeReferralStatus: every referral rule lives here)
+  - referral-constants.ts (sources, urgencies, statuses, REFERRAL_TRANSITIONS state machine, limits)
+  - referrals-actions.ts (thin server actions)
+  - time.ts (office time America/Chicago, DST-safe, no date library; also parseCalendarDate and formatCalendarDate for dates of birth)
   - auth/session.ts, auth/actions.ts, auth/authorize.ts
   - audit/log.ts
 - package.json, next.config.ts (allows images.pexels.com as a remote pattern)
@@ -141,15 +145,15 @@ The orphaned src/components/marketing/coming-soon-page.tsx was deleted on 19 Sep
 
 ## 5. Database schema, exactly as it stands
 
-Fifteen models, in prisma/schema.prisma:
+Sixteen models, in prisma/schema.prisma:
 
 Identity/auth (Milestone C): Organization, User, Session, Role, Permission, RolePermission (join), UserRole (join), AuditLog
 
-Clinical (Milestone D): Patient, CareTeamMember (join, this is what makes relationship-based access real), Visit (patient, clinician, scheduledBy, type, status, scheduled start/end, actual check in/out; NO clinical content; never hard-deleted; Restrict foreign keys), CarePlan (patient, author, approvedBy, title, summary, status draft/active/completed/archived, approvedAt, completedAt; the first table with real clinical content; never hard-deleted; Restrict foreign keys) and CarePlanGoal (belongs to a plan, cascades with it; open or met), Document (patient, uploader, category, title, cleaned file name, type detected from the bytes, size, sha256, active or archived; never hard-deleted; Restrict foreign keys) and DocumentFile (just the bytes, one row per document, cascades with it)
+Clinical (Milestone D): Patient, CareTeamMember (join, this is what makes relationship-based access real), Visit (patient, clinician, scheduledBy, type, status, scheduled start/end, actual check in/out; NO clinical content; never hard-deleted; Restrict foreign keys), CarePlan (patient, author, approvedBy, title, summary, status draft/active/completed/archived, approvedAt, completedAt; the first table with real clinical content; never hard-deleted; Restrict foreign keys) and CarePlanGoal (belongs to a plan, cascades with it; open or met), Document (patient, uploader, category, title, cleaned file name, type detected from the bytes, size, sha256, active or archived; never hard-deleted; Restrict foreign keys) and DocumentFile (just the bytes, one row per document, cascades with it), Referral (who is referred, who sent it, kind of care, urgency, clinical reason, three office-only columns, status; patientId is EMPTY until accepted; never hard-deleted; Restrict foreign keys)
 
 Every table uses @id @default(uuid()) for primary keys, @map("snake_case") throughout so the actual Postgres columns are snake_case while Prisma's TypeScript side stays camelCase. AuditLog.actorUserId is nullable specifically because a failed sign-in attempt against a nonexistent email has no real user row to attach to, logging the attempted email is still the point.
 
-Not built yet, deliberately: clinical notes, documents, referrals, consents, messaging, notifications, tasks. Each is meant to come as its own round, not all at once, see the original architecture doc's "do not build everything at once."
+Not built yet, deliberately: clinical notes, consents, messaging, notifications, tasks. Each is meant to come as its own round, not all at once, see the original architecture doc's "do not build everything at once."
 
 ---
 
@@ -239,6 +243,20 @@ Also changed in that round: next.config.ts raises the Server Action body limit t
 
 ---
 
+## 10e. Referrals, built and verified in the build environment on 20 September 2026
+
+Full detail in docs/REFERRALS.md. Every rule lives in src/lib/referrals.ts. THREE questions: permission (referrals.read to see, referrals.manage to record, edit and decide; both already existed), REACH (a referral about someone who is not yet a patient is reachable by administrative roles only; an accepted one by whoever getPatientScope says can reach that patient), and FIELDS (summary and clinical reason for anyone with reach; office details = outside contact name and phone, office notes, decision note, administrative scope only, and the columns are never even selected for anyone else). No care-team question. Recording a referral needs administrative scope, so a role holding referrals.manage with only "assigned patients" reach cannot record or see an unlinked referral. NURSE now holds referrals.read. State machine (REFERRAL_TRANSITIONS): received to in_review (start_review), in_review to accepted (accept), received or in_review to declined or withdrawn (both need a written reason up to 1000 characters); accepted, declined, withdrawn are final; only open referrals are editable; one open referral per person (name case-insensitive plus date of birth). Accept either links an existing patient (reachable, same organization, ACTIVE, exact name and DOB match) or creates a new patient (needs patients.create; refused if a patient with that name and DOB already exists; done in a transaction with a status guard). A new patient has no care team. Dates of birth are real, not future, not before 1900, stored as midnight UTC and shown in UTC. Vague not-found for missing and unreachable, denials audited as access_denied. Audit events: referral_created, referral_updated, referral_review_started, referral_accepted, referral_declined, referral_withdrawn, patient_created.
+
+Demo data: six referrals. Eleanor, Marcus and Priya each have their accepted referral linked to their patient record. Walter Brennan (in review, urgent), Grace Holloway (received) and Tomas Reyes (declined) are not patients. Nurse one sees only Eleanor's, nurse two only Marcus's, both without office details. Priya's is admin-only because nobody is on her team.
+
+Evidence: tsc, eslint, next build clean; verify:access 407 passed, 0 failed (sections 2d and 12a to 12i, with a temporary role and temporary managers); thirteen rules deliberately broken one at a time in a copy and the script failed each time; real HTTP against the built app with real sessions for pages and for the create, edit and status-change server actions, called with React's own request encoder (the exact browser body): admin succeeded, nurse and signed-out were refused, nothing was saved for refused calls. The document upload action was tested the same way and behaved as designed. NOT tested: clicking the forms in a real browser. NOT YET verified on J's machine (migration add_referrals, seed, verify:access expecting 407, click-through, one hand test of the Record a referral form).
+
+Known gaps (also in REFERRALS.md): no history table of status changes; the public /request-care form is not connected to referrals; CARE_COORDINATOR and CLINICAL_SUPERVISOR hold no permissions; no care-team assignment screen; no waiting-time indicator; reading the list is not audit-logged.
+
+Testing tip: a server action can be called over HTTP from a script by taking its id from .next/server/server-reference-manifest.json and building the body with encodeReply from next/dist/compiled/react-server-dom-turbopack/client.edge, then POSTing with a Next-Action header. A hand-built curl multipart body does NOT work (field names are prefixed _1_ and the root part 0 must come last).
+
+---
+
 ## 11. Demo accounts, all real and working
 
 Documented in git-ignored docs/DEMO_ACCOUNTS.md. Password for all three: ChangeMe123! (see also the /care-plans column in docs/DEMO_ACCOUNTS.md)
@@ -266,7 +284,7 @@ Three real, free-licensed Pexels photos are hotlinked (not scraped, not download
 - Milestone A (Foundations): Complete
 - Milestone B (Public website): Complete
 - Milestone C (Database, auth, RBAC, audit logging): Complete
-- Milestone D (Core clinical operations): In progress. Patients, care team, visits and care plans are done and confirmed on J's machine (his verify:access run passed all 175 checks on 19 September). Documents written and verified in the build environment (19 September 2026), waiting on J's machine. Next: referrals, which finishes Milestone D.
+- Milestone D (Core clinical operations): In progress. Patients, care team, visits and care plans are done and confirmed on J's machine (his verify:access run passed all 175 checks on 19 September). Documents committed by J with migration add_documents (19 September 2026). Referrals written and verified in the build environment (20 September 2026), waiting on J's machine; that finishes the slices of Milestone D. Next: J answers the three questions at the end of docs/REVIEW_MILESTONE_D.md, then Milestone E.
 - Milestone E (Portals): Not started
 - Milestone F (Production readiness): Not started
 
@@ -287,12 +305,14 @@ Full detail and reasoning in docs/PHASE_0_ARCHITECTURE.md (the original plan) an
 
 ## 15. Full docs folder, for reference
 
-AUDIT_LOGGING.md, CHANGELOG.md, DATABASE.md, DEMO_ACCOUNTS.md (git-ignored), DESIGN_SYSTEM.md, ENVIRONMENT_VARIABLES.md, FOLDER_STRUCTURE.md, IMAGES.md, NEXT_STEP.md, CARE_PLANS.md, DOCUMENTS.md, PATIENTS.md, PHASE_0_ARCHITECTURE.md, PHASE_STATUS.md, PROJECT_HANDOFF.md (this file), PUBLIC_WEBSITE.md, RBAC.md, TROUBLESHOOTING.md, ULTRA_BABY_STEPS.md, VISITS.md, CONTINUATION_PROMPT.md.
+AUDIT_LOGGING.md, CHANGELOG.md, DATABASE.md, DEMO_ACCOUNTS.md (git-ignored), DESIGN_SYSTEM.md, ENVIRONMENT_VARIABLES.md, FOLDER_STRUCTURE.md, IMAGES.md, NEXT_STEP.md, CARE_PLANS.md, DOCUMENTS.md, PATIENTS.md, REFERRALS.md, REVIEW_MILESTONE_D.md, PHASE_0_ARCHITECTURE.md, PHASE_STATUS.md, PROJECT_HANDOFF.md (this file), PUBLIC_WEBSITE.md, RBAC.md, TROUBLESHOOTING.md, ULTRA_BABY_STEPS.md, VISITS.md, CONTINUATION_PROMPT.md.
 
 ---
 
 ## 16. What to do first in the new conversation
 
-Ask J whether the documents round has run on his machine: `npx prisma migrate dev --name add_documents`, `npx prisma db seed` (expect "5 synthetic demo documents ready"), `npm run verify:access` (expect 254 passed, 0 failed), a click-through of /documents as all three demo accounts, including trying to open an admin-only download link as a nurse (expect "That document could not be found."), and one real upload of a small PDF through the form, since that one wrapper was not tested end to end. If he reports problems, fix those first. If it passed, commit it and build the last slice of Milestone D: referrals (a request for care or a hand-off between parties, attached to a patient). Design it the same way patients, visits, care plans and documents were: a real schema addition, a real access-control question (who can see, create and update a referral, and what is the sensitive part, for example the reason or the outside organization), a seed update that makes the answer testable with the existing demo accounts, and a check added to scripts/verify-access.ts that tries to break it, plus proof the check can fail by breaking a rule in a copy. Reuse getPatientScope and isActiveCareTeamMember, do not copy the rules. After referrals, Milestone D is finished: do a full review pass, then propose Milestone E (the real staff-facing screens) and ask J before starting it.
+Ask J whether the referrals round has run on his machine: `npx prisma migrate dev --name add_referrals`, `npx prisma db seed` (expect "6 synthetic demo referrals ready"), `npm run verify:access` (expect 407 passed, 0 failed), a click-through of /referrals as all three demo accounts (admin sees six with office details, each nurse sees only her own patient's referral with no office details), and one real use of the Record a referral form, since the forms were tested over real HTTP but not clicked in a browser. If he reports problems, fix those first. If he says it worked, commit it and continue.
+
+Then read docs/REVIEW_MILESTONE_D.md with him. It ends with three questions that decide Milestone E: which portal first (recommended: the administrator's Care Command Center), whether the recommended permission sets for CARE_COORDINATOR and CLINICAL_SUPERVISOR are right, and whether the public request-care form is wired up now or later. Do not start Milestone E before he answers. When he does, begin with E0: extract the shared access helpers, add care-team assignment as a real tested service, and add the agreed permission sets.
 
 Also confirm whether real photography has arrived yet. The phone number is settled and should not be raised again.

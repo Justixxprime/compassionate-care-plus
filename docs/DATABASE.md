@@ -147,3 +147,7 @@ Two new tables: `care_plans` and `care_plan_goals`. A plan belongs to a patient 
 ## Update, 19 September 2026: documents
 
 Two new tables: `documents` (details: patient, uploader, category, title, cleaned file name, type, size, SHA-256 fingerprint, status, who archived it and when) and `document_files` (just the bytes, one row per document, deleted with it). The bytes are kept apart so no list can load them by accident. For this demo they live in the database; real patient files belong in encrypted object storage, which is a paid-service decision still to be made. Foreign keys to patients and users are `Restrict`. Run `npx prisma migrate dev --name add_documents`, then `npx prisma db seed`.
+
+## Update, 20 September 2026: referrals
+
+One new table: `referrals`. It holds who is being referred (name and date of birth), who sent it, the kind of care and urgency, the clinical reason, three office-only columns (outside contact name and phone, office notes, and the reason a referral was declined or withdrawn), the status, who recorded it and who decided it and when. `patient_id` is EMPTY until the referral is accepted, because the person is usually not a patient yet. This is the first table in which that column is optional. Foreign keys to patients and users are `Restrict`, so a patient or staff account with referrals cannot be removed by accident, and referrals are never hard-deleted. Run `npx prisma migrate dev --name add_referrals`, then `npx prisma db seed` (it grants nurses `referrals.read` and adds six synthetic referrals). See `docs/REFERRALS.md`.

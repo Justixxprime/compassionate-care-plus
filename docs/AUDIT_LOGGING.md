@@ -42,3 +42,7 @@ Now logged: `care_plan_created`, `care_plan_updated`, `care_plan_goal_added`, `c
 ## Update, 19 September 2026: document events, and the first logging of reading
 
 Now logged: `document_uploaded`, `document_downloaded`, `document_archived`, and `access_denied` (outcome `denied`) for reaching a patient, or a restricted category, outside one's allowance. Downloads are the first READ events in the log, because opening a file is what an investigation asks about. Only a successful download is logged as a download. The log never holds a document's title, file name or contents. See `docs/DOCUMENTS.md`.
+
+## Update, 20 September 2026: referral events
+
+Now logged: `referral_created`, `referral_updated`, `referral_review_started`, `referral_accepted`, `referral_declined`, `referral_withdrawn`, `patient_created` (when accepting a referral creates a patient record), and `access_denied` (outcome `denied`) for reaching a referral or patient outside one's allowance, or recording a referral without administrative reach. The referral's name, reason, contact details and notes are never written to the log. Reading the list is not logged. See `docs/REFERRALS.md`.

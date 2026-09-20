@@ -1,3 +1,28 @@
+## Referrals - fifth and last slice of Milestone D
+**20 September 2026**
+
+Added
+- prisma/schema.prisma - Referral model (new migration required: add_referrals). No new permission: referrals.read and referrals.manage already existed.
+- src/lib/referrals.ts - listReferrals, canRecordReferrals, createReferral, updateReferral, changeReferralStatus: every referral rule in one file
+- src/lib/referral-constants.ts - sources, urgencies, statuses, the REFERRAL_TRANSITIONS state machine, limits
+- src/lib/referrals-actions.ts - thin server actions for create, update and status change
+- src/app/referrals/ - page.tsx, create-referral-form.tsx, referral-controls.tsx, referral-fields.tsx
+- docs/REFERRALS.md, docs/REVIEW_MILESTONE_D.md
+
+Changed
+- src/lib/time.ts - parseCalendarDate and formatCalendarDate for dates of birth (a day, not a moment)
+- prisma/seed.ts - NURSE now holds referrals.read; six synthetic referrals (three accepted and linked to Eleanor, Marcus and Priya; Walter Brennan in review, Grace Holloway received, Tomas Reyes declined), created only when none exist
+- scripts/verify-access.ts - new sections 2d and 12a to 12i, cleanup extended to referrals, patients created by accepting, and a temporary role. 407 checks now.
+- src/app/dashboard/page.tsx - "View referrals" link, shown only to accounts holding referrals.read
+- docs: RBAC, AUDIT_LOGGING, DATABASE, FOLDER_STRUCTURE, DEMO_ACCOUNTS, PHASE_STATUS, NEXT_STEP, PROJECT_HANDOFF, CONTINUATION_PROMPT
+
+Verified in the build environment (real Postgres, real generated Prisma client)
+- tsc --noEmit clean, eslint clean, `next build` succeeds (/referrals is dynamic)
+- verify:access: 407 passed, 0 failed, database left clean. With thirteen rules deliberately broken one at a time in a copy it failed on those rules each time.
+- Real HTTP against the built app with real sessions: /referrals as admin (all six with office details), nurse one (only Eleanor's, no office details, no other person's name) and nurse two (only Marcus's); signed out is redirected to sign in
+- The create, edit and status-change server actions and the document upload action were called over real HTTP with React's own request encoder (the exact body a browser sends). Recording, the duplicate refusal, the impossible birth date refusal, editing and starting a review worked as the admin; the nurse was refused every time and nothing was saved; a signed-out call was refused. The upload action accepted a small real PDF and refused a repeat, a text file renamed .pdf, a 2.5 MB file (past the 2 MB rule but under the 3 MB request cap), no file, a patient off the nurse's team and a restricted category for the nurse.
+- Still NOT tested: clicking the forms in a real browser (no browser in the build environment)
+
 ## Documents - fourth slice of Milestone D
 **19 September 2026**
 

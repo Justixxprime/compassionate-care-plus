@@ -92,3 +92,9 @@ Every permission check lives in the service layer. That means there is exactly o
 - `src/lib/documents.ts`, `document-constants.ts`, `documents-actions.ts`
 - `prisma/demo-pdf.ts`
 - `docs/DOCUMENTS.md`
+
+## Update, 20 September 2026: referrals
+
+- `src/app/referrals/` - `page.tsx`, `create-referral-form.tsx`, `referral-controls.tsx`, `referral-fields.tsx`
+- `src/lib/referrals.ts`, `referral-constants.ts`, `referrals-actions.ts`
+- `docs/REFERRALS.md`, `docs/REVIEW_MILESTONE_D.md`
