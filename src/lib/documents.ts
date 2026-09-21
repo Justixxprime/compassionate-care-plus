@@ -57,7 +57,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, requirePermission } from "@/lib/auth/authorize";
-import { writeAuditLog } from "@/lib/audit/log";
+import { auditAllowed, auditDenied, loadActor, type Actor } from "@/lib/auth/actor";
 import {
   getPatientScope,
   scopeAllowsPatient,
@@ -79,49 +79,6 @@ import {
 const NOT_FOUND = "That document could not be found.";
 const NO_PATIENT_ACCESS = "You do not have access to that patient.";
 const NO_CATEGORY_ACCESS = "You cannot file that kind of document.";
-
-interface Actor {
-  id: string;
-  email: string;
-  organizationId: string;
-}
-
-async function loadActor(userId: string): Promise<Actor> {
-  return prisma.user.findUniqueOrThrow({
-    where: { id: userId },
-    select: { id: true, email: true, organizationId: true },
-  });
-}
-
-async function auditDenied(
-  actor: Actor,
-  resourceType: string,
-  resourceId?: string,
-): Promise<void> {
-  await writeAuditLog({
-    actorUserId: actor.id,
-    actorEmail: actor.email,
-    action: "access_denied",
-    resourceType,
-    resourceId,
-    outcome: "denied",
-  });
-}
-
-async function auditAllowed(
-  actor: Actor,
-  action: string,
-  resourceId: string,
-): Promise<void> {
-  await writeAuditLog({
-    actorUserId: actor.id,
-    actorEmail: actor.email,
-    action,
-    resourceType: "document",
-    resourceId,
-    outcome: "allowed",
-  });
-}
 
 // The third question. Only the organization-wide (administrative) scope
 // may touch a restricted category.
@@ -376,7 +333,7 @@ export async function uploadDocument(
     select: { id: true },
   });
 
-  await auditAllowed(actor, "document_uploaded", created.id);
+  await auditAllowed(actor, "document_uploaded", "document", created.id);
   return { ok: true, value: { documentId: created.id } };
 }
 
@@ -407,7 +364,7 @@ export async function getDocumentForDownload(
   });
   if (!file) return { ok: false, error: NOT_FOUND };
 
-  await auditAllowed(actor, "document_downloaded", doc.id);
+  await auditAllowed(actor, "document_downloaded", "document", doc.id);
   return {
     ok: true,
     value: {
@@ -444,6 +401,6 @@ export async function archiveDocument(
     return { ok: false, error: "That document was just archived by someone else." };
   }
 
-  await auditAllowed(actor, "document_archived", doc.id);
+  await auditAllowed(actor, "document_archived", "document", doc.id);
   return { ok: true, value: { documentId: doc.id } };
 }

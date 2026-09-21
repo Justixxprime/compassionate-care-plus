@@ -1,3 +1,27 @@
+## Milestone E0 - shared helpers, care teams, and the two office roles
+**21 September 2026**
+
+Added
+- src/lib/auth/actor.ts - loadActor, auditDenied and auditAllowed, once, for every service
+- src/lib/care-team.ts, src/lib/care-team-constants.ts - listCareTeam, listPatientsNeedingTeam, getAssignmentOptions, assignToCareTeam, endCareTeamAssignment. No schema change, so NO migration this round.
+- Permissions care_team.read and care_team.manage (33 permissions now)
+- Demo accounts demo.coordinator@cheliv.test and demo.supervisor@cheliv.test
+- docs/CARE_TEAMS.md
+
+Changed
+- src/lib/visits.ts, care-plans.ts, documents.ts, referrals.ts - the four private copies of loadActor, auditDenied and auditAllowed removed; they import the shared file
+- prisma/seed.ts - CARE_COORDINATOR and CLINICAL_SUPERVISOR now hold real permission sets, ADMIN holds the care team permissions. The seed only ever adds permissions, never removes.
+- scripts/verify-access.ts - section 0 (no file may carry its own copy of the helpers), sections 13a to 15c, a second temporary organization, a rewritten cleanup. The old "manager" test account now uses the clinical supervisor role as its base (the coordinator role really holds patients.create now). 553 checks.
+- docs: RBAC, AUDIT_LOGGING, FOLDER_STRUCTURE, PHASE_STATUS, NEXT_STEP, PROJECT_HANDOFF, CONTINUATION_PROMPT, DEMO_ACCOUNTS
+
+Decisions taken on my recommendations, because the three Milestone E questions were not answered: Care Command Center first, the permission sets above, the public request-care form later. Also decided by me: CARE_COORDINATOR holds patients.create (not in the reviewed list, needed to accept a referral about someone new) and nurses hold no care team permission.
+
+Verified in the build environment (real Postgres, real generated Prisma client)
+- tsc --noEmit clean, eslint clean, `next build` succeeds
+- verify:access: 553 passed, 0 failed, database left clean. Fifteen runs in a row were clean after a race in the primary nurse check was fixed with a retry. Eighteen rules broken on purpose, one at a time (14 in the code, 4 in the database permission sets): the script failed on each one. One check was too weak (a worklist reach check that could not fail); it was rewritten and then caught its break.
+- Not run here: a real browser (there are no screens for this yet)
+- Not confirmed: the exact error name the real Prisma engine gives for two changes colliding. The retry accepts both known forms. `verify:access` on your machine exercises it.
+
 ## Referrals - fifth and last slice of Milestone D
 **20 September 2026**
 

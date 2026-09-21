@@ -28,7 +28,7 @@ The permission list and which roles hold which permissions are real rows (`permi
 
 ## Update, 19 September 2026: relationship checks now exist for visits
 
-The "no fine-grained per-resource checks yet" gap above is closing. Visits (see `docs/VISITS.md`) check permission AND relationship on every operation: `requirePermission` first, then `getPatientScope` from `src/lib/patients.ts`. Permissions in use for visits: `visits.read`, `visits.create`, `visits.update`. Still true: CARE_COORDINATOR, CLINICAL_SUPERVISOR and the other roles hold no permissions yet.
+The "no fine-grained per-resource checks yet" gap above is closing. Visits (see `docs/VISITS.md`) check permission AND relationship on every operation: `requirePermission` first, then `getPatientScope` from `src/lib/patients.ts`. Permissions in use for visits: `visits.read`, `visits.create`, `visits.update`. Since 21 September 2026 CARE_COORDINATOR and CLINICAL_SUPERVISOR hold real permission sets (see the last update in this file); CAREGIVER, PATIENT, AUTHORIZED_FAMILY and REFERRAL_PARTNER still hold none.
 
 ## Update, 19 September 2026: a third question for clinical content
 
@@ -41,3 +41,7 @@ Documents (see `docs/DOCUMENTS.md`) ask permission, relationship, and a third qu
 ## Update, 20 September 2026: reach and fields for referrals
 
 Referrals (see `docs/REFERRALS.md`) ask permission, REACH and FIELDS. Reach differs for the two shapes of referral: one about someone who is not yet a patient is reachable by administrative roles only, and an accepted one is reachable by whoever can reach that patient. Fields: office details (outside contact, office notes, the reason for a decline) are administrative only and are never selected from the database for anyone else. No new permission was needed: `referrals.read` and `referrals.manage` already existed. ADMIN and SUPER_ADMIN hold both. NURSE now holds `referrals.read`. Recording a referral also needs administrative reach, so a role that holds `referrals.manage` with only "assigned patients" reach cannot record or see an unlinked referral. Accepting a referral into a NEW patient record also needs `patients.create`.
+
+## Update, 21 September 2026: care teams, and the office roles
+
+Two new permissions, `care_team.read` and `care_team.manage`, and real permission sets for CARE_COORDINATOR and CLINICAL_SUPERVISOR (the full lists are in `docs/CARE_TEAMS.md`). Putting someone on a team asks permission, reach, and three rules that belong to teams: the patient must be active, the person must really hold a role that may fill that place, and nobody is on a team twice or is a second primary nurse. The three copied helpers (`loadActor`, `auditDenied`, `auditAllowed`) now live once in `src/lib/auth/actor.ts`, and `npm run verify:access` fails if a private copy appears again. Open decision: a supervisor holding `documents.read` sees restricted documents, because "restricted" means administrative roles.

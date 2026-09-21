@@ -58,16 +58,19 @@ Order follows the revised milestone plan in `PHASE_0_ARCHITECTURE.md` section 12
 - **Next action:** Milestone D - the real clinical schema (patients, visits, care plans, referrals, documents)
 
 ## MILESTONE D - Core operations
-- **Status:** In progress
+- **Status:** Complete (21 September 2026). Review in docs/REVIEW_MILESTONE_D.md.
 - **Patients & care team:** Complete (17 September 2026) - patients table, care_team_members join table, real relationship-based access logic in src/lib/patients.ts, tested via two demo accounts seeing different patient lists
 - **Visits:** Complete and confirmed on his machine (19 September 2026) - visits table, src/lib/visits.ts, /visits proof page, second demo nurse, `npm run verify:access`.
 - **Care plans:** Complete and confirmed on his machine (19 September 2026): migration applied, seed ran, `verify:access` 175 passed and 0 failed, /care-plans rendered, the red "1 Issue" badge gone. Care team writing, four-eyes approval, locked wording once approved.
 - **Documents:** Written and verified in the build environment (19 September 2026), committed by him with migration add_documents - documents and document_files tables, src/lib/documents.ts, /documents proof page and download route, restricted categories, `verify:access` extended to 254 checks. **Waiting on:** his machine (migration `add_documents`, seed, `npm run verify:access`, click through /documents as all three demo accounts, and one hand test of the upload form with a small PDF)
-- **Referrals:** Written and verified in the build environment (20 September 2026) - referrals table, src/lib/referrals.ts, /referrals proof page, unlinked referrals visible to administrators only, office details hidden from everyone else, accepting links or creates a patient, `verify:access` extended to 407 checks. **Waiting on:** his machine (migration `add_referrals`, seed, `npm run verify:access`, click through /referrals as all three demo accounts, and one hand test of the "Record a referral" form)
-- **Next:** a full review pass (docs/REVIEW_MILESTONE_D.md) and a proposal for Milestone E, which I ask him about before starting
+- **Referrals:** Complete and confirmed on his machine (21 September 2026): migration add_referrals applied, admin recorded and accepted a referral (a new patient was created), nurse two saw only Marcus Delgado's referral, no office details for nurses.
 
-## MILESTONE E - Portals
-- **Status:** Not started
+## MILESTONE E - The real staff-facing screens
+- **Status:** In progress
+- **E0 (shared helpers, care teams, office role permissions):** Written and verified in the build environment (21 September 2026): 553 access checks, 18 deliberate rule breaks all caught, tsc, eslint and build clean. No migration. **Waiting on:** his machine (`npx prisma db seed`, `npm run verify:access` expecting 553 passed).
+- **E1 (internal app shell):** Next
+- **E2 (Care Command Center, including the care team screens):** After E1
+- **E3 clinical portal, E4 caregiver portal (phone first), E5 patient and family portals:** Later
 
 ## MILESTONE F - Production readiness
 - **Status:** Not started

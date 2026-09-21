@@ -98,3 +98,9 @@ Every permission check lives in the service layer. That means there is exactly o
 - `src/app/referrals/` - `page.tsx`, `create-referral-form.tsx`, `referral-controls.tsx`, `referral-fields.tsx`
 - `src/lib/referrals.ts`, `referral-constants.ts`, `referrals-actions.ts`
 - `docs/REFERRALS.md`, `docs/REVIEW_MILESTONE_D.md`
+
+## Update, 21 September 2026: care teams
+
+- `src/lib/auth/actor.ts` - the shared loadActor, auditDenied and auditAllowed
+- `src/lib/care-team.ts`, `care-team-constants.ts` - who is on a patient's team, and the only code that changes it
+- `docs/CARE_TEAMS.md`

@@ -36,6 +36,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, requirePermission } from "@/lib/auth/authorize";
 import { writeAuditLog } from "@/lib/audit/log";
+import { auditDenied, loadActor } from "@/lib/auth/actor";
 import {
   activeAssignmentFilter,
   getPatientScope,
@@ -59,34 +60,6 @@ const NOT_FOUND = "That visit could not be found.";
 const NO_PATIENT_ACCESS = "You do not have access to that patient.";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-interface Actor {
-  id: string;
-  email: string;
-  organizationId: string;
-}
-
-async function loadActor(userId: string): Promise<Actor> {
-  return prisma.user.findUniqueOrThrow({
-    where: { id: userId },
-    select: { id: true, email: true, organizationId: true },
-  });
-}
-
-async function auditDenied(
-  actor: Actor,
-  resourceType: string,
-  resourceId?: string,
-): Promise<void> {
-  await writeAuditLog({
-    actorUserId: actor.id,
-    actorEmail: actor.email,
-    action: "access_denied",
-    resourceType,
-    resourceId,
-    outcome: "denied",
-  });
-}
 
 // ---------- Reading ----------
 

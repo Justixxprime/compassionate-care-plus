@@ -5,7 +5,7 @@
 // Reading code and believing it is not the same as watching it refuse.
 // This script signs in nobody and clicks nothing - it calls the same
 // service functions the pages and server actions call (src/lib/visits.ts,
-// src/lib/care-plans.ts, src/lib/documents.ts, src/lib/referrals.ts, src/lib/patients.ts) as different people, and checks that every action
+// src/lib/care-plans.ts, src/lib/documents.ts, src/lib/referrals.ts, src/lib/care-team.ts, src/lib/patients.ts) as different people, and checks that every action
 // that SHOULD be refused IS refused, and every action that should work
 // does. Then it deletes everything it created.
 //
@@ -72,8 +72,17 @@ import {
   REFERRAL_REASON_MAX,
   REFERRAL_SOURCE_ORG_MAX,
 } from "@/lib/referral-constants";
+import {
+  assignToCareTeam,
+  endCareTeamAssignment,
+  getAssignmentOptions,
+  listCareTeam,
+  listPatientsNeedingTeam,
+} from "@/lib/care-team";
 import { makeDemoPdf } from "../prisma/demo-pdf";
 import { ORG_TIMEZONE, orgLocalToUtc } from "@/lib/time";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
 
 // ---------- tiny test harness ----------
 
@@ -132,6 +141,35 @@ async function main() {
 
   const runId = Date.now().toString(36);
   console.log(`Access verification, run ${runId}`);
+
+  // ----- 0. The shared access helpers exist once -----
+  // loadActor, auditDenied and auditAllowed used to be copied into four
+  // service files. They now live in src/lib/auth/actor.ts. This reads the
+  // source on purpose: a private copy is the kind of change that passes
+  // every behaviour test and still leaves one file quietly weaker.
+  section("0. The shared access helpers exist once, and every service uses them");
+  const sourceFiles: string[] = [];
+  const walk = (dir: string) => {
+    for (const name of readdirSync(dir)) {
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) walk(full);
+      else if (/\.(ts|tsx)$/.test(name)) sourceFiles.push(full);
+    }
+  };
+  walk(join(process.cwd(), "src"));
+  const rel = (f: string) => relative(process.cwd(), f).replace(/\\/g, "/");
+  const helperFile = "src/lib/auth/actor.ts";
+  const privateCopies = sourceFiles
+    .filter((f) => rel(f) !== helperFile)
+    .filter((f) => /function\s+(loadActor|auditDenied|auditAllowed)\b/.test(readFileSync(f, "utf8")))
+    .map(rel);
+  check("no file has its own copy of loadActor, auditDenied or auditAllowed", privateCopies.length === 0, privateCopies.join(", "));
+  const helperSource = readFileSync(join(process.cwd(), helperFile), "utf8");
+  check("the shared file defines all three helpers", ["loadActor", "auditDenied", "auditAllowed"].every((n) => new RegExp(`export async function ${n}\\b`).test(helperSource)));
+  for (const service of ["visits", "care-plans", "documents", "referrals", "care-team"]) {
+    const src = readFileSync(join(process.cwd(), `src/lib/${service}.ts`), "utf8");
+    check(`src/lib/${service}.ts uses the shared helpers`, src.includes('from "@/lib/auth/actor"'));
+  }
 
   // ----- 1. Time conversion -----
   section("1. Office time to UTC (Texas, including daylight saving)");
@@ -303,6 +341,8 @@ async function main() {
   const visitIds: string[] = [];
   let patientId = "";
   let tempRoleId = ""; // the temporary referral manager role (section 12)
+  const extraTempRoleIds: string[] = []; // the temporary care team manager role (section 13)
+  let otherOrgId = ""; // a temporary second organization (section 13e)
 
   try {
     const nurseA = await makeUser("a", nurseRole.id); // on the team
@@ -880,12 +920,16 @@ async function main() {
     // never collide with the names the earlier sections already took.
     {
     section("12a. Referrals: an account without the permission is stopped, and a read-only account cannot change anything");
-    const coordinatorRole = await prisma.role.findFirstOrThrow({ where: { organizationId: orgId, key: "CARE_COORDINATOR" } });
+    // The clinical supervisor role gives administrative reach and holds no
+    // referral permissions and no patients.create. (The care coordinator
+    // role used to serve here, but a coordinator now really does hold
+    // patients.create, which is the point of that role.)
+    const coordinatorRole = await prisma.role.findFirstOrThrow({ where: { organizationId: orgId, key: "CLINICAL_SUPERVISOR" } });
     const referralPerms = await prisma.permission.findMany({ where: { key: { in: ["referrals.read", "referrals.manage"] } } });
     check("the two referral permissions exist", referralPerms.length === 2);
     // A temporary role that holds ONLY the two referral permissions. Paired
-    // with the administrative CARE_COORDINATOR role (which holds no
-    // permissions of its own) it makes a manager with administrative reach
+    // with the administrative CLINICAL_SUPERVISOR role (which holds no
+    // referral permissions of its own) it makes a manager with administrative reach
     // but WITHOUT patients.create. On its own it makes a manager whose
     // reach is only "my assigned patients". Both are shapes the real roles
     // do not have yet, and both are exactly what a rule must survive.
@@ -1179,59 +1223,432 @@ async function main() {
     const auditText = JSON.stringify(await prisma.auditLog.findMany({ where: { actorUserId: { in: createdUserIds } }, select: { action: true, resourceType: true, resourceId: true, outcome: true, actorEmail: true } }));
     check("the audit log never holds what a referral said", !auditText.includes("Verify reason") && !auditText.includes("Verify Contact") && !auditText.includes("(281) 555-0100") && !auditText.includes("Verify office note") && !auditText.includes("outside the area"));
     }
+
+    // ===================================================================
+    // Milestone E0: care teams, and the two office roles that now hold
+    // real permissions (CARE_COORDINATOR, CLINICAL_SUPERVISOR).
+    //
+    // Everything here is done by REALLY being that role (a temporary
+    // account holding the role the seed built), so the permission sets are
+    // proven by using them, not by reading the list in the seed.
+    // ===================================================================
+    {
+      const coordRole = await prisma.role.findFirstOrThrow({ where: { organizationId: orgId, key: "CARE_COORDINATOR" } });
+      const supRole = await prisma.role.findFirstOrThrow({ where: { organizationId: orgId, key: "CLINICAL_SUPERVISOR" } });
+      const coord = await makeUser("coord", coordRole.id);
+      const sup = await makeUser("sup", supRole.id);
+      const cg2 = await makeUser("cgtwo", caregiverRole.id); // a second caregiver, on no team
+      const careTeamPerms = await prisma.permission.findMany({ where: { key: { in: ["care_team.read", "care_team.manage"] } } });
+      // A temporary role holding ONLY the two care team permissions. Paired
+      // with the NURSE role it makes someone who may manage care teams but
+      // whose reach is only their assigned patients: a shape no real role
+      // has, and exactly what the reach rule has to survive.
+      const tempCareRole = await prisma.role.create({ data: { organizationId: orgId, key: `VERIFYCT_${runId}`, name: "Verify care team manager" } });
+      extraTempRoleIds.push(tempCareRole.id);
+      await prisma.rolePermission.createMany({ data: careTeamPerms.map((p) => ({ roleId: tempCareRole.id, permissionId: p.id })) });
+      const remoteCare = await makeUser("remotecare", nurseRole.id);
+      await prisma.userRole.create({ data: { userId: remoteCare.id, roleId: tempCareRole.id } });
+
+      const FORGED_ID = "00000000-0000-0000-0000-00000000c0c0";
+      const FORGED_STAFF = "00000000-0000-0000-0000-00000000c0c1";
+      trackedResourceIds.push(FORGED_ID, FORGED_STAFF);
+
+      // ----- 13a. The permission sets -----
+      section("13a. Care teams: the permission sets, and who is stopped at the door");
+      const permsOf = async (roleKey: string) =>
+        (await prisma.rolePermission.findMany({ where: { role: { organizationId: orgId, key: roleKey } }, select: { permission: { select: { key: true } } } }))
+          .map((r) => r.permission.key)
+          .sort();
+      const sameSet = (got: string[], want: string[]) => got.length === want.length && [...want].sort().every((k, i) => got[i] === k);
+      check("the two care team permissions exist", careTeamPerms.length === 2);
+      const coordPerms = await permsOf("CARE_COORDINATOR");
+      const supPerms = await permsOf("CLINICAL_SUPERVISOR");
+      check(
+        "CARE_COORDINATOR holds exactly the agreed set",
+        sameSet(coordPerms, ["patients.read", "patients.create", "referrals.read", "referrals.manage", "visits.read", "visits.create", "visits.update", "care_team.read", "care_team.manage"]),
+        coordPerms.join(", "),
+      );
+      check(
+        "CLINICAL_SUPERVISOR holds exactly the agreed set",
+        sameSet(supPerms, ["patients.read", "care_plans.read", "care_plans.approve", "visits.read", "documents.read", "care_team.read"]),
+        supPerms.join(", "),
+      );
+      const nursePerms = await permsOf("NURSE");
+      check("a nurse holds neither care team permission", !nursePerms.includes("care_team.read") && !nursePerms.includes("care_team.manage"));
+      const stillEmpty = await Promise.all(["CAREGIVER", "PATIENT", "AUTHORIZED_FAMILY", "REFERRAL_PARTNER"].map(async (k) => (await permsOf(k)).length));
+      check("caregiver, patient, family and referral partner still hold no permissions", stillEmpty.every((n) => n === 0), stillEmpty.join(","));
+      const demoOffice = await Promise.all(
+        [["demo.coordinator@cheliv.test", "CARE_COORDINATOR"], ["demo.supervisor@cheliv.test", "CLINICAL_SUPERVISOR"]].map(async ([email, roleKey]) => {
+          const u = await prisma.user.findUnique({ where: { email }, include: { userRoles: { include: { role: true } } } });
+          return u?.userRoles.some((ur) => ur.role.key === roleKey) === true;
+        }),
+      );
+      check("the demo coordinator and demo supervisor exist with the right roles", demoOffice.every(Boolean), "run: npx prisma db seed");
+
+      for (const [label, who] of [["an account with no permissions", noPerms], ["a nurse", nurseA]] as const) {
+        check(`${label} cannot read a care team`, await throwsAuthorization(() => listCareTeam(who.id, FORGED_ID)));
+        check(`${label} cannot see the worklist`, await throwsAuthorization(() => listPatientsNeedingTeam(who.id)));
+        check(`${label} cannot add to a care team`, await throwsAuthorization(() => assignToCareTeam(who.id, { patientId: FORGED_ID, staffId: FORGED_STAFF, roleOnCase: "nurse" })));
+        check(`${label} cannot end an assignment`, await throwsAuthorization(() => endCareTeamAssignment(who.id, FORGED_ID)));
+        check(`${label} gets no add-to-team form`, (await getAssignmentOptions(who.id, FORGED_ID)) === null);
+      }
+      check("a supervisor cannot add to a care team", await throwsAuthorization(() => assignToCareTeam(sup.id, { patientId: FORGED_ID, staffId: FORGED_STAFF, roleOnCase: "nurse" })));
+      check("a supervisor cannot end an assignment", await throwsAuthorization(() => endCareTeamAssignment(sup.id, FORGED_ID)));
+      check("a supervisor gets no add-to-team form", (await getAssignmentOptions(sup.id, FORGED_ID)) === null);
+      check("the refusals were written to the audit log", (await prisma.auditLog.count({ where: { actorUserId: nurseA.id, action: "permission_denied", resourceId: { in: ["care_team.read", "care_team.manage"] } } })) >= 4);
+
+      // ----- 13b. What the form offers -----
+      section("13b. Care teams: what the add-to-team form offers");
+      const mkPatient = (tag: string, status = "active") =>
+        prisma.patient.create({ data: { organizationId: orgId, firstName: "Verify", lastName: `${tag}${runId}`, dateOfBirth: new Date("1951-02-02"), status } });
+      const ct = await mkPatient("Careteam");
+      const ctOff = await mkPatient("Careoff", "discharged");
+      const ctRace = await mkPatient("Carerace");
+      const lone = await mkPatient("Carelone");
+      const lone3 = await mkPatient("Carenone");
+      trackedResourceIds.push(ct.id, ctOff.id, ctRace.id, lone.id, lone3.id);
+      const teamSize = () => prisma.careTeamMember.count({ where: { patientId: ct.id } });
+      const activeTeam = (pid: string) => prisma.careTeamMember.findMany({ where: { patientId: pid, OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }] } });
+      let assignedByCoord = 0;
+      const assign = async (who: { id: string }, staff: { id: string }, place: string, pid: string = ct.id) => {
+        const r = await assignToCareTeam(who.id, { patientId: pid, staffId: staff.id, roleOnCase: place });
+        if (r.ok) {
+          trackedResourceIds.push(r.value.assignmentId);
+          if (who.id === coord.id) assignedByCoord++;
+        }
+        return r;
+      };
+      const seesPatient = async (userId: string, pid: string) => (await getAccessiblePatients(userId)).some((p) => p.id === pid);
+
+      const needsBefore = await listPatientsNeedingTeam(coord.id);
+      check("a patient nobody looks after is on the coordinator's worklist", needsBefore.some((p) => p.id === ct.id && !p.hasAnyTeam));
+      check("a discharged patient is not on the worklist", !needsBefore.some((p) => p.id === ctOff.id));
+
+      const opts = await getAssignmentOptions(coord.id, ct.id);
+      check("the coordinator is offered the form for an active patient", opts !== null);
+      const offered = new Map((opts?.staff ?? []).map((m) => [m.id, m.canFill]));
+      check("the offer lists nurses and caregivers", [nurseA, nurseB, nurseC, noPerms, cg2].every((u) => offered.has(u.id)));
+      check("the offer never lists an administrator, coordinator or supervisor", [admin, approver, coord, sup].every((u) => !offered.has(u.id)));
+      check("a nurse is offered the nurse places only", (offered.get(nurseA.id) ?? []).includes("primary_nurse") && (offered.get(nurseA.id) ?? []).includes("nurse") && !(offered.get(nurseA.id) ?? []).includes("caregiver"));
+      check("a caregiver is offered the caregiver place only", JSON.stringify(offered.get(cg2.id)) === JSON.stringify(["caregiver"]));
+      check("no form for a discharged patient", (await getAssignmentOptions(coord.id, ctOff.id)) === null);
+      check("no form for a made-up patient", (await getAssignmentOptions(coord.id, FORGED_ID)) === null);
+      check("no form for someone whose reach does not include the patient", (await getAssignmentOptions(remoteCare.id, ct.id)) === null);
+
+      // ----- 13c. Adding people, and every way to do it wrongly -----
+      section("13c. Care teams: adding people, and every way to do it wrongly");
+      const first = await assign(coord, nurseC, "nurse");
+      check("a coordinator CAN add a nurse (before any primary nurse)", first.ok, errorOf(first));
+      check("the patient now has a team but still needs a primary nurse", (await listPatientsNeedingTeam(coord.id)).some((p) => p.id === ct.id && p.hasAnyTeam));
+      check("nurse C now sees the patient", await seesPatient(nurseC.id, ct.id));
+
+      const primary = await assign(coord, nurseA, "primary_nurse");
+      check("a coordinator CAN add the primary nurse", primary.ok, errorOf(primary));
+      const primaryId = primary.ok ? primary.value.assignmentId : "";
+      const primaryRow = primaryId ? await prisma.careTeamMember.findUniqueOrThrow({ where: { id: primaryId } }) : null;
+      check("the new assignment is open-ended and in the right place", primaryRow?.endsAt === null && primaryRow.roleOnCase === "primary_nurse" && primaryRow.patientId === ct.id && primaryRow.userId === nurseA.id);
+      check("nurse A sees the patient the moment she is added", await seesPatient(nurseA.id, ct.id));
+      check("the patient left the worklist", !(await listPatientsNeedingTeam(coord.id)).some((p) => p.id === ct.id));
+      const caregiverAdd = await assign(coord, noPerms, "caregiver");
+      check("a coordinator CAN add a caregiver", caregiverAdd.ok, errorOf(caregiverAdd));
+      const nurseCId = first.ok ? first.value.assignmentId : "";
+      const caregiverAssignmentId = caregiverAdd.ok ? caregiverAdd.value.assignmentId : "";
+      const sizeBefore = await teamSize();
+
+      const twice = await assign(coord, nurseA, "nurse");
+      check("the same person cannot be added twice", !twice.ok && errorOf(twice).includes("already on this care team"), errorOf(twice));
+      const secondPrimary = await assign(coord, nurseB, "primary_nurse");
+      check("a second primary nurse is refused", !secondPrimary.ok && errorOf(secondPrimary).includes("already has a primary nurse"), errorOf(secondPrimary));
+      check("the form stops offering the primary place", !(await getAssignmentOptions(coord.id, ct.id))?.places.some((p) => p.key === "primary_nurse"));
+
+      const wrongPeople: [string, () => ReturnType<typeof assign>][] = [
+        ["a nurse in the caregiver place", () => assign(coord, nurseB, "caregiver")],
+        ["a caregiver in the nurse place", () => assign(coord, cg2, "nurse")],
+        ["a caregiver as primary nurse", () => assign(coord, cg2, "primary_nurse")],
+        ["an administrator", () => assign(coord, admin, "nurse")],
+        ["a coordinator", () => assign(coord, coord, "nurse")],
+        ["a clinical supervisor", () => assign(coord, sup, "nurse")],
+        ["a person who does not exist", () => assign(coord, { id: FORGED_STAFF }, "nurse")],
+      ];
+      const wrongMessages = new Set<string>();
+      for (const [label, attempt] of wrongPeople) {
+        const r = await attempt();
+        check(`${label} cannot be put on the team`, !r.ok, "it was allowed");
+        wrongMessages.add(errorOf(r));
+      }
+      check("every one of those refusals says the same words (nothing is given away)", wrongMessages.size === 1, [...wrongMessages].join(" | "));
+      const badPlace = await assign(coord, nurseB, "surgeon");
+      check("a place that does not exist is refused", !badPlace.ok && errorOf(badPlace) === "Choose a place on the team from the list.", errorOf(badPlace));
+      const offDuty = await assign(coord, nurseB, "nurse", ctOff.id);
+      check("nobody can be added to a discharged patient's team", !offDuty.ok && errorOf(offDuty).includes("active patient"), errorOf(offDuty));
+      const forgedPatient = await assign(coord, nurseB, "nurse", FORGED_ID);
+      const outOfReach = await assign(remoteCare, nurseB, "nurse", ct.id);
+      check("a made-up patient is refused", !forgedPatient.ok);
+      check("a real patient outside the person's reach is refused", !outOfReach.ok);
+      check("a made-up patient and an unreachable one sound identical", errorOf(forgedPatient) === errorOf(outOfReach) && errorOf(forgedPatient).length > 0, `${errorOf(forgedPatient)} | ${errorOf(outOfReach)}`);
+      check("none of the refused attempts changed the team", (await teamSize()) === sizeBefore, `${await teamSize()} vs ${sizeBefore}`);
+      check("nurse B still cannot see the patient", !(await seesPatient(nurseB.id, ct.id)));
+      check("the attempts were written to the audit log as denied", (await prisma.auditLog.count({ where: { actorUserId: coord.id, action: "access_denied", outcome: "denied" } })) >= 8 && (await prisma.auditLog.count({ where: { actorUserId: remoteCare.id, action: "access_denied", outcome: "denied" } })) >= 1);
+      const adminAdds = await assign(admin, cg2, "caregiver", ctRace.id);
+      check("a super administrator CAN add to a care team", adminAdds.ok, errorOf(adminAdds));
+
+      // ----- 13d. Two people at once -----
+      section("13d. Care teams: two people acting at the same moment");
+      const [race1, race2] = await Promise.all([
+        assign(coord, nurseA, "primary_nurse", ctRace.id),
+        assign(coord, nurseB, "primary_nurse", ctRace.id),
+      ]);
+      check("exactly one of two simultaneous primary nurse additions succeeded", [race1, race2].filter((r) => r.ok).length === 1, `${race1.ok}, ${race2.ok}`);
+      check("and the patient has exactly one primary nurse", (await activeTeam(ctRace.id)).filter((m) => m.roleOnCase === "primary_nurse").length === 1);
+
+      // ----- 13e. Another organization -----
+      section("13e. Care teams: another organization's people and patients do not exist here");
+      // The first check in this project that uses a SECOND organization.
+      // Phase 0 promises that one organization's data never reaches
+      // another's; this is the care team part of that promise.
+      const org2 = await prisma.organization.create({ data: { name: `Verify Org ${runId}` } });
+      otherOrgId = org2.id;
+      const org2NurseRole = await prisma.role.create({ data: { organizationId: org2.id, key: "NURSE", name: "Nurse" } });
+      const nurseX = await prisma.user.create({ data: { organizationId: org2.id, email: `verify-${runId}-nursex@cheliv.test`, passwordHash: "not-a-real-hash", name: "Verify NURSEX" } });
+      createdUserIds.push(nurseX.id);
+      await prisma.userRole.create({ data: { userId: nurseX.id, roleId: org2NurseRole.id } });
+      const patX = await prisma.patient.create({ data: { organizationId: org2.id, firstName: "Verify", lastName: `Orgtwo${runId}`, dateOfBirth: new Date("1952-03-03") } });
+      const memberX = await prisma.careTeamMember.create({ data: { patientId: patX.id, userId: nurseX.id, roleOnCase: "nurse" } });
+      trackedResourceIds.push(patX.id, memberX.id);
+      const sizeBeforeOrg = await teamSize();
+
+      const foreignStaff = await assign(coord, nurseX, "nurse");
+      check("a nurse from another organization cannot be put on our team", !foreignStaff.ok && wrongMessages.has(errorOf(foreignStaff)), errorOf(foreignStaff));
+      const foreignPatient = await assign(coord, nurseB, "nurse", patX.id);
+      check("another organization's patient sounds like a made-up one", !foreignPatient.ok && errorOf(foreignPatient) === errorOf(forgedPatient), errorOf(foreignPatient));
+      check("nothing was added to either team", (await teamSize()) === sizeBeforeOrg && (await prisma.careTeamMember.count({ where: { patientId: patX.id } })) === 1);
+      const foreignEnd = await endCareTeamAssignment(coord.id, memberX.id);
+      check("another organization's assignment cannot be ended", !foreignEnd.ok && errorOf(foreignEnd) === errorOf(await endCareTeamAssignment(coord.id, FORGED_ID)), errorOf(foreignEnd));
+      check("and it is still open", (await prisma.careTeamMember.findUniqueOrThrow({ where: { id: memberX.id } })).endsAt === null);
+      const foreignRead = await listCareTeam(coord.id, patX.id);
+      check("another organization's team cannot be read", !foreignRead.ok && errorOf(foreignRead) === errorOf(await listCareTeam(coord.id, FORGED_ID)));
+      check("no form for another organization's patient", (await getAssignmentOptions(coord.id, patX.id)) === null);
+      check("the worklist never lists another organization's patient", !(await listPatientsNeedingTeam(coord.id)).some((p) => p.id === patX.id));
+      check("the form never offers another organization's nurse", !(await getAssignmentOptions(coord.id, ct.id))?.staff.some((m) => m.id === nurseX.id));
+
+      // ----- 14a. The coordinator, by being one -----
+      section("14a. The care coordinator: intake and scheduling, no clinical content");
+      const allPatients = await prisma.patient.count({ where: { organizationId: orgId } });
+      check("a coordinator sees every patient", (await getAccessiblePatients(coord.id)).length === allPatients);
+      const visitBase = (startDay: number, time: string) => ({ patientId: ct.id, clinicianId: nurseA.id, visitType: "skilled_nursing", startLocal: `${orgDay(startDay)}T${time}`, durationMinutes: 60 });
+      const keepVisit = await scheduleVisit(coord.id, visitBase(3, "11:00"));
+      check("a coordinator CAN schedule a visit for a team nurse", keepVisit.ok, errorOf(keepVisit));
+      const dropVisit = await scheduleVisit(coord.id, visitBase(4, "11:00"));
+      check("and a second one", dropVisit.ok, errorOf(dropVisit));
+      const keepVisitId = keepVisit.ok ? keepVisit.value.visitId : "";
+      const dropVisitId = dropVisit.ok ? dropVisit.value.visitId : "";
+      trackedResourceIds.push(keepVisitId, dropVisitId);
+      const notOnTeam = await scheduleVisit(coord.id, { ...visitBase(5, "11:00"), clinicianId: nurseB.id });
+      check("a coordinator cannot schedule for someone who is not on that team", !notOnTeam.ok, "it was allowed");
+      const coordVisits = await listVisits(coord.id);
+      const coordRows = [...coordVisits.upcoming, ...coordVisits.recent];
+      check("a coordinator sees the visits and can change any of them", coordRows.some((v) => v.id === keepVisitId) && coordRows.every((v) => v.canChange));
+      const cancelled = await changeVisitStatus(coord.id, dropVisitId, "cancel");
+      check("a coordinator CAN cancel a visit", cancelled.ok, errorOf(cancelled));
+      check("a coordinator cannot list care plans", await throwsAuthorization(() => listCarePlans(coord.id)));
+      check("a coordinator cannot start a care plan", await throwsAuthorization(() => createCarePlan(coord.id, { patientId: ct.id, title: "x", summary: "y" })));
+      check("a coordinator cannot approve a care plan", await throwsAuthorization(() => changePlanStatus(coord.id, FORGED_ID, "approve")));
+      check("a coordinator cannot list documents", await throwsAuthorization(() => listDocuments(coord.id)));
+      check("a coordinator cannot archive a document", await throwsAuthorization(() => archiveDocument(coord.id, FORGED_ID)));
+      check("a coordinator gets no upload form", (await getDocumentUploadOptions(coord.id)) === null);
+      check("a coordinator can record referrals", await canRecordReferrals(coord.id));
+
+      // ----- 14b. The supervisor, by being one -----
+      section("14b. The clinical supervisor: review and approve, nothing else");
+      const supPlan = await createCarePlan(nurseA.id, { patientId: ct.id, title: "Steady recovery at home", summary: "Keep the patient safe and comfortable." });
+      check("nurse A (on the team) writes a plan", supPlan.ok, errorOf(supPlan));
+      const supPlanId = supPlan.ok ? supPlan.value.planId : "";
+      trackedResourceIds.push(supPlanId);
+      const supGoal = await addGoal(nurseA.id, supPlanId, "Walk to the mailbox and back.");
+      check("nurse A adds a goal", supGoal.ok, errorOf(supGoal));
+      check("a supervisor cannot edit the plan", await throwsAuthorization(() => updateCarePlan(sup.id, supPlanId, { title: "Changed", summary: "Changed" })));
+      check("a supervisor cannot add a goal", await throwsAuthorization(() => addGoal(sup.id, supPlanId, "Another goal")));
+      check("a supervisor cannot start a plan", await throwsAuthorization(() => createCarePlan(sup.id, { patientId: ct.id, title: "x", summary: "y" })));
+      const supRows = await listCarePlans(sup.id);
+      check("a supervisor sees the draft plan and may approve it, but not edit it", [...supRows.current, ...supRows.past].some((p) => p.id === supPlanId && p.canApprove && !p.canEditContent));
+      const approvedBySup = await changePlanStatus(sup.id, supPlanId, "approve");
+      check("a supervisor CAN approve another person's plan", approvedBySup.ok, errorOf(approvedBySup));
+      const approvedRow = await prisma.carePlan.findUniqueOrThrow({ where: { id: supPlanId } });
+      check("the approval records the supervisor and the time", approvedRow.status === "active" && approvedRow.approvedById === sup.id && approvedRow.approvedAt !== null);
+      check("a supervisor sees every patient", (await getAccessiblePatients(sup.id)).length === allPatients);
+      const supVisits = await listVisits(sup.id);
+      const supVisitRows = [...supVisits.upcoming, ...supVisits.recent];
+      check("a supervisor sees visits but cannot change any", supVisitRows.some((v) => v.id === keepVisitId) && supVisitRows.every((v) => !v.canChange));
+      check("a supervisor cannot schedule a visit", await throwsAuthorization(() => scheduleVisit(sup.id, visitBase(6, "11:00"))));
+      check("a supervisor gets no scheduling form", (await getSchedulingOptions(sup.id)) === null);
+      check("a supervisor cannot cancel a visit", await throwsAuthorization(() => changeVisitStatus(sup.id, keepVisitId, "cancel")));
+      // OPEN DECISION (docs/REVIEW_MILESTONE_D.md): documents that are
+      // restricted (insurance, identification) are restricted to
+      // administrative ROLES, and a supervisor is one. So a supervisor who
+      // holds documents.read sees them. This check records that as the
+      // current behaviour; it is not a claim that it is the right one.
+      const activeDocs = await prisma.document.count({ where: { organizationId: orgId, status: "active" } });
+      check("a supervisor sees every filed document, restricted kinds included (open decision)", (await listDocuments(sup.id)).length === activeDocs);
+      check("a supervisor cannot file a document", (await getDocumentUploadOptions(sup.id)) === null);
+      check("a supervisor cannot archive a document", await throwsAuthorization(() => archiveDocument(sup.id, FORGED_ID)));
+      check("a supervisor cannot list referrals", await throwsAuthorization(() => listReferrals(sup.id)));
+
+      // ----- 14c. From referral to care team, the whole path -----
+      section("14c. A referral becomes a patient, and the coordinator puts a nurse on the team");
+      const flow: ReferralDetailsInput = {
+        firstName: "Verify",
+        lastName: `Careflow${runId}`,
+        dateOfBirth: "1949-09-09",
+        sourceType: "hospital",
+        sourceOrganization: "Verify Hospital",
+        sourceContactName: "Verify Contact",
+        sourceContactPhone: "(281) 555-0100",
+        requestedService: "skilled_nursing",
+        urgency: "urgent",
+        reason: "Verify reason text.",
+        officeNotes: "Verify office note.",
+      };
+      const flowRef = await createReferral(coord.id, flow);
+      check("a coordinator CAN record a referral", flowRef.ok, errorOf(flowRef));
+      const flowRefId = flowRef.ok ? flowRef.value.referralId : "";
+      const reviewed = await changeReferralStatus(coord.id, flowRefId, "start_review");
+      check("a coordinator CAN start a review", reviewed.ok, errorOf(reviewed));
+      const accepted = await changeReferralStatus(coord.id, flowRefId, "accept");
+      check("a coordinator CAN accept a referral about someone new (this needs patients.create)", accepted.ok, errorOf(accepted));
+      const flowPatientId = accepted.ok ? accepted.value.patientId : null;
+      check("accepting made a patient record", !!flowPatientId && (await prisma.patient.count({ where: { id: flowPatientId } })) === 1);
+      if (flowPatientId) trackedResourceIds.push(flowPatientId);
+      check("the new patient has nobody on the care team", flowPatientId !== null && (await prisma.careTeamMember.count({ where: { patientId: flowPatientId } })) === 0);
+      check("the new patient is on the coordinator's worklist", flowPatientId !== null && (await listPatientsNeedingTeam(coord.id)).some((p) => p.id === flowPatientId && !p.hasAnyTeam));
+      check("nurse C cannot see the new patient yet", flowPatientId !== null && !(await seesPatient(nurseC.id, flowPatientId)));
+      const flowAssign = flowPatientId ? await assign(coord, nurseC, "primary_nurse", flowPatientId) : null;
+      check("the coordinator CAN put a nurse on the new patient's team", flowAssign?.ok === true, flowAssign ? errorOf(flowAssign) : "no patient");
+      check("nurse C now sees the new patient", flowPatientId !== null && (await seesPatient(nurseC.id, flowPatientId)));
+      check("the new patient left the worklist", flowPatientId !== null && !(await listPatientsNeedingTeam(coord.id)).some((p) => p.id === flowPatientId));
+      const nurseSeesReferral = flowPatientId !== null ? (await listReferrals(nurseC.id)).closed.some((r) => r.id === flowRefId) : false;
+      check("and now nurse C can read the accepted referral, without the office details", nurseSeesReferral && !JSON.stringify(await listReferrals(nurseC.id)).includes("Verify Contact"));
+
+      // ----- 15a. Ending an assignment -----
+      section("15a. Care teams: ending an assignment, and what stays on record");
+      check("a supervisor cannot end an assignment", await throwsAuthorization(() => endCareTeamAssignment(sup.id, caregiverAssignmentId)));
+      check("a nurse cannot end an assignment", await throwsAuthorization(() => endCareTeamAssignment(nurseA.id, caregiverAssignmentId)));
+      const forgedEnd = await endCareTeamAssignment(coord.id, FORGED_ID);
+      const unreachableEnd = await endCareTeamAssignment(remoteCare.id, caregiverAssignmentId);
+      check("a made-up assignment is refused", !forgedEnd.ok);
+      check("a real one outside the person's reach is refused", !unreachableEnd.ok);
+      check("and they sound identical", errorOf(forgedEnd) === errorOf(unreachableEnd) && errorOf(forgedEnd).length > 0, `${errorOf(forgedEnd)} | ${errorOf(unreachableEnd)}`);
+      check("the refused attempt changed nothing", (await prisma.careTeamMember.findUniqueOrThrow({ where: { id: caregiverAssignmentId } })).endsAt === null);
+
+      const endCaregiver = await endCareTeamAssignment(coord.id, caregiverAssignmentId);
+      check("a coordinator CAN end an assignment", endCaregiver.ok, errorOf(endCaregiver));
+      check("ending sets an end date and deletes nothing", (await prisma.careTeamMember.findUniqueOrThrow({ where: { id: caregiverAssignmentId } })).endsAt !== null);
+      const endAgain = await endCareTeamAssignment(coord.id, caregiverAssignmentId);
+      check("ending the same assignment twice is refused", !endAgain.ok && errorOf(endAgain).includes("already ended"), errorOf(endAgain));
+
+      const endNurseC = await endCareTeamAssignment(coord.id, nurseCId);
+      check("a coordinator CAN end a nurse's assignment", endNurseC.ok, errorOf(endNurseC));
+      check("nurse C stops seeing the patient the same instant", !(await seesPatient(nurseC.id, ct.id)));
+
+      const endPrimary = await endCareTeamAssignment(coord.id, primaryId);
+      check("ending the primary nurse reports the visits still on her calendar", endPrimary.ok && endPrimary.value.futureVisitsToReassign === 1, endPrimary.ok ? String(endPrimary.value.futureVisitsToReassign) : errorOf(endPrimary));
+      check("those visits are left for a person to decide about", keepVisitId !== "" && (await prisma.visit.findUniqueOrThrow({ where: { id: keepVisitId } })).status === "scheduled");
+      check("nurse A stops seeing the patient the same instant", !(await seesPatient(nurseA.id, ct.id)));
+      check("the primary place is free again, and the patient is back on the worklist", !!(await getAssignmentOptions(coord.id, ct.id))?.places.some((p) => p.key === "primary_nurse") && (await listPatientsNeedingTeam(coord.id)).some((p) => p.id === ct.id));
+      const reAdd = await assign(coord, nurseA, "primary_nurse");
+      check("the same nurse CAN be added again later (a new row)", reAdd.ok, errorOf(reAdd));
+      check("the whole history is still on record", (await teamSize()) === 4, String(await teamSize()));
+
+      // ----- 15b. Reading a team -----
+      section("15b. Care teams: who may look at a team");
+      const coordView = await listCareTeam(coord.id, ct.id);
+      check("a coordinator sees the team, and may change it", coordView.ok && coordView.value.canManage && coordView.value.active.length === 1, coordView.ok ? String(coordView.value.active.length) : errorOf(coordView));
+      check("the ended assignments are listed as history, not as the team", coordView.ok && coordView.value.past.length === 3 && coordView.value.active.every((m) => m.endsAt === null));
+      const supView = await listCareTeam(sup.id, ct.id);
+      check("a supervisor sees the team, and may not change it", supView.ok && !supView.value.canManage);
+      check("a nurse cannot read a care team (no permission)", await throwsAuthorization(() => listCareTeam(nurseA.id, ct.id)));
+      const forgedRead = await listCareTeam(coord.id, FORGED_ID);
+      const unreachableRead = await listCareTeam(remoteCare.id, ct.id);
+      check("a made-up patient and an unreachable one sound identical when reading", !forgedRead.ok && !unreachableRead.ok && errorOf(forgedRead) === errorOf(unreachableRead));
+      // The worklist follows the viewer's reach. Two patients need a
+      // primary nurse: one this account is on the team of, one nobody is.
+      const remoteOnLone = await assign(coord, remoteCare, "nurse", lone.id);
+      check("an account can be put on a team that still needs a primary nurse", remoteOnLone.ok, errorOf(remoteOnLone));
+      const coordList = (await listPatientsNeedingTeam(coord.id)).map((p) => p.id);
+      const remoteList = (await listPatientsNeedingTeam(remoteCare.id)).map((p) => p.id);
+      check("the coordinator's worklist holds both patients that need a primary nurse", coordList.includes(lone.id) && coordList.includes(lone3.id));
+      check("a viewer with limited reach sees only the worklist patients they are on the team of", remoteList.length === 1 && remoteList[0] === lone.id, remoteList.join(","));
+
+      // ----- 15c. The audit trail -----
+      section("15c. Care teams: the audit trail");
+      const teamAudit = (action: string, actorUserId: string) => prisma.auditLog.count({ where: { action, actorUserId } });
+      check("care_team_assigned logged for every addition", (await teamAudit("care_team_assigned", coord.id)) === assignedByCoord, `${await teamAudit("care_team_assigned", coord.id)} vs ${assignedByCoord}`);
+      check("care_team_assigned logged for the super administrator", (await teamAudit("care_team_assigned", admin.id)) >= 1);
+      check("care_team_ended logged for the three endings", (await teamAudit("care_team_ended", coord.id)) === 3);
+      const teamAuditText = JSON.stringify(await prisma.auditLog.findMany({ where: { actorUserId: { in: createdUserIds } }, select: { action: true, resourceType: true, resourceId: true, outcome: true, actorEmail: true } }));
+      check("the audit log never holds a patient's name", !teamAuditText.includes("Careteam") && !teamAuditText.includes("Careflow") && !teamAuditText.includes("Carerace"));
+    }
   } finally {
     // ----- Cleanup: leave the database exactly as it was found -----
     section("Cleaning up");
     try {
-      // Referrals first of all: they point at the patient, at any patient
-      // made by accepting one, and at the temporary people, and all of
-      // those are protected while a referral exists. This also catches any
-      // referral a FAILING check let through.
-      const leftoverReferrals = await prisma.referral.findMany({
-        where: { OR: [{ patientId: patientId || "none" }, { createdById: { in: createdUserIds } }, { decidedById: { in: createdUserIds } }] },
-        select: { id: true, patientId: true },
-      });
-      trackedResourceIds.push(...leftoverReferrals.map((r) => r.id));
-      await prisma.referral.deleteMany({ where: { id: { in: leftoverReferrals.map((r) => r.id) } } });
-      // Patients made by accepting a referral during this run. Only ones
-      // this script named ("Verify ... Newperson<run id>") are ever
+      // Every temporary patient of this run: the main one, plus any named
+      // "Verify ... <run id>" (made for the care team checks, or by
+      // accepting a referral). Only ones this script named are ever
       // deleted, so a failing check can never take a real patient with it.
       const madePatients = await prisma.patient.findMany({
         where: { organizationId: orgId, firstName: "Verify", lastName: { contains: runId }, id: { not: patientId || "none" } },
         select: { id: true },
       });
-      trackedResourceIds.push(...madePatients.map((p) => p.id));
-      await prisma.patient.deleteMany({ where: { id: { in: madePatients.map((p) => p.id) } } });
+      const testPatientIds = [...(patientId ? [patientId] : []), ...madePatients.map((p) => p.id)];
+      trackedResourceIds.push(...testPatientIds);
 
-      // Documents next: they point at the patient and at the
-      // temporary people, and both are protected while a document exists.
-      // The file bytes go with their document. This also catches any
-      // document a FAILING check let through.
+      // Everything below points at a patient and at the temporary people,
+      // and both are protected from deletion while such a row exists, so
+      // the rows go first. Each query also catches anything a FAILING
+      // check let through, so a failed run still leaves nothing behind.
+      const leftoverReferrals = await prisma.referral.findMany({
+        where: { OR: [{ patientId: { in: testPatientIds } }, { createdById: { in: createdUserIds } }, { decidedById: { in: createdUserIds } }] },
+        select: { id: true },
+      });
+      trackedResourceIds.push(...leftoverReferrals.map((r) => r.id));
+      await prisma.referral.deleteMany({ where: { id: { in: leftoverReferrals.map((r) => r.id) } } });
+
+      // Documents: the file bytes go with their document.
       const leftoverDocs = await prisma.document.findMany({
-        where: { OR: [{ patientId: patientId || "none" }, { uploadedById: { in: createdUserIds } }] },
+        where: { OR: [{ patientId: { in: testPatientIds } }, { uploadedById: { in: createdUserIds } }] },
         select: { id: true },
       });
       trackedResourceIds.push(...leftoverDocs.map((d) => d.id));
       await prisma.document.deleteMany({ where: { id: { in: leftoverDocs.map((d) => d.id) } } });
 
-      // Care plans next: they point at the patient and at the temporary
-      // people, and both are protected from deletion while a plan
-      // exists. Goals go with their plan. This also catches any plan a
-      // FAILING check let through, so a failed run leaves nothing behind.
+      // Care plans: goals go with their plan.
       const leftoverPlans = await prisma.carePlan.findMany({
-        where: { OR: [{ patientId: patientId || "none" }, { authorId: { in: createdUserIds } }] },
+        where: { OR: [{ patientId: { in: testPatientIds } }, { authorId: { in: createdUserIds } }, { approvedById: { in: createdUserIds } }] },
         select: { id: true },
       });
       trackedResourceIds.push(...leftoverPlans.map((p) => p.id));
       await prisma.carePlan.deleteMany({ where: { id: { in: leftoverPlans.map((p) => p.id) } } });
 
+      // Visits, including any a failing check let through, so their audit
+      // entries are cleaned up too.
+      const leftoverVisits = await prisma.visit.findMany({
+        where: { OR: [{ patientId: { in: testPatientIds } }, { clinicianId: { in: createdUserIds } }, { scheduledById: { in: createdUserIds } }] },
+        select: { id: true },
+      });
+      trackedResourceIds.push(...leftoverVisits.map((v) => v.id));
+      await prisma.visit.deleteMany({ where: { id: { in: leftoverVisits.map((v) => v.id) } } });
+
+      // Care team rows go with their patient (cascade), but their audit
+      // entries are matched by id, so collect the ids first.
+      const leftoverTeam = await prisma.careTeamMember.findMany({
+        where: { OR: [{ patientId: { in: testPatientIds } }, { userId: { in: createdUserIds } }] },
+        select: { id: true },
+      });
+      trackedResourceIds.push(...leftoverTeam.map((m) => m.id));
+
+      // Now the patients themselves.
+      await prisma.patient.deleteMany({ where: { id: { in: madePatients.map((p) => p.id) } } });
       if (patientId) {
-        // Find every visit on the temporary patient, including any a
-        // FAILING check let through unexpectedly, so their audit entries
-        // are cleaned up too and a failed run still leaves nothing behind.
-        const leftover = await prisma.visit.findMany({ where: { patientId }, select: { id: true } });
-        trackedResourceIds.push(...leftover.map((v) => v.id));
-        await prisma.visit.deleteMany({ where: { patientId } });
         await prisma.patient.delete({ where: { id: patientId } }); // care team rows cascade
       }
       await prisma.auditLog.deleteMany({
@@ -1244,7 +1661,13 @@ async function main() {
       });
       await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } }); // user roles cascade
       if (tempRoleId) await prisma.role.delete({ where: { id: tempRoleId } }); // its permission rows cascade
-      console.log("  removed the temporary patients, visits, care plans, documents, referrals, people, role and their audit entries");
+      for (const roleId of extraTempRoleIds) await prisma.role.delete({ where: { id: roleId } });
+      if (otherOrgId) {
+        await prisma.patient.deleteMany({ where: { organizationId: otherOrgId } }); // its care team rows cascade
+        await prisma.role.deleteMany({ where: { organizationId: otherOrgId } });
+        await prisma.organization.delete({ where: { id: otherOrgId } });
+      }
+      console.log("  removed the temporary patients, care teams, visits, care plans, documents, referrals, people, roles and their audit entries");
     } catch (err) {
       console.error("  CLEANUP FAILED - check Prisma Studio for rows named Verify or Testpatient:", err);
       failures.push("cleanup");

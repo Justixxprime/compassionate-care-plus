@@ -46,3 +46,7 @@ Now logged: `document_uploaded`, `document_downloaded`, `document_archived`, and
 ## Update, 20 September 2026: referral events
 
 Now logged: `referral_created`, `referral_updated`, `referral_review_started`, `referral_accepted`, `referral_declined`, `referral_withdrawn`, `patient_created` (when accepting a referral creates a patient record), and `access_denied` (outcome `denied`) for reaching a referral or patient outside one's allowance, or recording a referral without administrative reach. The referral's name, reason, contact details and notes are never written to the log. Reading the list is not logged. See `docs/REFERRALS.md`.
+
+## Update, 21 September 2026: care team events
+
+Now logged: `care_team_assigned` and `care_team_ended` (resource type `care_team_member`), and `access_denied` for every refused change or look at a care team. No names, ever. The shared `auditDenied` and `auditAllowed` live in `src/lib/auth/actor.ts`. See `docs/CARE_TEAMS.md`.

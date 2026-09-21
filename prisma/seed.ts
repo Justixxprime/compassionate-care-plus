@@ -2,8 +2,10 @@
 //
 // Populates a fresh database with the minimum needed to sign in and test
 // the system: the organization, the permission list, roles with real
-// permission sets (SUPER_ADMIN, ADMIN, NURSE so far), three demo accounts
-// (an admin and two nurses), three synthetic demo patients - each nurse
+// permission sets (SUPER_ADMIN, ADMIN, NURSE, CARE_COORDINATOR and
+// CLINICAL_SUPERVISOR so far), five demo accounts (an admin, two nurses, a
+// care coordinator and a clinical supervisor), three synthetic demo
+// patients - each nurse
 // assigned to a different one, so relationship-based access
 // (src/lib/patients.ts) can be tested for real, not just trusted - and a
 // handful of synthetic visits spread across them (src/lib/visits.ts), and
@@ -52,6 +54,8 @@ const PERMISSIONS = [
   "messages.send",
   "referrals.read",
   "referrals.manage",
+  "care_team.read",
+  "care_team.manage",
   "tasks.read",
   "tasks.manage",
   "staff.manage",
@@ -87,14 +91,15 @@ async function main() {
   console.log(`${PERMISSIONS.length} permissions ready`);
 
   // --- Roles ---
-  // Permission sets defined so far: SUPER_ADMIN (everything) and ADMIN,
-  // NURSE (needed to actually demonstrate relationship-based access
-  // this round - see src/lib/patients.ts). The remaining roles
-  // (CAREGIVER, CARE_COORDINATOR, CLINICAL_SUPERVISOR, PATIENT,
-  // AUTHORIZED_FAMILY, REFERRAL_PARTNER) intentionally still hold no
-  // permissions yet - designing each one's real permission set properly
-  // is its own piece of work, not something to rush through as a side
-  // effect of this round.
+  // Permission sets defined so far: SUPER_ADMIN (everything), ADMIN,
+  // NURSE, CARE_COORDINATOR and CLINICAL_SUPERVISOR. The remaining roles
+  // (CAREGIVER, PATIENT, AUTHORIZED_FAMILY, REFERRAL_PARTNER)
+  // intentionally still hold no permissions yet - each one's real
+  // permission set is designed together with its own portal, not rushed
+  // as a side effect of another round.
+  //
+  // This seed only ever ADDS permissions to a role. It never takes one
+  // away, so running it again on an existing database is always safe.
   const PERMISSION_SETS: Record<string, readonly string[] | "ALL"> = {
     SUPER_ADMIN: "ALL",
     ADMIN: [
@@ -104,6 +109,7 @@ async function main() {
       "documents.read", "documents.upload",
       "messages.read", "messages.send",
       "referrals.read", "referrals.manage",
+      "care_team.read", "care_team.manage",
       "tasks.read", "tasks.manage",
       "staff.manage", "roles.manage", "settings.manage",
       "reports.read", "audit.read", "security.read",
@@ -117,6 +123,28 @@ async function main() {
       "messages.read", "messages.send",
       "referrals.read",
       "tasks.read",
+    ],
+    // The care coordinator's job is intake: referrals in, patients put on
+    // care teams, visits scheduled. patients.create is there because
+    // accepting a referral about someone new creates the patient record
+    // (src/lib/referrals.ts asks for it), and without it the coordinator
+    // could start a review but never finish the job. No clinical content:
+    // no care plans, no documents, no clinical records.
+    CARE_COORDINATOR: [
+      "patients.read", "patients.create",
+      "referrals.read", "referrals.manage",
+      "visits.read", "visits.create", "visits.update",
+      "care_team.read", "care_team.manage",
+    ],
+    // The clinical supervisor reviews: approves care plans (someone other
+    // than the author, always) and can read visits and documents. Cannot
+    // write plans, schedule, or change care teams.
+    CLINICAL_SUPERVISOR: [
+      "patients.read",
+      "care_plans.read", "care_plans.approve",
+      "visits.read",
+      "documents.read",
+      "care_team.read",
     ],
   };
 
@@ -283,6 +311,33 @@ async function main() {
     create: { userId: demoNurse2.id, roleId: nurseRole.id },
   });
   console.log(`Demo nurse two ready: ${demoNurse2.email}`);
+
+  // --- A demo care coordinator and a demo clinical supervisor ---
+  // The two office roles that held no permissions until Milestone E. They
+  // exist so their permission sets can be checked by really being them
+  // (npm run verify:access does), not just by reading the list above.
+  for (const def of [
+    { email: "demo.coordinator@cheliv.test", name: "Demo Coordinator", roleKey: "CARE_COORDINATOR" },
+    { email: "demo.supervisor@cheliv.test", name: "Demo Supervisor", roleKey: "CLINICAL_SUPERVISOR" },
+  ] as const) {
+    const user = await prisma.user.upsert({
+      where: { email: def.email },
+      update: {},
+      create: {
+        organizationId: org.id,
+        email: def.email,
+        passwordHash: demoPasswordHash, // same demo password, see docs/DEMO_ACCOUNTS.md
+        name: def.name,
+      },
+    });
+    const role = roleRows.get(def.roleKey)!;
+    await prisma.userRole.upsert({
+      where: { userId_roleId: { userId: user.id, roleId: role.id } },
+      update: {},
+      create: { userId: user.id, roleId: role.id },
+    });
+    console.log(`Demo ${def.name.replace("Demo ", "").toLowerCase()} ready: ${user.email}`);
+  }
 
   const marcus = patients[1];
   const existingAssignment2 = await prisma.careTeamMember.findFirst({

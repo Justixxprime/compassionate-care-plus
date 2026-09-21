@@ -1,5 +1,5 @@
 # CHELIV COMPASSIONATE CARE PLUS - PROJECT CONTINUATION BRIEF
-## Complete state as of 20 September 2026, written to continue this build perfectly in a new conversation
+## Complete state as of 21 September 2026, written to continue this build perfectly in a new conversation
 
 Paste this whole document as the first message in a new conversation. It replaces the previous docs/PROJECT_HANDOFF.md, which was accurate up through visits but is now out of date (referrals were added on 20 September 2026, which finished Milestone D).
 
@@ -86,7 +86,7 @@ compassionate-care-plus/
 - docs/ (23 files, see section 15)
 - prisma/
   - schema.prisma (16 models, see section 5)
-  - seed.ts (org, 31 permissions, 9 roles with 3 having real permission sets, 3 demo accounts, 3 synthetic patients, 2 care-team assignments, 6 synthetic visits, 2 synthetic care plans, 5 synthetic documents (2 in restricted categories) and 6 synthetic referrals, each set created only if none exist)
+  - seed.ts (org, 33 permissions, 9 roles with 5 having real permission sets, 5 demo accounts, 3 synthetic patients, 2 care-team assignments, 6 synthetic visits, 2 synthetic care plans, 5 synthetic documents (2 in restricted categories) and 6 synthetic referrals, each set created only if none exist)
 - scripts/
   - check-root-layout.mjs (runs automatically via predev/prebuild hooks)
   - verify-access.ts (`npm run verify:access`, 407 checks against a real LOCAL database, refuses to run otherwise)
@@ -177,7 +177,7 @@ src/lib/auth/authorize.ts, the single path every permission check goes through:
 
 Permissions live in the database (permissions, role_permissions, user_roles tables), not hardcoded in TypeScript, granting a role a new permission later is a data change, not a redeploy.
 
-Real permission sets defined so far: SUPER_ADMIN (all 31), ADMIN (broad administrative set, includes care_plans.read and care_plans.approve but not create or update), NURSE (16 permissions, clinical-focused, includes care_plans.read/create/update but not approve). The remaining six roles (CAREGIVER, CARE_COORDINATOR, CLINICAL_SUPERVISOR, PATIENT, AUTHORIZED_FAMILY, REFERRAL_PARTNER) intentionally hold zero permissions still, each one's real set is its own piece of design work, not something to rush.
+Real permission sets defined so far: SUPER_ADMIN (all 33), ADMIN (broad administrative set, includes care_plans.read and care_plans.approve but not create or update, and both care team permissions), NURSE (16 permissions, clinical-focused, includes care_plans.read/create/update but not approve, no care team permissions), CARE_COORDINATOR and CLINICAL_SUPERVISOR (added 21 September 2026, listed in section 10f and docs/CARE_TEAMS.md). The remaining four roles (CAREGIVER, PATIENT, AUTHORIZED_FAMILY, REFERRAL_PARTNER) intentionally hold zero permissions still, each one's real set is designed with its own portal.
 
 ---
 
@@ -211,7 +211,7 @@ Full detail in docs/VISITS.md. Summary of the rules, all in src/lib/visits.ts: e
 
 Evidence: tsc, eslint, next build clean; verify:access 69 passed, 0 failed, and it fails on exactly the rules deliberately broken; rendered /visits fetched with real sessions showed admin 6 visits, nurse one 4 (Eleanor), nurse two 2 (Marcus). NOT YET verified on J's own machine (needs migration add_visits, seed, verify:access, browser click-through).
 
-Known gaps (also in VISITS.md): double-booking has a tiny race (real fix is a DB exclusion constraint, Milestone E); activeAssignmentFilter ignores startsAt; reading visits is not audit-logged; CAREGIVER cannot see visits yet; CARE_COORDINATOR and CLINICAL_SUPERVISOR hold no permissions yet.
+Known gaps (also in VISITS.md): double-booking has a tiny race (real fix is a DB exclusion constraint, Milestone E); activeAssignmentFilter ignores startsAt; reading visits is not audit-logged; CAREGIVER cannot see visits yet.
 
 ---
 
@@ -223,7 +223,7 @@ Demo data: Eleanor Whitfield has an active plan (written by Demo Nurse, approved
 
 Evidence: tsc, eslint, next build clean; verify:access 175 passed, 0 failed; five rules deliberately broken in a copy (four-eyes, team requirement on create, locked wording, the relationship check, one active plan) and the script failed on exactly those rules each time; rendered /care-plans fetched with real sessions showed admin both plans with Approve/Discard on Marcus's draft and Complete on Eleanor's, nurse one only Eleanor's, nurse two only Marcus's with edit controls and no Approve. CONFIRMED on J's own machine on 19 September 2026: migration add_care_plans applied, seed ran, verify:access 175 passed 0 failed, /care-plans rendered as expected.
 
-Known gaps (also in CARE_PLANS.md): the one-active-plan rule is enforced in code with a tiny race, the real fix is a hand-written partial unique index migration step later; no revision history; reading plans is not audit-logged; goals are plain text; CLINICAL_SUPERVISOR (the natural real-world approver) and CARE_COORDINATOR hold no permissions yet; patients and families cannot see plans yet.
+Known gaps (also in CARE_PLANS.md): the one-active-plan rule is enforced in code with a tiny race, the real fix is a hand-written partial unique index migration step later; no revision history; reading plans is not audit-logged; goals are plain text; CLINICAL_SUPERVISOR now holds care_plans.approve (since 21 September); patients and families cannot see plans yet.
 
 Also changed in that round: src/app/layout.tsx now has suppressHydrationWarning on <body> (a browser extension such as Grammarly or ColorZilla adding attributes had probably caused a red "1 Issue" badge in J's screenshot; confirmed gone in his next screenshot).
 
@@ -251,21 +251,29 @@ Demo data: six referrals. Eleanor, Marcus and Priya each have their accepted ref
 
 Evidence: tsc, eslint, next build clean; verify:access 407 passed, 0 failed (sections 2d and 12a to 12i, with a temporary role and temporary managers); thirteen rules deliberately broken one at a time in a copy and the script failed each time; real HTTP against the built app with real sessions for pages and for the create, edit and status-change server actions, called with React's own request encoder (the exact browser body): admin succeeded, nurse and signed-out were refused, nothing was saved for refused calls. The document upload action was tested the same way and behaved as designed. NOT tested: clicking the forms in a real browser. NOT YET verified on J's machine (migration add_referrals, seed, verify:access expecting 407, click-through, one hand test of the Record a referral form).
 
-Known gaps (also in REFERRALS.md): no history table of status changes; the public /request-care form is not connected to referrals; CARE_COORDINATOR and CLINICAL_SUPERVISOR hold no permissions; no care-team assignment screen; no waiting-time indicator; reading the list is not audit-logged.
+Known gaps (also in REFERRALS.md): no history table of status changes; the public /request-care form is not connected to referrals; CARE_COORDINATOR and CLINICAL_SUPERVISOR now hold real permission sets (21 September); the care team rules exist but no care-team screen yet; no waiting-time indicator; reading the list is not audit-logged.
 
 Testing tip: a server action can be called over HTTP from a script by taking its id from .next/server/server-reference-manifest.json and building the body with encodeReply from next/dist/compiled/react-server-dom-turbopack/client.edge, then POSTing with a Next-Action header. A hand-built curl multipart body does NOT work (field names are prefixed _1_ and the root part 0 must come last).
 
 ---
 
+## 10f. Care teams and the office roles, built and verified in the build environment on 21 September 2026 (Milestone E0)
+
+Full detail in docs/CARE_TEAMS.md. Summary: src/lib/auth/actor.ts holds the shared loadActor, auditDenied and auditAllowed (verify:access section 0 fails if a private copy reappears). src/lib/care-team.ts adds and ends care team assignments (permissions care_team.read and care_team.manage; active patient only; the person must really hold a nurse or caregiver role; one primary nurse, enforced in a serializable transaction that retries; ending sets an end date and deletes nothing; vague not-found wording; audit events care_team_assigned and care_team_ended). CARE_COORDINATOR holds patients.read/create, referrals.read/manage, visits.read/create/update, care_team.read/manage. CLINICAL_SUPERVISOR holds patients.read, care_plans.read/approve, visits.read, documents.read, care_team.read. ADMIN holds both care team permissions. No schema change. verify:access is 553 checks. Open: a supervisor sees restricted documents (administrative role); the real Prisma engine's collision error name is unconfirmed until it runs on J's machine.
+
+---
+
 ## 11. Demo accounts, all real and working
 
-Documented in git-ignored docs/DEMO_ACCOUNTS.md. Password for all three: ChangeMe123! (see also the /care-plans column in docs/DEMO_ACCOUNTS.md)
+Documented in git-ignored docs/DEMO_ACCOUNTS.md. Password for all five: ChangeMe123! (see also the /care-plans column in docs/DEMO_ACCOUNTS.md)
 
 | Account | Role | Sees on /patients |
 |---|---|---|
 | demo.admin@cheliv.test | SUPER_ADMIN | All three synthetic patients |
 | demo.nurse@cheliv.test | NURSE | Only Eleanor Whitfield |
 | demo.nurse2@cheliv.test | NURSE | Only Marcus Delgado |
+| demo.coordinator@cheliv.test | CARE_COORDINATOR | Every patient (added 21 September) |
+| demo.supervisor@cheliv.test | CLINICAL_SUPERVISOR | Every patient (added 21 September) |
 
 Three synthetic demo patients exist: Eleanor Whitfield, Marcus Delgado, Priya Raman, all clearly fictional. Priya has nobody on her care team on purpose (the future unassigned-patient case), so she cannot be scheduled.
 
@@ -284,8 +292,8 @@ Three real, free-licensed Pexels photos are hotlinked (not scraped, not download
 - Milestone A (Foundations): Complete
 - Milestone B (Public website): Complete
 - Milestone C (Database, auth, RBAC, audit logging): Complete
-- Milestone D (Core clinical operations): In progress. Patients, care team, visits and care plans are done and confirmed on J's machine (his verify:access run passed all 175 checks on 19 September). Documents committed by J with migration add_documents (19 September 2026). Referrals written and verified in the build environment (20 September 2026), waiting on J's machine; that finishes the slices of Milestone D. Next: J answers the three questions at the end of docs/REVIEW_MILESTONE_D.md, then Milestone E.
-- Milestone E (Portals): Not started
+- Milestone D (Core clinical operations): Complete. Patients, care team, visits, care plans, documents and referrals all confirmed on J's machine (referrals confirmed 21 September 2026).
+- Milestone E (The real staff-facing screens): In progress. E0 (shared helpers, care team rules, office role permissions) written and verified in the build environment 21 September 2026, waiting on J's machine (seed, then verify:access expecting 553). E1 (internal app shell) is next.
 - Milestone F (Production readiness): Not started
 
 Full detail and reasoning in docs/PHASE_0_ARCHITECTURE.md (the original plan) and docs/PHASE_STATUS.md (the live tracker), read both if anything here is ambiguous.
@@ -311,8 +319,6 @@ AUDIT_LOGGING.md, CHANGELOG.md, DATABASE.md, DEMO_ACCOUNTS.md (git-ignored), DES
 
 ## 16. What to do first in the new conversation
 
-Ask J whether the referrals round has run on his machine: `npx prisma migrate dev --name add_referrals`, `npx prisma db seed` (expect "6 synthetic demo referrals ready"), `npm run verify:access` (expect 407 passed, 0 failed), a click-through of /referrals as all three demo accounts (admin sees six with office details, each nurse sees only her own patient's referral with no office details), and one real use of the Record a referral form, since the forms were tested over real HTTP but not clicked in a browser. If he reports problems, fix those first. If he says it worked, commit it and continue.
-
-Then read docs/REVIEW_MILESTONE_D.md with him. It ends with three questions that decide Milestone E: which portal first (recommended: the administrator's Care Command Center), whether the recommended permission sets for CARE_COORDINATOR and CLINICAL_SUPERVISOR are right, and whether the public request-care form is wired up now or later. Do not start Milestone E before he answers. When he does, begin with E0: extract the shared access helpers, add care-team assignment as a real tested service, and add the agreed permission sets.
+Ask J whether the E0 round has run on his machine: `npx prisma db seed` (expect "Demo coordinator ready" and "Demo supervisor ready"), then `npm run verify:access` (expect 553 passed, 0 failed). No migration this round. Then start E1, the internal app shell: one shared layout for signed-in staff, navigation that shows only what the account may use (decided on the server), a real dashboard per role, consistent tables and empty states, phone-friendly, and the five plain proof pages moved into it. The care team screens (team panel, add and end, the worklist) belong to E2, the Care Command Center.
 
 Also confirm whether real photography has arrived yet. The phone number is settled and should not be raised again.
