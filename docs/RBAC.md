@@ -45,3 +45,7 @@ Referrals (see `docs/REFERRALS.md`) ask permission, REACH and FIELDS. Reach diff
 ## Update, 21 September 2026: care teams, and the office roles
 
 Two new permissions, `care_team.read` and `care_team.manage`, and real permission sets for CARE_COORDINATOR and CLINICAL_SUPERVISOR (the full lists are in `docs/CARE_TEAMS.md`). Putting someone on a team asks permission, reach, and three rules that belong to teams: the patient must be active, the person must really hold a role that may fill that place, and nobody is on a team twice or is a second primary nurse. The three copied helpers (`loadActor`, `auditDenied`, `auditAllowed`) now live once in `src/lib/auth/actor.ts`, and `npm run verify:access` fails if a private copy appears again. Open decision: a supervisor holding `documents.read` sees restricted documents, because "restricted" means administrative roles.
+
+## Update, 21 September 2026: sharing restricted documents
+
+One new permission, `documents.grant` (34 in total), held by SUPER_ADMIN and ADMIN. Sharing asks permission, THEN a second lock (the person must be SUPER_ADMIN or ADMIN themselves), THEN the patient, the document and the person. A share makes a restricted document visible to one named person and changes nothing else about what they can do. See `docs/DOCUMENTS.md`. The staff menu and dashboard are drawn from the permissions a person holds (`docs/APP_SHELL.md`), which is a convenience and never the lock.

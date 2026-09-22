@@ -86,3 +86,9 @@ Honest size: E0 to E4 is roughly nine or ten rounds of the size you have been ge
 1. Which portal do you want to see first: the administrator's Care Command Center (my recommendation, it is what the office would use daily), or the nurse's portal?
 2. Do you agree with the recommended permission sets for CARE_COORDINATOR and CLINICAL_SUPERVISOR above, or do you want to change them?
 3. Should the public request-care form be wired up now (its own slice) or left for later, with the wording changed in the meantime?
+
+
+## Update, 21 September 2026: decided
+
+- **Supervisor access to restricted documents: DECIDED.** Restricted documents (insurance card, ID scan) are seen by SUPER_ADMIN and ADMIN only by default. An administrator can share them with one person, for one patient or one document, for as long as they choose (`docs/DOCUMENTS.md`, "Sharing restricted documents").
+- **New small question:** ADMIN currently holds `documents.grant` as well as SUPER_ADMIN. If only the owner should be able to share, remove it from the ADMIN list in `prisma/seed.ts` (and from the ADMIN role in the database).

@@ -150,3 +150,40 @@ export function formatCalendarDate(date: Date): string {
     day: "numeric",
   }).format(date);
 }
+
+// "2026-09-21" - the calendar DAY a moment falls on, in office time. Two
+// moments are on the same office day exactly when their keys are equal,
+// which is how the dashboard decides what "today" means. (A visit at
+// 11 pm Central is still today even though it is already tomorrow in UTC.)
+export function orgDateKey(date: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: ORG_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+// The hour of the day, 0 to 23, in office time. Used to pick a greeting.
+export function orgHour(date: Date): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: ORG_TIMEZONE,
+    hourCycle: "h23",
+    hour: "2-digit",
+  }).formatToParts(date);
+  return Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+}
+
+// How long something has been waiting, in the plainest words: "Just now",
+// "12 min", "5 hr", "1 day", "3 days". Rounds down, so a referral that has
+// waited 47 hours says "1 day", never a number that looks better than it
+// is. A moment in the future (clock differences) counts as "Just now".
+export function formatWaiting(since: Date, now: Date = new Date()): string {
+  const minutes = Math.floor((now.getTime() - since.getTime()) / 60000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hr`;
+  const days = Math.floor(hours / 24);
+  return days === 1 ? "1 day" : `${days} days`;
+}

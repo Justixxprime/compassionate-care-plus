@@ -129,3 +129,23 @@ Server Action requests are capped at 1 MB by default. `next.config.ts` raises th
 ## A document upload is refused as "Only PDF, PNG and JPEG files can be filed"
 
 The type is read from the file's own first bytes, not from its name. A file that was renamed, or a "PDF" that is really something else, is refused on purpose. Open the file and re-export it as a real PDF.
+
+
+## Two folders make the same web address ("cannot have two parallel pages")
+
+Since Milestone E1 the staff screens live in `src/app/(app)/` (dashboard, patients, visits, care-plans, documents, referrals). Unzipping a delivery only adds files, so the OLD folders directly under `src/app/` are still there. `npm run dev` now stops before starting and prints which to delete. In PowerShell from the project folder:
+
+```powershell
+Remove-Item -Recurse -Force "src\app\dashboard"
+Remove-Item -Recurse -Force "src\app\patients"
+Remove-Item -Recurse -Force "src\app\visits"
+Remove-Item -Recurse -Force "src\app\care-plans"
+Remove-Item -Recurse -Force "src\app\documents"
+Remove-Item -Recurse -Force "src\app\referrals"
+```
+
+Only delete the ones directly under `src\app`. The ones inside `src\app\(app)` are the real ones.
+
+## There are now THREE layout.tsx files
+
+`src/app/layout.tsx` (root: html and body), `src/app/(public)/layout.tsx` (public header and footer), `src/app/(app)/layout.tsx` (staff shell). The check script (`scripts/check-root-layout.mjs`) verifies all three. If it complains about the (public) or (app) layout, the wrong content was pasted into it: put back the version from the last zip.

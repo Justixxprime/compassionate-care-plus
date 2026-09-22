@@ -41,6 +41,35 @@ export const UNRESTRICTED_CATEGORY_KEYS: string[] = DOCUMENT_CATEGORIES.filter(
   (c) => !c.restricted,
 ).map((c) => c.key);
 
+// WHO SEES RESTRICTED DOCUMENTS BY DEFAULT. Only the two administrator
+// roles. Anyone else (a clinical supervisor, a nurse) sees a restricted
+// document only when an administrator has shared it with them on purpose
+// (src/lib/document-grants.ts). "Administrative" is not enough on its own:
+// a clinical supervisor reaches every patient, but has no default right to
+// an ID number or a policy number.
+export const RESTRICTED_ROLE_KEYS = ["SUPER_ADMIN", "ADMIN"] as const;
+
+// How long a share lasts. The keys are what a form sends; the server maps
+// them to a real end time and refuses anything else.
+export const GRANT_DURATIONS = [
+  { key: "7_days", label: "7 days", days: 7 },
+  { key: "30_days", label: "30 days", days: 30 },
+  { key: "until_revoked", label: "Until I take it back", days: null },
+] as const;
+
+export type GrantDurationKey = (typeof GRANT_DURATIONS)[number]["key"];
+
+export function isGrantDuration(value: string): value is GrantDurationKey {
+  return GRANT_DURATIONS.some((d) => d.key === value);
+}
+
+// The end time for a share that starts at `now`, or null for "no end".
+export function grantExpiry(key: GrantDurationKey, now: Date): Date | null {
+  const found = GRANT_DURATIONS.find((d) => d.key === key);
+  if (!found || found.days === null) return null;
+  return new Date(now.getTime() + found.days * 24 * 60 * 60 * 1000);
+}
+
 // Size and text limits.
 export const MAX_DOCUMENT_BYTES = 2 * 1024 * 1024; // 2 MB
 export const TITLE_MAX = 120;

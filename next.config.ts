@@ -12,13 +12,17 @@ const nextConfig: NextConfig = {
     },
   },
   images: {
-    // Allows next/image to optimize photos hosted on Pexels, once the
-    // hero/about photos switch from plain <img> tags to next/image.
-    // See docs/IMAGES.md.
+    // Photos are drawn by SiteImage (a plain img tag, see
+    // src/components/marketing/site-image.tsx). These hosts are allowed
+    // in case a photo is ever moved to next/image. See docs/IMAGES.md.
     remotePatterns: [
       {
         protocol: "https",
         hostname: "images.pexels.com",
+      },
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
       },
     ],
   },

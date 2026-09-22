@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { AuroraField } from "@/components/marketing/aurora-field";
+import { SiteImage } from "@/components/marketing/site-image";
+import { siteImages } from "@/lib/site-images";
 import { Reveal } from "@/components/motion/reveal";
 import { StatCounter } from "@/components/motion/stat-counter";
 import { brandName } from "@/components/marketing/nav-links";
@@ -67,8 +69,27 @@ export default function HomePage() {
     <div>
       {/* HERO */}
       <section className="relative overflow-hidden bg-ink text-white">
+        {/* The photograph sits at the back. Two dark layers on top keep the
+            white headline readable: an even wash on phones, and on wide
+            screens a fade from solid on the left (where the words are) to
+            mostly clear on the right (where the photograph shows). */}
+        <SiteImage
+          image={siteImages.hero}
+          priority
+          sizes="100vw"
+          className="absolute inset-0 h-full w-full"
+        />
+        <div aria-hidden="true" className="absolute inset-0 bg-ink/80 lg:hidden" />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 hidden lg:block"
+          style={{
+            backgroundImage:
+              "linear-gradient(90deg, rgba(23,36,32,0.97) 0%, rgba(23,36,32,0.86) 42%, rgba(23,36,32,0.38) 100%)",
+          }}
+        />
         <AuroraField />
-        <div className="relative mx-auto max-w-6xl px-6 py-24 lg:py-32">
+        <div className="relative mx-auto max-w-6xl px-6 py-24 lg:py-36">
           <p className="animate-fade-in-up text-label font-semibold uppercase tracking-[0.2em] text-marigold">
             {brandName}
           </p>
@@ -179,35 +200,42 @@ export default function HomePage() {
 
       {/* WHO WE SERVE PREVIEW */}
       <Reveal as="section" className="border-b border-border px-6 py-16 lg:py-24">
-        <div className="mx-auto max-w-4xl">
-          <h2 className="font-display text-[clamp(1.75rem,3.5vw,2.75rem)] text-ink">
-            Who we serve
-          </h2>
-          <p className="mt-3 max-w-xl text-body-lg text-slate">
-            We build every care plan around the person in front of us, not a
-            category. Home health often fits families who are:
-          </p>
-          <ul className="mt-8 space-y-4">
-            {whoWeServeExcerpt.map((item, i) => (
-              <Reveal
-                key={item}
-                as="li"
-                delay={i * 80}
-                className="flex gap-4 text-body-lg text-slate"
-              >
-                <span
-                  aria-hidden="true"
-                  className="mt-2 h-2 w-2 flex-none rounded-full bg-marigold"
-                />
-                {item}
-              </Reveal>
-            ))}
-          </ul>
-          <div className="mt-10">
-            <Link href="/who-we-serve" className={buttonVariants({ variant: "secondary" })}>
-              See who we serve
-            </Link>
+        <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+          <div>
+            <h2 className="font-display text-[clamp(1.75rem,3.5vw,2.75rem)] text-ink">
+              Who we serve
+            </h2>
+            <p className="mt-3 max-w-xl text-body-lg text-slate">
+              We build every care plan around the person in front of us, not a
+              category. Home health often fits families who are:
+            </p>
+            <ul className="mt-8 space-y-4">
+              {whoWeServeExcerpt.map((item, i) => (
+                <Reveal
+                  key={item}
+                  as="li"
+                  delay={i * 80}
+                  className="flex gap-4 text-body-lg text-slate"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="mt-2 h-2 w-2 flex-none rounded-full bg-marigold"
+                  />
+                  {item}
+                </Reveal>
+              ))}
+            </ul>
+            <div className="mt-10">
+              <Link href="/who-we-serve" className={buttonVariants({ variant: "secondary" })}>
+                See who we serve
+              </Link>
+            </div>
           </div>
+          <SiteImage
+            image={siteImages.whoWeServe}
+            sizes="(min-width: 1024px) 40vw, 100vw"
+            className="aspect-[4/3] w-full rounded-md lg:aspect-[4/5]"
+          />
         </div>
       </Reveal>
 

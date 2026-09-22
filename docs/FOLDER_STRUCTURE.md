@@ -104,3 +104,23 @@ Every permission check lives in the service layer. That means there is exactly o
 - `src/lib/auth/actor.ts` - the shared loadActor, auditDenied and auditAllowed
 - `src/lib/care-team.ts`, `care-team-constants.ts` - who is on a patient's team, and the only code that changes it
 - `docs/CARE_TEAMS.md`
+
+
+## Update, 21 September 2026 (Milestone E1)
+
+```
+src/app/
+  layout.tsx            ROOT layout (html, body, globals.css)
+  (public)/             the public website, with its own header and footer layout
+  (app)/                the signed-in staff screens, with the staff shell layout
+    layout.tsx  loading.tsx  error.tsx  not-found.tsx
+    dashboard/  patients/  visits/  care-plans/  referrals/
+    documents/  (with [id]/download and sharing/)
+  sign-in/  design-system/
+src/components/app/     the staff shell and shared screen pieces
+src/lib/app/            menu, roles, dashboard, and requireUser (access.ts)
+src/lib/site-images.ts  every public photograph
+src/lib/document-grants.ts  sharing restricted documents
+scripts/verify-access.ts    661 access checks (builds and removes temporary people)
+scripts/verify-shell.ts     62 shell checks (read-only)
+```

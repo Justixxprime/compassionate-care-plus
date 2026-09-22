@@ -1,3 +1,15 @@
+## Milestone E1 - internal app shell, dashboards, sharing restricted documents, site photos
+
+Date: 21 September 2026
+
+- The signed-in staff frame: route group `src/app/(app)/`, one shared layout (sidebar, phone menu, skip link), menu decided on the server from real permissions, loading, error and not-found screens. The dashboard and the five proof pages moved inside it and were restyled with shared components. Every page still checks who is asking by itself. See `docs/APP_SHELL.md`.
+- A real dashboard per permission: needs-attention list, tiles, today's visits, referrals waiting with waiting time, patients without a primary nurse, plans to approve, recent activity.
+- New `scripts/verify-shell.ts` (`npm run verify:shell`, 62 checks, read-only).
+- `scripts/check-root-layout.mjs` now checks all three layouts and the duplicate screen folders.
+- Sharing restricted documents (owner's decision): SUPER_ADMIN and ADMIN see insurance and ID documents by default; a clinical supervisor no longer does. An administrator can share them with one person, for one patient or one document, for 7 days, 30 days or until taken back. New table `document_access_grants` (migration `add_document_access_grants`), new permission `documents.grant` (34 permissions), new screen `/documents/sharing`, new files `src/lib/document-grants.ts`, `src/lib/document-grants-actions.ts`. `npm run verify:access` is 661 checks (108 new).
+- Public site photos from Unsplash in one file, `src/lib/site-images.ts`, drawn by `SiteImage`: homepage hero and "Who we serve", About, Who we serve page. The old Pexels photo on About is gone. See `docs/IMAGES.md`.
+- Migration to run: `add_document_access_grants`. Folders to delete: six (see `docs/APP_SHELL.md`).
+
 ## Milestone E0 - shared helpers, care teams, and the two office roles
 **21 September 2026**
 

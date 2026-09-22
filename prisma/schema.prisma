@@ -45,6 +45,7 @@ model Organization {
   carePlans CarePlan[]
   documents Document[]
   referrals Referral[]
+  documentAccessGrants DocumentAccessGrant[]
 
   @@map("organizations")
 }
@@ -75,6 +76,9 @@ model User {
   archivedDocuments   Document[]       @relation("DocumentArchiver")
   createdReferrals    Referral[]       @relation("ReferralCreator")
   decidedReferrals    Referral[]       @relation("ReferralDecider")
+  receivedDocumentGrants DocumentAccessGrant[] @relation("GrantGrantee")
+  givenDocumentGrants    DocumentAccessGrant[] @relation("GrantGiver")
+  revokedDocumentGrants  DocumentAccessGrant[] @relation("GrantRevoker")
 
   @@index([organizationId])
   @@map("users")
@@ -202,6 +206,7 @@ model Patient {
   carePlans     CarePlan[]
   documents     Document[]
   referrals     Referral[]
+  documentAccessGrants DocumentAccessGrant[]
 
   @@index([organizationId])
   @@map("patients")
@@ -407,11 +412,54 @@ model Document {
   uploadedBy   User          @relation("DocumentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
   archivedBy   User?         @relation("DocumentArchiver", fields: [archivedById], references: [id], onDelete: Restrict)
   file         DocumentFile?
+  accessGrants DocumentAccessGrant[]
 
   @@index([organizationId, status])
   @@index([patientId])
   @@index([patientId, sha256])
   @@map("documents")
+}
+
+// ---------- Sharing restricted documents ----------
+// Insurance cards and ID scans are RESTRICTED. By default only the two
+// administrator roles (SUPER_ADMIN and ADMIN) can see them. A grant is how
+// an administrator lets ONE other person look, on purpose, for as long as
+// they choose:
+//   - patientId only (documentId empty): every restricted document of that
+//     patient, including ones filed later
+//   - patientId and documentId: that single document
+// A grant is only ever permission to LOOK and download. It never lets
+// anyone file, archive or share a document, and it never widens which
+// patients a person can reach: they must already reach the patient, and
+// the normal permission (documents.read) still applies.
+//
+// A grant is never deleted. Taking one back sets revokedAt, and access ends
+// at once. An expired grant (expiresAt in the past) counts as ended. The
+// audit log records that a grant was made or taken back, never what the
+// document said. See docs/DOCUMENTS.md.
+model DocumentAccessGrant {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  patientId      String    @map("patient_id")
+  documentId     String?   @map("document_id")
+  granteeId      String    @map("grantee_id")
+  grantedById    String    @map("granted_by_id")
+  expiresAt      DateTime? @map("expires_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  revokedAt      DateTime? @map("revoked_at")
+  revokedById    String?   @map("revoked_by_id")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  patient      Patient      @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  document     Document?    @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  grantee      User         @relation("GrantGrantee", fields: [granteeId], references: [id], onDelete: Restrict)
+  grantedBy    User         @relation("GrantGiver", fields: [grantedById], references: [id], onDelete: Restrict)
+  revokedBy    User?        @relation("GrantRevoker", fields: [revokedById], references: [id], onDelete: Restrict)
+
+  @@index([granteeId, revokedAt])
+  @@index([patientId])
+  @@index([organizationId])
+  @@map("document_access_grants")
 }
 
 // The bytes of one document. One row per document, deleted with it.

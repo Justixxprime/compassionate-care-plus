@@ -68,7 +68,7 @@ Order follows the revised milestone plan in `PHASE_0_ARCHITECTURE.md` section 12
 ## MILESTONE E - The real staff-facing screens
 - **Status:** In progress
 - **E0 (shared helpers, care teams, office role permissions):** Written and verified in the build environment (21 September 2026): 553 access checks, 18 deliberate rule breaks all caught, tsc, eslint and build clean. No migration. **Waiting on:** his machine (`npx prisma db seed`, `npm run verify:access` expecting 553 passed).
-- **E1 (internal app shell):** Next
+- **E1 (internal app shell, dashboards, sharing restricted documents, site photos):** Written and verified in the build environment (21 September 2026): 661 access checks, 62 shell checks, 24 deliberate rule breaks all caught, tsc, eslint and build clean, pages fetched over HTTP. **Waiting on:** his machine (six old folders deleted, migration `add_document_access_grants`, seed, both verify scripts, a look at the pages and the four photos).
 - **E2 (Care Command Center, including the care team screens):** After E1
 - **E3 clinical portal, E4 caregiver portal (phone first), E5 patient and family portals:** Later
 

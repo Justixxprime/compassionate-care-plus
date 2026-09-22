@@ -10,7 +10,8 @@
   "build": "next build",
   "start": "next start",
   "lint": "eslint",
-  "verify:access": "tsx --tsconfig tsconfig.scripts.json scripts/verify-access.ts"
+  "verify:access": "tsx --tsconfig tsconfig.scripts.json scripts/verify-access.ts",
+  "verify:shell": "tsx --tsconfig tsconfig.scripts.json scripts/verify-shell.ts"
 },
   "dependencies": {
     "@fontsource/ibm-plex-sans": "^5.3.0",

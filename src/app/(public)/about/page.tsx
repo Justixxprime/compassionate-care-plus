@@ -3,6 +3,8 @@ import { buttonVariants } from "@/components/ui/button";
 import { Reveal } from "@/components/motion/reveal";
 import { StatCounter } from "@/components/motion/stat-counter";
 import { brandName } from "@/components/marketing/nav-links";
+import { SiteImage } from "@/components/marketing/site-image";
+import { siteImages } from "@/lib/site-images";
 
 const beliefs = [
   "We treat every patient like family, with dignity, respect and compassion.",
@@ -83,16 +85,12 @@ export default function AboutPage() {
                 ))}
               </ul>
             </div>
-            {/* Photo: Pexels, free license, no attribution required.
-                https://www.pexels.com/photo/caregiver-adjusting-bed-in-a-prague-home-library-29372710/
-                Swap for a real photo of the actual team later - see
-                docs/IMAGES.md. */}
-            {/* eslint-disable-next-line @next/next/no-img-element -- external
-                hotlinked photo, not a local optimized asset yet */}
-            <img
-              src="https://images.pexels.com/photos/29372710/pexels-photo-29372710.jpeg?auto=compress&cs=tinysrgb&w=1200"
-              alt="A member of the Cheliv Compassionate Care Plus team"
-              className="hidden aspect-[4/5] w-full rounded-md object-cover lg:block"
+            {/* A stock photograph from src/lib/site-images.ts. Swap it for a
+                real photo of the actual team later (see docs/IMAGES.md). */}
+            <SiteImage
+              image={siteImages.about}
+              sizes="(min-width: 1024px) 40vw, 0px"
+              className="hidden aspect-[4/5] w-full rounded-md lg:block"
             />
           </div>
         </Reveal>

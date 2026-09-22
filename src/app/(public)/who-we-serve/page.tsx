@@ -2,6 +2,8 @@ import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { Reveal } from "@/components/motion/reveal";
 import { brandName } from "@/components/marketing/nav-links";
+import { SiteImage } from "@/components/marketing/site-image";
+import { siteImages } from "@/lib/site-images";
 
 const situations = [
   "Recovering from surgery or a hospital stay",
@@ -30,7 +32,8 @@ export default function WhoWeServePage() {
         </div>
       </Reveal>
 
-      <div className="mx-auto max-w-3xl px-6 py-20 lg:py-28">
+      <div className="mx-auto grid max-w-5xl gap-12 px-6 py-20 lg:grid-cols-[1.15fr_0.85fr] lg:items-start lg:py-28">
+        <div>
         <ul className="space-y-6">
           {situations.map((item, i) => (
             <Reveal
@@ -59,6 +62,12 @@ export default function WhoWeServePage() {
             </Link>
           </div>
         </Reveal>
+        </div>
+        <SiteImage
+          image={siteImages.whoWeServePage}
+          sizes="(min-width: 1024px) 38vw, 0px"
+          className="hidden aspect-[4/5] w-full rounded-md lg:sticky lg:top-24 lg:block"
+        />
       </div>
     </div>
   );

@@ -16,10 +16,16 @@
 //                   (getPatientScope in src/lib/patients.ts - the same
 //                   code every slice uses, not a copy)
 //   3. CATEGORY     insurance and identification documents are
-//                   RESTRICTED: only administrative roles (the
-//                   "organization" scope) may see or download them, and
-//                   only they may file one. A nurse on the care team
-//                   sees the clinical paperwork and nothing else.
+//                   RESTRICTED. By default only the two administrator
+//                   roles (SUPER_ADMIN and ADMIN) may see, download or
+//                   file them. Anyone else who reaches the patient sees a
+//                   restricted document only if an administrator has
+//                   SHARED it with them on purpose, for one patient or
+//                   one document, for as long as the administrator chose
+//                   (src/lib/document-grants.ts). A share is permission
+//                   to look and download, never to file or archive. A
+//                   nurse on the care team sees the clinical paperwork
+//                   and nothing else, unless something is shared.
 //
 // Why no "on the care team" question here, unlike care plans: filing
 // paperwork (a consent, an insurance card) is an office job that
@@ -64,6 +70,13 @@ import {
   type PatientScope,
 } from "@/lib/patients";
 import type { Result } from "@/lib/visits";
+import type { Prisma } from "@prisma/client";
+import {
+  getActiveGrantsFor,
+  grantsCover,
+  holdsRestrictedRole,
+  type ActiveGrant,
+} from "@/lib/document-grants";
 import {
   DOCUMENT_CATEGORIES,
   MAX_DOCUMENT_BYTES,
@@ -80,10 +93,42 @@ const NOT_FOUND = "That document could not be found.";
 const NO_PATIENT_ACCESS = "You do not have access to that patient.";
 const NO_CATEGORY_ACCESS = "You cannot file that kind of document.";
 
-// The third question. Only the organization-wide (administrative) scope
-// may touch a restricted category.
-function scopeMayUseCategory(scope: PatientScope, category: string): boolean {
-  return !isRestrictedCategory(category) || scope.kind === "organization";
+// The third question, asked in two forms.
+//
+// What this person's restricted access is: either their ROLE gives it
+// (SUPER_ADMIN, ADMIN) or they hold shares an administrator made for them.
+interface RestrictedAccess {
+  byRole: boolean;
+  grants: ActiveGrant[];
+}
+
+async function getRestrictedAccess(actor: Actor): Promise<RestrictedAccess> {
+  const byRole = await holdsRestrictedRole(actor.id);
+  // An administrator role needs no shares, so none are fetched.
+  const grants = byRole ? [] : await getActiveGrantsFor(actor.id, actor.organizationId);
+  return { byRole, grants };
+}
+
+// May this person SEE or DOWNLOAD this document? An unrestricted one: yes
+// (reach was already checked). A restricted one: only by role, or when a
+// share covers it.
+function mayViewDocument(
+  access: RestrictedAccess,
+  doc: { id: string; patientId: string; category: string },
+): boolean {
+  if (!isRestrictedCategory(doc.category)) return true;
+  return access.byRole || grantsCover(access.grants, doc);
+}
+
+// May this person FILE a document of this kind? A restricted kind needs an
+// administrator role AND organization-wide reach. A share never lets
+// anyone file.
+function mayFileCategory(
+  access: RestrictedAccess,
+  scope: PatientScope,
+  category: string,
+): boolean {
+  return !isRestrictedCategory(category) || (access.byRole && scope.kind === "organization");
 }
 
 function cleanTitle(value: string): string {
@@ -96,6 +141,7 @@ function cleanTitle(value: string): string {
 async function loadVisibleDocument(
   actor: Actor,
   scope: PatientScope,
+  access: RestrictedAccess,
   documentId: string,
 ) {
   const doc = await prisma.document.findUnique({
@@ -116,7 +162,7 @@ async function loadVisibleDocument(
     doc.organizationId === actor.organizationId &&
     doc.status === "active" &&
     (await scopeAllowsPatient(scope, doc.patientId)) &&
-    scopeMayUseCategory(scope, doc.category);
+    mayViewDocument(access, doc);
 
   if (!doc || !visible) {
     await auditDenied(actor, "document", documentId);
@@ -134,6 +180,9 @@ export interface DocumentRow {
   category: string;
   categoryLabel: string;
   restricted: boolean;
+  // A restricted document this person sees only because an administrator
+  // shared it with them.
+  sharedWithYou: boolean;
   title: string;
   fileName: string;
   contentType: string;
@@ -148,21 +197,32 @@ const LIST_LIMIT = 200;
 export async function listDocuments(userId: string): Promise<DocumentRow[]> {
   await requirePermission(userId, "documents.read");
 
+  const actor = await loadActor(userId);
   const scope = await getPatientScope(userId);
+  const access = await getRestrictedAccess(actor);
   const canArchive = await hasPermission(userId, "documents.delete");
+
+  // Who may see a restricted document, decided IN the query so a
+  // restricted row that the person may not see is never even fetched:
+  //   administrator role: no extra limit
+  //   anyone else: the unrestricted kinds, plus exactly what was shared
+  const visibility: Prisma.DocumentWhereInput = access.byRole
+    ? {}
+    : {
+        OR: [
+          { category: { in: UNRESTRICTED_CATEGORY_KEYS } },
+          ...access.grants.map((g) =>
+            g.documentId ? { id: g.documentId } : { patientId: g.patientId },
+          ),
+        ],
+      };
 
   const rows = await prisma.document.findMany({
     where: {
       organizationId: scope.organizationId,
       status: "active",
-      ...(scope.kind === "organization"
-        ? {}
-        : {
-            patientId: { in: scope.patientIds },
-            // Restricted categories are never even fetched for a
-            // clinical account.
-            category: { in: UNRESTRICTED_CATEGORY_KEYS },
-          }),
+      ...(scope.kind === "organization" ? {} : { patientId: { in: scope.patientIds } }),
+      ...visibility,
     },
     select: {
       id: true,
@@ -187,6 +247,7 @@ export async function listDocuments(userId: string): Promise<DocumentRow[]> {
     category: d.category,
     categoryLabel: categoryLabel(d.category),
     restricted: isRestrictedCategory(d.category),
+    sharedWithYou: isRestrictedCategory(d.category) && !access.byRole,
     title: d.title,
     fileName: d.fileName,
     contentType: d.contentType,
@@ -214,6 +275,7 @@ export async function getDocumentUploadOptions(
   if (!(await hasPermission(userId, "documents.upload"))) return null;
 
   const scope = await getPatientScope(userId);
+  const access = await getRestrictedAccess(await loadActor(userId));
 
   const patients = await prisma.patient.findMany({
     where: {
@@ -231,7 +293,7 @@ export async function getDocumentUploadOptions(
       patientName: `${p.firstName} ${p.lastName}`,
     })),
     categories: DOCUMENT_CATEGORIES.filter((c) =>
-      scopeMayUseCategory(scope, c.key),
+      mayFileCategory(access, scope, c.key),
     ).map((c) => ({ key: c.key, label: c.label })),
   };
 }
@@ -255,6 +317,7 @@ export async function uploadDocument(
 
   const actor = await loadActor(userId);
   const scope = await getPatientScope(userId);
+  const access = await getRestrictedAccess(actor);
 
   // 2. Relationship to the patient.
   if (!(await scopeAllowsPatient(scope, input.patientId))) {
@@ -267,7 +330,7 @@ export async function uploadDocument(
   if (!isDocumentCategory(input.category)) {
     return { ok: false, error: "Choose what kind of document this is." };
   }
-  if (!scopeMayUseCategory(scope, input.category)) {
+  if (!mayFileCategory(access, scope, input.category)) {
     await auditDenied(actor, "patient", input.patientId);
     return { ok: false, error: NO_CATEGORY_ACCESS };
   }
@@ -353,8 +416,9 @@ export async function getDocumentForDownload(
 
   const actor = await loadActor(userId);
   const scope = await getPatientScope(userId);
+  const access = await getRestrictedAccess(actor);
 
-  const doc = await loadVisibleDocument(actor, scope, documentId);
+  const doc = await loadVisibleDocument(actor, scope, access, documentId);
   if (!doc) return { ok: false, error: NOT_FOUND };
 
   // The bytes are fetched on purpose, only now, after every check.
@@ -387,8 +451,9 @@ export async function archiveDocument(
 
   const actor = await loadActor(userId);
   const scope = await getPatientScope(userId);
+  const access = await getRestrictedAccess(actor);
 
-  const doc = await loadVisibleDocument(actor, scope, documentId);
+  const doc = await loadVisibleDocument(actor, scope, access, documentId);
   if (!doc) return { ok: false, error: NOT_FOUND };
 
   // The expected status in the WHERE clause makes this safe if two

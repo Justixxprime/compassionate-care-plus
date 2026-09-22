@@ -1,33 +1,38 @@
 # IMAGES
 
-Real photography the site uses, where it came from, and how to replace it.
+Every photograph on the public website, where it came from, and how to replace it.
 
 ## Current state
 
-Three photos are wired in right now, hotlinked directly from Pexels (free for commercial use, no attribution legally required):
+Four stock photos from Unsplash (free for commercial use; no credit is legally required, but the photographers are named here). They stand in until the organization has real photography. All four are named in ONE file, `src/lib/site-images.ts`, and drawn by `src/components/marketing/site-image.tsx`.
 
-| Where | Photo | Pexels page |
+| Where | Photo | Photographer |
 |---|---|---|
-| Homepage hero background | Healthcare professional checking an elderly man's blood pressure, cozy room | pexels.com/photo/woman-and-man-with-sphygmomanometer-7345474 |
-| About page, beside "What we believe" | Caregiver adjusting bedding in a warm home setting | pexels.com/photo/caregiver-adjusting-bed-in-a-prague-home-library-29372710 |
-| Homepage, "Who we serve" section | Elderly couple at home checking blood pressure together | pexels.com/photo/adult-woman-checking-the-digital-blood-pressure-monitor-8088856 |
+| Homepage, behind the opening headline (`hero`) | A nurse smiling as she talks with an older patient | Age Cymru |
+| Homepage, beside "Who we serve" (`whoWeServe`) | A caregiver helping an older woman walk with a walker | Age Cymru |
+| About page, beside "What we believe" (`about`) | A woman in scrubs leaning in to talk with an older person | Age Cymru |
+| Who we serve page (`whoWeServePage`) | A caregiver sitting with an older couple | Age Cymru |
 
-These are stock photos, not photos of the real team or office. Good enough to make the site feel alive right now, not a substitute for the real thing.
+Links to each photo's Unsplash page are in `src/lib/site-images.ts`. Three more candidates for the same slots are listed at the bottom of that file.
 
-## Why hotlinked rather than downloaded
+These are strangers, not the real team. Their alt text (what a screen reader says) describes what is shown and does not claim they work here. The old Pexels photo on the About page was removed.
 
-Pexels photos are served from a stable CDN (`images.pexels.com`) specifically meant to be linked to directly - that's different from scraping a random website's images, which is never okay. Pexels' own license permits this use with no cost and no attribution requirement.
+## How they load
 
-The trade-off: the site now depends on Pexels staying up, and the image won't get Next.js's automatic optimization (resizing, modern formats, lazy loading) the way a local file would through `next/image`. `next.config.ts` already has `images.pexels.com` allowed as a remote pattern, so switching these from plain `<img>` tags to `next/image` later is a small, contained change, not a rebuild.
+Straight from Unsplash's image servers, which resize on request: the browser asks for the width it needs. There is no download step and nothing to install. The site therefore needs internet access to show them. `next.config.ts` allows `images.unsplash.com` in case a photo is ever moved to `next/image`.
 
-## When you have real photos
+## Swap one photo for another Unsplash photo
 
-This is what actually matters for a business site - real photos of the real office, the real team, real care visits, beat any stock photo. When you have them:
+In `src/lib/site-images.ts`, change that entry's `photo` to the part of the image address after `images.unsplash.com/` and before the `?`, for example `photo-1765896387387-0538bc9f997e`. Update `alt` and `credit`. `focus` is where the picture is anchored when it is cropped (for example `"60% 40%"` keeps a point 60 percent across and 40 percent down in view).
 
-1. Save them into `public/images/` inside the project folder (create the folder if it doesn't exist).
-2. Tell me the filenames, or just replace the `src="https://images.pexels.com/..."` line in the relevant file with `src="/images/your-filename.jpg"`.
-3. At that point it's worth switching to `next/image` for the performance benefit - ask and I'll do it.
+## When you have real photos (the last stage before showing)
 
-## If you want different stock photos in the meantime
+1. Put the files in `public/images/` (for example `public/images/team.jpg`).
+2. In `src/lib/site-images.ts`, change that entry's `photo` to `"/images/team.jpg"`, fix the `alt` to describe the real photo, and delete `credit`.
+3. That is the whole change. Nothing else in the code names a photo.
 
-Search pexels.com or unsplash.com yourself, right-click the photo you like on the search results page, "Copy image address", and send me that URL - I'll wire it in the same way as these three.
+Use photos of real staff only with their permission, and real patients only with written consent. Aim for at least 1600 pixels wide for the homepage photo.
+
+## Not checked
+
+The photographs were chosen from the search results' descriptions. They could not be previewed in a browser in the build environment, so a crop or a pick may need a second look.

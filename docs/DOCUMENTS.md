@@ -15,9 +15,7 @@ Files are the most sensitive thing the system holds after the clinical record it
 
 1. **Permission.** `documents.read`, `documents.upload`, `documents.delete`. These three permissions already existed, so no new permission was needed. A hard stop (`requirePermission`).
 2. **Relationship.** Can this person reach the patient? From `getPatientScope()` in `src/lib/patients.ts`, the same code every slice uses.
-3. **Category.** Insurance and identification documents are RESTRICTED. Only administrative roles (the "organization" scope) can see, download or file them. A nurse on the care team sees the clinical paperwork (consent forms, physician orders, care correspondence) and never the scan of the patient's ID or insurance card. To a nurse, a restricted document does not exist: it is missing from lists, and asking for it directly gets the same "not found" as an id that was never real.
-
-Why no "must be on the care team" question, unlike care plans: filing paperwork is an office job that administrative staff do for patients they are not caring for. The team question was about writing clinical JUDGMENT. Documents are controlled by their kind instead. For a nurse the two rules end up the same anyway, because a nurse's reach IS their assigned patients.
+3. **Category.** Insurance and identification documents are RESTRICTED. By default only the two administrator roles (SUPER_ADMIN and ADMIN) can see, download or file them. Anyone else who reaches the patient sees a restricted document only if an administrator has shared it with them on purpose (see "Sharing restricted documents" below). A nurse on the care team sees the clinical paperwork (consent forms, physician orders, care correspondence) and never the scan of the patient's ID or insurance card unless one is shared. To everyone else a restricted document does not exist: it is missing from lists, and asking for it directly gets the same "not found" as an id that was never real.
 
 The category list lives in `src/lib/document-constants.ts`. A category the code does not recognise counts as restricted (it fails closed), so a mistyped or removed category hides a document rather than exposing it.
 
@@ -102,6 +100,31 @@ The upload form's Server Action was not exercised over real HTTP in the build en
 - **No encryption at rest beyond what the database itself provides.**
 - **No archived-document viewer or restore.**
 - **Listing is not audit-logged,** only downloads. Someone who can list can see titles and file names.
-- **Only administrative roles can file restricted documents,** but CLINICAL_SUPERVISOR and CARE_COORDINATOR still hold no permissions, so today only ADMIN and SUPER_ADMIN can.
+- **Only SUPER_ADMIN and ADMIN can file restricted documents.** A share never allows filing.
 - **Titles and file names are not scanned for sensitive content.** Staff should not put a patient's ID number in a title. Say so in staff training.
 - **The category list is fixed in code.** No "other" category on purpose: everything filed is deliberately labelled.
+
+
+## Sharing restricted documents (added 21 September 2026)
+
+Decided by the owner's side: the CEO or an administrator chooses whether someone else may see an insurance card or ID scan, per patient or per document. It is no longer automatic for clinical supervisors.
+
+**How it works.** The screen is `/documents/sharing`, reached from the Sharing button on Documents. An administrator picks a patient, picks either "all restricted documents of this patient" (this also covers ones filed later) or one document, picks one person, and picks how long: 7 days, 30 days, or until they take it back. Taking it back ends access at once.
+
+**The rules** (all in `src/lib/document-grants.ts`, asked from `src/lib/documents.ts`):
+
+1. To share or take back you need the permission `documents.grant` AND you must be SUPER_ADMIN or ADMIN yourself. You can only hand out what you can see.
+2. The person receiving must already hold `documents.read`, already reach the patient (an assigned nurse must be on the care team), and must not already be an administrator. A share never widens which patients someone can see.
+3. A share is permission to look and download only. It never lets anyone file, archive or share onward.
+4. A share names one document only if that document is an active, restricted document of that same patient. Anything else is refused.
+5. The same share cannot be made twice while one is in force.
+6. Every wrong attempt (a person who cannot be given access, a made-up patient or document) is refused in the same plain words and written to the audit log as denied.
+7. Nothing is deleted. Taking a share back records who and when. An ended or expired share is kept.
+8. If the person leaves the care team, the share stops working (reach still applies).
+9. The audit log records `document_access_granted` and `document_access_revoked`, never a name or a document title. Every download through a share is logged like any download.
+
+**Table:** `document_access_grants` (migration `add_document_access_grants`, which you run yourself). **Permission:** `documents.grant` (34 permissions now), held by SUPER_ADMIN and ADMIN. To narrow it to SUPER_ADMIN only, remove it from the ADMIN list in `prisma/seed.ts` and remove the row from the ADMIN role in the database.
+
+**Testing:** `npm run verify:access` has a section 16 (108 checks): the permission and the second lock, nothing shared by default, sharing a whole patient, taking it back, one document, expiry, the wrong people and wrong patients, and the audit trail. Fifteen rules were broken on purpose and each was caught. The share and take back actions were also called through the real server actions over HTTP.
+
+**Trying it:** sign in as `demo.supervisor@cheliv.test` and open Documents: no Restricted badge anywhere. Sign in as `demo.admin@cheliv.test`, open Documents, press Sharing, share Eleanor Whitfield's restricted documents with Demo Supervisor for 7 days. Sign in as the supervisor again: Eleanor's insurance card is there, marked "Shared with you", and nobody else's restricted documents are. Take it back as the admin and it disappears at once.

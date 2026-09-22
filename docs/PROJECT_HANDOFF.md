@@ -36,7 +36,7 @@ Paste this whole document as the first message in a new conversation. It replace
 | Owner | Charles Obioma, CEO/Founder/Administrator. Also runs "St. Charles Home health care services Inc." Lives in Houston, TX. |
 | License | Texas HHSC license #017743 |
 
-Still genuinely unconfirmed, not urgent: real fax number (none ever evidenced, currently just omitted from the site rather than shown as a placeholder). Real photography of the actual office/team (three Pexels stock photos are live in the meantime, see section 12).
+Still genuinely unconfirmed, not urgent: real fax number (none ever evidenced, currently just omitted from the site rather than shown as a placeholder). Real photography of the actual office/team (four Unsplash stock photos are live in the meantime, all named in src/lib/site-images.ts, see docs/IMAGES.md; he does not want to tell the owner yet and will show the site at the last stage).
 
 ---
 
@@ -86,7 +86,7 @@ compassionate-care-plus/
 - docs/ (23 files, see section 15)
 - prisma/
   - schema.prisma (16 models, see section 5)
-  - seed.ts (org, 33 permissions, 9 roles with 5 having real permission sets, 5 demo accounts, 3 synthetic patients, 2 care-team assignments, 6 synthetic visits, 2 synthetic care plans, 5 synthetic documents (2 in restricted categories) and 6 synthetic referrals, each set created only if none exist)
+  - seed.ts (org, 34 permissions, 9 roles with 5 having real permission sets, 5 demo accounts, 3 synthetic patients, 2 care-team assignments, 6 synthetic visits, 2 synthetic care plans, 5 synthetic documents (2 in restricted categories) and 6 synthetic referrals, each set created only if none exist)
 - scripts/
   - check-root-layout.mjs (runs automatically via predev/prebuild hooks)
   - verify-access.ts (`npm run verify:access`, 407 checks against a real LOCAL database, refuses to run otherwise)
@@ -177,7 +177,7 @@ src/lib/auth/authorize.ts, the single path every permission check goes through:
 
 Permissions live in the database (permissions, role_permissions, user_roles tables), not hardcoded in TypeScript, granting a role a new permission later is a data change, not a redeploy.
 
-Real permission sets defined so far: SUPER_ADMIN (all 33), ADMIN (broad administrative set, includes care_plans.read and care_plans.approve but not create or update, and both care team permissions), NURSE (16 permissions, clinical-focused, includes care_plans.read/create/update but not approve, no care team permissions), CARE_COORDINATOR and CLINICAL_SUPERVISOR (added 21 September 2026, listed in section 10f and docs/CARE_TEAMS.md). The remaining four roles (CAREGIVER, PATIENT, AUTHORIZED_FAMILY, REFERRAL_PARTNER) intentionally hold zero permissions still, each one's real set is designed with its own portal.
+Real permission sets defined so far: SUPER_ADMIN (all 34), ADMIN (broad administrative set, includes care_plans.read and care_plans.approve but not create or update, and both care team permissions), NURSE (16 permissions, clinical-focused, includes care_plans.read/create/update but not approve, no care team permissions), CARE_COORDINATOR and CLINICAL_SUPERVISOR (added 21 September 2026, listed in section 10f and docs/CARE_TEAMS.md). The remaining four roles (CAREGIVER, PATIENT, AUTHORIZED_FAMILY, REFERRAL_PARTNER) intentionally hold zero permissions still, each one's real set is designed with its own portal.
 
 ---
 
@@ -293,7 +293,7 @@ Three real, free-licensed Pexels photos are hotlinked (not scraped, not download
 - Milestone B (Public website): Complete
 - Milestone C (Database, auth, RBAC, audit logging): Complete
 - Milestone D (Core clinical operations): Complete. Patients, care team, visits, care plans, documents and referrals all confirmed on J's machine (referrals confirmed 21 September 2026).
-- Milestone E (The real staff-facing screens): In progress. E0 (shared helpers, care team rules, office role permissions) written and verified in the build environment 21 September 2026, waiting on J's machine (seed, then verify:access expecting 553). E1 (internal app shell) is next.
+- Milestone E (The real staff-facing screens): In progress. E0 (shared helpers, care team rules, office role permissions) confirmed on J's machine (553 passed). E1 (internal app shell, dashboards, sharing restricted documents, site photos) written and verified in the build environment 21 September 2026, waiting on J's machine. E2 (the Care Command Center) is next.
 - Milestone F (Production readiness): Not started
 
 Full detail and reasoning in docs/PHASE_0_ARCHITECTURE.md (the original plan) and docs/PHASE_STATUS.md (the live tracker), read both if anything here is ambiguous.
@@ -319,6 +319,15 @@ AUDIT_LOGGING.md, CHANGELOG.md, DATABASE.md, DEMO_ACCOUNTS.md (git-ignored), DES
 
 ## 16. What to do first in the new conversation
 
-Ask J whether the E0 round has run on his machine: `npx prisma db seed` (expect "Demo coordinator ready" and "Demo supervisor ready"), then `npm run verify:access` (expect 553 passed, 0 failed). No migration this round. Then start E1, the internal app shell: one shared layout for signed-in staff, navigation that shows only what the account may use (decided on the server), a real dashboard per role, consistent tables and empty states, phone-friendly, and the five plain proof pages moved into it. The care team screens (team panel, add and end, the worklist) belong to E2, the Care Command Center.
+Ask J whether the E1 round has run on his machine: delete the six old folders under `src/app` (docs/APP_SHELL.md), `npm install`, `npx prisma migrate dev --name add_document_access_grants`, `npx prisma db seed` (expect 34 permissions), `npm run verify:access` (expect 661 passed, 0 failed), `npm run verify:shell` (expect 62 passed, 0 failed), `npm run dev`, then look at the dashboards for each demo account, the Documents Sharing screen, and the four photos. Then start E2, the Care Command Center: referral inbox with waiting time, accept-and-assign flow, patient list and profile, the care team panel with add and end and the worklist, staff list, scheduling board, and the audit log page with filters (scope the audit log by organization first).
 
-Also confirm whether real photography has arrived yet. The phone number is settled and should not be raised again.
+The photos are stand-ins. J does not want to tell his uncle yet and will show the site at the last stage.
+
+Real photography has not arrived. The phone number is settled and should not be raised again.
+
+
+## 10g. Milestone E1 (21 September 2026): the app shell, dashboards, sharing restricted documents, site photos
+
+Built and verified in the build environment (tsc, eslint and build clean; verify:access 661 passed; verify:shell 62 passed; 24 rules broken on purpose and caught; pages fetched over HTTP as each demo account; share and take back tested through the real server actions). Waiting on his machine. Read `docs/APP_SHELL.md`, the "Sharing restricted documents" section of `docs/DOCUMENTS.md`, and `docs/IMAGES.md`. He must delete six old folders under `src/app` and run the migration `add_document_access_grants`.
+
+Decision made by him: restricted documents are seen by SUPER_ADMIN and ADMIN by default; an administrator (his uncle, the CEO) can share them with one named person for one patient or one document, for 7 days, 30 days or until taken back. Permission `documents.grant` (34 permissions), table `document_access_grants`.

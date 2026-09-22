@@ -55,8 +55,16 @@ import {
 import {
   MAX_DOCUMENT_BYTES,
   TITLE_MAX as DOC_TITLE_MAX,
+  UNRESTRICTED_CATEGORY_KEYS,
   isRestrictedCategory,
 } from "@/lib/document-constants";
+import {
+  createShare,
+  getShareOptions,
+  grantsCover,
+  listShares,
+  revokeShare,
+} from "@/lib/document-grants";
 import {
   canRecordReferrals,
   changeReferralStatus,
@@ -166,7 +174,7 @@ async function main() {
   check("no file has its own copy of loadActor, auditDenied or auditAllowed", privateCopies.length === 0, privateCopies.join(", "));
   const helperSource = readFileSync(join(process.cwd(), helperFile), "utf8");
   check("the shared file defines all three helpers", ["loadActor", "auditDenied", "auditAllowed"].every((n) => new RegExp(`export async function ${n}\\b`).test(helperSource)));
-  for (const service of ["visits", "care-plans", "documents", "referrals", "care-team"]) {
+  for (const service of ["visits", "care-plans", "documents", "document-grants", "referrals", "care-team"]) {
     const src = readFileSync(join(process.cwd(), `src/lib/${service}.ts`), "utf8");
     check(`src/lib/${service}.ts uses the shared helpers`, src.includes('from "@/lib/auth/actor"'));
   }
@@ -1482,13 +1490,16 @@ async function main() {
       check("a supervisor cannot schedule a visit", await throwsAuthorization(() => scheduleVisit(sup.id, visitBase(6, "11:00"))));
       check("a supervisor gets no scheduling form", (await getSchedulingOptions(sup.id)) === null);
       check("a supervisor cannot cancel a visit", await throwsAuthorization(() => changeVisitStatus(sup.id, keepVisitId, "cancel")));
-      // OPEN DECISION (docs/REVIEW_MILESTONE_D.md): documents that are
-      // restricted (insurance, identification) are restricted to
-      // administrative ROLES, and a supervisor is one. So a supervisor who
-      // holds documents.read sees them. This check records that as the
-      // current behaviour; it is not a claim that it is the right one.
-      const activeDocs = await prisma.document.count({ where: { organizationId: orgId, status: "active" } });
-      check("a supervisor sees every filed document, restricted kinds included (open decision)", (await listDocuments(sup.id)).length === activeDocs);
+      // DECIDED: a supervisor reaches every patient, but restricted
+      // documents (insurance, identification) are seen by the two
+      // administrator roles only, unless an administrator shares one on
+      // purpose (section 16 tests sharing). So with nothing shared, a
+      // supervisor sees every UNRESTRICTED filed document and no
+      // restricted one.
+      const unrestrictedDocs = await prisma.document.count({ where: { organizationId: orgId, status: "active", category: { in: UNRESTRICTED_CATEGORY_KEYS } } });
+      const supDocs = await listDocuments(sup.id);
+      check("a supervisor sees every unrestricted filed document", supDocs.length === unrestrictedDocs, `${supDocs.length} vs ${unrestrictedDocs}`);
+      check("a supervisor sees NO restricted document until one is shared", supDocs.every((d) => !d.restricted));
       check("a supervisor cannot file a document", (await getDocumentUploadOptions(sup.id)) === null);
       check("a supervisor cannot archive a document", await throwsAuthorization(() => archiveDocument(sup.id, FORGED_ID)));
       check("a supervisor cannot list referrals", await throwsAuthorization(() => listReferrals(sup.id)));
@@ -1586,6 +1597,205 @@ async function main() {
       check("care_team_ended logged for the three endings", (await teamAudit("care_team_ended", coord.id)) === 3);
       const teamAuditText = JSON.stringify(await prisma.auditLog.findMany({ where: { actorUserId: { in: createdUserIds } }, select: { action: true, resourceType: true, resourceId: true, outcome: true, actorEmail: true } }));
       check("the audit log never holds a patient's name", !teamAuditText.includes("Careteam") && !teamAuditText.includes("Careflow") && !teamAuditText.includes("Carerace"));
+
+      // ----- 16. Sharing restricted documents -----
+      section("16a. Sharing restricted documents: the permission, and who is stopped");
+      const grantPermRow = await prisma.permission.findUnique({ where: { key: "documents.grant" } });
+      check("the documents.grant permission exists", grantPermRow !== null, "run: npx prisma db seed");
+      const adminPerms = await permsOf("ADMIN");
+      check("ADMIN holds documents.grant", adminPerms.includes("documents.grant"));
+      check("SUPER_ADMIN holds documents.grant", (await permsOf("SUPER_ADMIN")).includes("documents.grant"));
+      for (const roleKey of ["CLINICAL_SUPERVISOR", "CARE_COORDINATOR", "NURSE", "CAREGIVER", "PATIENT", "AUTHORIZED_FAMILY", "REFERRAL_PARTNER"]) {
+        check(`${roleKey} does not hold documents.grant`, !(await permsOf(roleKey)).includes("documents.grant"));
+      }
+
+      const shareInput = (over: Partial<{ patientId: string; documentId: string; granteeId: string; duration: string }> = {}) => ({
+        patientId: patient.id,
+        documentId: "",
+        granteeId: sup.id,
+        duration: "30_days",
+        ...over,
+      });
+      const activeShareCount = () =>
+        prisma.documentAccessGrant.count({ where: { patientId: patient.id, revokedAt: null } });
+      const restrictedIdsFor = async (userId: string) =>
+        (await listDocuments(userId)).filter((d) => d.restricted).map((d) => d.id);
+      const NOT_FOUND_TEXT = "could not be found";
+      const PERSON_TEXT = "cannot be given access";
+
+      // A temporary role holding documents.grant (and read) but NOT an
+      // administrator role: proves the second lock (you must BE an
+      // administrator to hand out what administrators see).
+      const tempGrantRole = await prisma.role.create({ data: { organizationId: orgId, key: `VERIFYGR_${runId}`, name: "Verify share holder" } });
+      extraTempRoleIds.push(tempGrantRole.id);
+      const readPermRow = await prisma.permission.findUniqueOrThrow({ where: { key: "documents.read" } });
+      await prisma.rolePermission.createMany({ data: [{ roleId: tempGrantRole.id, permissionId: grantPermRow!.id }, { roleId: tempGrantRole.id, permissionId: readPermRow.id }] });
+      const notAdminGranter = await makeUser("notadmingrant", nurseRole.id);
+      await prisma.userRole.create({ data: { userId: notAdminGranter.id, roleId: tempGrantRole.id } });
+
+      const sharesBefore = await activeShareCount();
+      for (const [who, person] of [["an account with no permissions", noPerms], ["a nurse", nurseA], ["a clinical supervisor", sup], ["a care coordinator", coord]] as const) {
+        check(`${who} cannot share`, await throwsAuthorization(() => createShare(person.id, shareInput())));
+        check(`${who} cannot take a share back`, await throwsAuthorization(() => revokeShare(person.id, FORGED_ID)));
+        check(`${who} cannot list shares`, await throwsAuthorization(() => listShares(person.id)));
+        check(`${who} gets no sharing form`, (await getShareOptions(person.id)) === null);
+      }
+      const notAdminTry = await createShare(notAdminGranter.id, shareInput());
+      check("holding documents.grant WITHOUT an administrator role is not enough", !notAdminTry.ok, errorOf(notAdminTry));
+      check("...and gets no list and no form either", (await throwsAuthorization(() => listShares(notAdminGranter.id))) && (await getShareOptions(notAdminGranter.id)) === null);
+      const notAdminRevoke = await revokeShare(notAdminGranter.id, FORGED_ID);
+      check("...and cannot take a share back", !notAdminRevoke.ok);
+      const grantDeniedCount = await prisma.auditLog.count({ where: { actorUserId: { in: [noPerms.id, nurseA.id, sup.id, coord.id] }, action: "permission_denied", resourceId: "documents.grant", outcome: "denied" } });
+      check("the permission refusals were written to the audit log", grantDeniedCount >= 12, String(grantDeniedCount));
+      check("the second-lock refusals were written to the audit log as denied", (await prisma.auditLog.count({ where: { actorUserId: notAdminGranter.id, action: "access_denied", outcome: "denied" } })) >= 2);
+      check("none of those attempts created a share", (await activeShareCount()) === sharesBefore);
+
+      section("16b. Sharing restricted documents: nothing is shared by default");
+      const supBefore = await listDocuments(sup.id);
+      check("a supervisor sees the unrestricted documents of the patient", supBefore.some((d) => d.id === consentId) && supBefore.some((d) => d.id === orderId));
+      check("a supervisor sees no restricted document", supBefore.every((d) => !d.restricted) && !supBefore.some((d) => d.id === insuranceId || d.id === identId));
+      const supDlInsurance = await getDocumentForDownload(sup.id, insuranceId);
+      const supDlIdent = await getDocumentForDownload(sup.id, identId);
+      check("a supervisor cannot download the insurance card", !supDlInsurance.ok && errorOf(supDlInsurance).includes(NOT_FOUND_TEXT), errorOf(supDlInsurance));
+      check("a supervisor cannot download the ID", !supDlIdent.ok && errorOf(supDlIdent).includes(NOT_FOUND_TEXT), errorOf(supDlIdent));
+      check("a restricted document looks exactly like one that does not exist", errorOf(supDlInsurance) === errorOf(await getDocumentForDownload(sup.id, FORGED_ID)));
+      check("a nurse on the team still sees no restricted document", (await restrictedIdsFor(nurseA.id)).length === 0);
+      check("the pure rule: no share covers nothing", !grantsCover([], { id: insuranceId, patientId: patient.id }));
+      check("the pure rule: a patient share covers that patient's documents only", grantsCover([{ patientId: patient.id, documentId: null }], { id: "x", patientId: patient.id }) && !grantsCover([{ patientId: patient.id, documentId: null }], { id: "x", patientId: "other" }));
+      check("the pure rule: a document share covers that document only", grantsCover([{ patientId: patient.id, documentId: "a" }], { id: "a", patientId: patient.id }) && !grantsCover([{ patientId: patient.id, documentId: "a" }], { id: "b", patientId: patient.id }));
+
+      section("16c. Sharing restricted documents: everything of one patient");
+      const s1 = await createShare(approver.id, shareInput());
+      check("an ADMIN CAN share all of a patient's restricted documents", s1.ok, errorOf(s1));
+      const s1Id = s1.ok ? s1.value.grantId : "";
+      trackedResourceIds.push(s1Id);
+      const s1Row = await prisma.documentAccessGrant.findUniqueOrThrow({ where: { id: s1Id } });
+      const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+      check("the share records who, for whom, and when it ends", s1Row.grantedById === approver.id && s1Row.granteeId === sup.id && s1Row.documentId === null && s1Row.revokedAt === null && s1Row.expiresAt !== null && Math.abs(s1Row.expiresAt.getTime() - (Date.now() + thirtyDays)) < 60000);
+      const supShared = await listDocuments(sup.id);
+      const supSharedRestricted = supShared.filter((d) => d.restricted);
+      check("the supervisor now sees both restricted documents of that patient", supSharedRestricted.some((d) => d.id === insuranceId) && supSharedRestricted.some((d) => d.id === identId));
+      check("...marked as shared with them", supSharedRestricted.every((d) => d.sharedWithYou));
+      const patientNames = await prisma.document.findMany({ where: { id: { in: supSharedRestricted.map((d) => d.id) } }, select: { patientId: true } });
+      check("...and ONLY that patient's: every other patient's restricted documents stay hidden", patientNames.every((d) => d.patientId === patient.id));
+      const supDl = await getDocumentForDownload(sup.id, insuranceId);
+      check("the supervisor CAN now download the insurance card", supDl.ok, errorOf(supDl));
+      check("the bytes are exactly what was filed", supDl.ok && same(supDl.value.bytes, pdfInsurance));
+      check("the download was logged", (await prisma.auditLog.count({ where: { actorUserId: sup.id, action: "document_downloaded", resourceId: insuranceId, outcome: "allowed" } })) === 1);
+      check("a share does not let the supervisor file", (await getDocumentUploadOptions(sup.id)) === null);
+      check("a share does not let the supervisor archive", await throwsAuthorization(() => archiveDocument(sup.id, insuranceId)));
+      check("a share does not let the supervisor share onward", await throwsAuthorization(() => createShare(sup.id, shareInput({ granteeId: nurseB.id }))));
+      const laterId = await uploadDocument(approver.id, docInput({ category: "identification", title: "Second ID", fileName: "id2.pdf", bytes: pdf("Second identification") }));
+      check("an administrator files another restricted document later", laterId.ok, errorOf(laterId));
+      if (laterId.ok) trackedResourceIds.push(laterId.value.documentId);
+      check("a share of the whole patient covers a document filed later", laterId.ok && (await restrictedIdsFor(sup.id)).includes(laterId.value.documentId));
+      const dupShare = await createShare(approver.id, shareInput());
+      check("the same share cannot be made twice", !dupShare.ok && errorOf(dupShare).includes("already has this access"), errorOf(dupShare));
+      const listedShares = await listShares(approver.id);
+      check("the share is on the administrator's list", listedShares.some((s) => s.id === s1Id && s.granteeId === sup.id));
+
+      section("16d. Sharing restricted documents: taking it back");
+      const revokeByOutsider = await throwsAuthorization(() => revokeShare(sup.id, s1Id));
+      check("the person who was given access cannot take it back or extend it", revokeByOutsider);
+      const revoked = await revokeShare(approver.id, s1Id);
+      check("an administrator CAN take it back", revoked.ok, errorOf(revoked));
+      const s1After = await prisma.documentAccessGrant.findUniqueOrThrow({ where: { id: s1Id } });
+      check("taking it back records who and when, and deletes nothing", s1After.revokedAt !== null && s1After.revokedById === approver.id);
+      check("access ends at once: no restricted document is listed", (await restrictedIdsFor(sup.id)).length === 0);
+      const afterRevokeDl = await getDocumentForDownload(sup.id, insuranceId);
+      check("access ends at once: download is refused", !afterRevokeDl.ok && errorOf(afterRevokeDl).includes(NOT_FOUND_TEXT), errorOf(afterRevokeDl));
+      const revokedTwice = await revokeShare(approver.id, s1Id);
+      check("a share cannot be taken back twice", !revokedTwice.ok, errorOf(revokedTwice));
+      const revokeForged = await revokeShare(approver.id, FORGED_ID);
+      check("a made-up share id is refused as not found", !revokeForged.ok && errorOf(revokeForged).includes(NOT_FOUND_TEXT), errorOf(revokeForged));
+      check("the taken-back share leaves the administrator's list", !(await listShares(approver.id)).some((s) => s.id === s1Id));
+
+      section("16e. Sharing restricted documents: one document, and it can end by itself");
+      const s2 = await createShare(approver.id, shareInput({ documentId: insuranceId, duration: "7_days" }));
+      check("an administrator CAN share one document", s2.ok, errorOf(s2));
+      const s2Id = s2.ok ? s2.value.grantId : "";
+      trackedResourceIds.push(s2Id);
+      const s2Row = await prisma.documentAccessGrant.findUniqueOrThrow({ where: { id: s2Id } });
+      check("a 7 day share ends in 7 days", s2Row.expiresAt !== null && Math.abs(s2Row.expiresAt.getTime() - (Date.now() + 7 * 24 * 60 * 60 * 1000)) < 60000);
+      const supOne = await restrictedIdsFor(sup.id);
+      check("the supervisor sees exactly that one document", supOne.length === 1 && supOne[0] === insuranceId, supOne.join(","));
+      check("...and can download it", (await getDocumentForDownload(sup.id, insuranceId)).ok);
+      check("...but not the other restricted document of the same patient", !(await getDocumentForDownload(sup.id, identId)).ok);
+      const otherRestricted = await prisma.document.findFirst({ where: { organizationId: orgId, status: "active", category: { notIn: UNRESTRICTED_CATEGORY_KEYS }, patientId: { not: patient.id } }, select: { id: true } });
+      const wrongPatientDoc = otherRestricted ? await createShare(approver.id, shareInput({ documentId: otherRestricted.id })) : null;
+      check("a document belonging to a different patient cannot be shared under this patient", wrongPatientDoc !== null && !wrongPatientDoc.ok && errorOf(wrongPatientDoc).includes(NOT_FOUND_TEXT), wrongPatientDoc ? errorOf(wrongPatientDoc) : "no other restricted document to test with");
+      const unrestrictedShare = await createShare(approver.id, shareInput({ documentId: consentId }));
+      check("an unrestricted document cannot be shared (there is nothing to share)", !unrestrictedShare.ok && errorOf(unrestrictedShare).includes(NOT_FOUND_TEXT), errorOf(unrestrictedShare));
+      const forgedDocShare = await createShare(approver.id, shareInput({ documentId: FORGED_ID }));
+      check("a made-up document id is refused in the same words", !forgedDocShare.ok && errorOf(forgedDocShare) === errorOf(unrestrictedShare), errorOf(forgedDocShare));
+      check("the refusals were written to the audit log as denied", (await prisma.auditLog.count({ where: { actorUserId: approver.id, action: "access_denied", resourceType: "document", outcome: "denied" } })) >= 3);
+      // The end time passes.
+      await prisma.documentAccessGrant.update({ where: { id: s2Id }, data: { expiresAt: new Date(Date.now() - 1000) } });
+      check("when the end time passes, access ends by itself", (await restrictedIdsFor(sup.id)).length === 0 && !(await getDocumentForDownload(sup.id, insuranceId)).ok);
+      check("an ended share leaves the list of shares in force", !(await listShares(approver.id)).some((s) => s.id === s2Id));
+      const s3 = await createShare(approver.id, shareInput({ documentId: insuranceId, duration: "until_revoked" }));
+      check("after a share ended, the same one can be made again", s3.ok, errorOf(s3));
+      const s3Id = s3.ok ? s3.value.grantId : "";
+      trackedResourceIds.push(s3Id);
+      check("a share with no end has no end time", (await prisma.documentAccessGrant.findUniqueOrThrow({ where: { id: s3Id } })).expiresAt === null);
+      check("an administrator CAN take back a share that already ended", (await revokeShare(approver.id, s2Id)).ok);
+      check("...and the open-ended one", (await revokeShare(approver.id, s3Id)).ok);
+
+      section("16f. Sharing restricted documents: only the right people, only the right patients");
+      const personRefusals = [
+        ["someone who already sees restricted documents (an ADMIN)", approver.id],
+        ["someone who already sees restricted documents (a SUPER_ADMIN)", admin.id],
+        ["someone with no document permission", noPerms.id],
+        ["a care coordinator (no document permission)", coord.id],
+        ["someone who does not reach this patient", nurseC.id],
+        ["a made-up person", FORGED_STAFF],
+      ] as const;
+      const personMessages: string[] = [];
+      for (const [label, id] of personRefusals) {
+        const r = await createShare(approver.id, shareInput({ granteeId: id }));
+        personMessages.push(errorOf(r));
+        check(`cannot share with ${label}`, !r.ok && errorOf(r).includes(PERSON_TEXT), errorOf(r));
+      }
+      check("every one of those refusals says the same words (nothing is given away)", new Set(personMessages).size === 1);
+      const madeUpPatient = await createShare(approver.id, shareInput({ patientId: "00000000-0000-0000-0000-00000000dead" }));
+      check("a made-up patient is refused", !madeUpPatient.ok && errorOf(madeUpPatient).includes("do not have access"), errorOf(madeUpPatient));
+      const badDuration = await createShare(approver.id, shareInput({ duration: "forever" }));
+      check("an unknown duration is refused", !badDuration.ok, errorOf(badDuration));
+      check("none of those attempts created a share", (await activeShareCount()) === sharesBefore);
+      const s4 = await createShare(approver.id, shareInput({ granteeId: nurseA.id }));
+      check("a nurse on the patient's care team CAN be given access", s4.ok, errorOf(s4));
+      const s4Id = s4.ok ? s4.value.grantId : "";
+      trackedResourceIds.push(s4Id);
+      const nurseRestricted = await restrictedIdsFor(nurseA.id);
+      check("the nurse then sees that patient's restricted documents", nurseRestricted.includes(insuranceId) && nurseRestricted.includes(identId));
+      check("...can download one", (await getDocumentForDownload(nurseA.id, identId)).ok);
+      const nurseOffered = await getDocumentUploadOptions(nurseA.id);
+      check("...but is still not offered the restricted kinds to file", nurseOffered !== null && nurseOffered.categories.every((c) => !isRestrictedCategory(c.key)));
+      const nurseFile = await uploadDocument(nurseA.id, docInput({ category: "insurance", bytes: pdf("Nurse tries insurance"), title: "Nope" }));
+      check("...and still cannot file one", !nurseFile.ok && errorOf(nurseFile).includes("cannot file that kind"), errorOf(nurseFile));
+      check("the other nurse on the team sees none of it", (await restrictedIdsFor(nurseB.id)).length === 0);
+      check("an outsider still cannot download it", !(await getDocumentForDownload(nurseC.id, insuranceId)).ok);
+      check("an administrator CAN take the nurse's access back", (await revokeShare(approver.id, s4Id)).ok);
+      check("...and the nurse sees none of it again", (await restrictedIdsFor(nurseA.id)).length === 0);
+      // A nurse who later leaves the care team loses the share's effect,
+      // because a share never widens reach.
+      const s5 = await createShare(approver.id, shareInput({ granteeId: nurseB.id, duration: "7_days" }));
+      check("a colleague on the team CAN be given access", s5.ok, errorOf(s5));
+      const s5Id = s5.ok ? s5.value.grantId : "";
+      trackedResourceIds.push(s5Id);
+      await prisma.careTeamMember.updateMany({ where: { patientId: patient.id, userId: nurseB.id, endsAt: null }, data: { endsAt: new Date(Date.now() - 1000) } });
+      check("when they leave the care team the share stops working (reach still applies)", (await restrictedIdsFor(nurseB.id)).length === 0 && !(await getDocumentForDownload(nurseB.id, insuranceId)).ok);
+      await prisma.careTeamMember.updateMany({ where: { patientId: patient.id, userId: nurseB.id }, data: { endsAt: null } });
+      check("an administrator CAN take that back too", (await revokeShare(approver.id, s5Id)).ok);
+
+      section("16g. Sharing restricted documents: the audit trail");
+      const shareAudit = (action: string) => prisma.auditLog.count({ where: { action, actorUserId: approver.id, outcome: "allowed" } });
+      check("document_access_granted logged for every share (five)", (await shareAudit("document_access_granted")) === 5, String(await shareAudit("document_access_granted")));
+      check("document_access_revoked logged for every take-back (five)", (await shareAudit("document_access_revoked")) === 5, String(await shareAudit("document_access_revoked")));
+      check("downloads through a share were logged like any download", (await prisma.auditLog.count({ where: { actorUserId: { in: [sup.id, nurseA.id] }, action: "document_downloaded", outcome: "allowed" } })) >= 4);
+      const shareAuditText = JSON.stringify(await prisma.auditLog.findMany({ where: { actorUserId: { in: createdUserIds } }, select: { action: true, resourceType: true, resourceId: true, outcome: true, actorEmail: true } }));
+      check("the audit log never holds a patient's name or a document's title", !shareAuditText.includes("Testpatient") && !shareAuditText.includes("Insurance card") && !shareAuditText.includes("Photo ID") && !shareAuditText.includes("Second ID"));
+      check("finally: nothing is left shared, and the supervisor sees no restricted document", (await activeShareCount()) === sharesBefore && (await restrictedIdsFor(sup.id)).length === 0);
     }
   } finally {
     // ----- Cleanup: leave the database exactly as it was found -----
@@ -1612,6 +1822,15 @@ async function main() {
       });
       trackedResourceIds.push(...leftoverReferrals.map((r) => r.id));
       await prisma.referral.deleteMany({ where: { id: { in: leftoverReferrals.map((r) => r.id) } } });
+
+      // Shares of restricted documents point at documents, patients and the
+      // temporary people, so they go before all of those.
+      const leftoverGrants = await prisma.documentAccessGrant.findMany({
+        where: { OR: [{ patientId: { in: testPatientIds } }, { granteeId: { in: createdUserIds } }, { grantedById: { in: createdUserIds } }, { revokedById: { in: createdUserIds } }] },
+        select: { id: true },
+      });
+      trackedResourceIds.push(...leftoverGrants.map((g) => g.id));
+      await prisma.documentAccessGrant.deleteMany({ where: { id: { in: leftoverGrants.map((g) => g.id) } } });
 
       // Documents: the file bytes go with their document.
       const leftoverDocs = await prisma.document.findMany({
