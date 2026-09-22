@@ -24,19 +24,19 @@ export function Section({
   className?: string;
 }) {
   return (
-    <section className={cn("mt-8", className)}>
+    <section className={cn("mt-10", className)}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <h2 className="font-display text-h4 font-semibold text-ink">
             {title}
           </h2>
           {description ? (
-            <p className="mt-0.5 text-body-sm text-slate">{description}</p>
+            <p className="mt-1 text-body-sm text-slate">{description}</p>
           ) : null}
         </div>
         {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
       </div>
-      <div className="mt-3">{children}</div>
+      <div className="mt-4">{children}</div>
     </section>
   );
 }

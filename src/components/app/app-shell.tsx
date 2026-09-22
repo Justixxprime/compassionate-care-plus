@@ -91,14 +91,14 @@ export function AppShell({
       </a>
 
       {/* Wide screens: a fixed sidebar. */}
-      <aside className="hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-64 lg:flex-none lg:flex-col lg:border-r lg:border-border lg:bg-white">
-        <div className="px-5 py-5">
+      <aside className="hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-72 lg:flex-none lg:flex-col lg:border-r lg:border-border lg:bg-white">
+        <div className="px-6 py-6">
           <BrandLink />
         </div>
-        <div className="flex-1 overflow-y-auto px-3 pb-4">
+        <div className="flex-1 overflow-y-auto px-4 pb-4">
           <SidebarNav groups={groups} />
         </div>
-        <div className="border-t border-border px-5 py-4">
+        <div className="border-t border-border px-6 py-5">
           <AccountPanel userName={userName} roleLabel={roleLabel} />
         </div>
       </aside>
@@ -116,7 +116,7 @@ export function AppShell({
         </header>
 
         <main id="main" className="flex-1">
-          <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          <div className="mx-auto w-full max-w-6xl px-4 py-7 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
             {children}
           </div>
         </main>

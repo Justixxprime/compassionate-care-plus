@@ -26,15 +26,15 @@ export function StatTile({
     <Link
       href={href}
       className={cn(
-        "group block rounded-md border border-border bg-white p-4 transition-colors hover:border-pine/50 hover:bg-sage/30",
+        "group block rounded-md border border-border bg-white p-5 transition-all hover:-translate-y-0.5 hover:border-pine/50 hover:bg-sage/30 hover:shadow-raised",
         className,
       )}
     >
       <p className="text-caption font-medium text-slate">{label}</p>
-      <p className="mt-1 font-display text-h1 leading-none tabular-nums text-ink">
+      <p className="mt-2 font-display text-h1 leading-none tabular-nums text-ink">
         {value}
       </p>
-      {hint ? <p className="mt-2 text-caption text-slate">{hint}</p> : null}
+      {hint ? <p className="mt-2.5 text-caption text-slate">{hint}</p> : null}
     </Link>
   );
 }

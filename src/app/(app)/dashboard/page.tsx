@@ -121,7 +121,7 @@ export default async function DashboardPage() {
           </Section>
 
           {data.tiles.length > 0 ? (
-            <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {data.tiles.map((tile) => (
                 <StatTile
                   key={tile.key}
@@ -188,7 +188,7 @@ export default async function DashboardPage() {
           ) : null}
 
           {data.referrals !== null || data.needsPrimaryNurse !== null || data.plansToApprove !== null ? (
-            <div className="grid gap-x-8 lg:grid-cols-2">
+            <div className="grid gap-x-10 lg:grid-cols-2">
               {data.referrals !== null ? (
                 <Section
                   title="Referrals waiting"
