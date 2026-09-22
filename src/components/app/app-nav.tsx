@@ -211,7 +211,7 @@ export function MobileMenu({
       <dialog
         ref={dialogRef}
         aria-label="Main menu"
-        className="app-drawer flex flex-col overflow-hidden border-l border-border shadow-raised"
+        className="app-drawer border-l border-border shadow-raised"
         onClick={(e) => {
           if (e.target === dialogRef.current) setOpen(false);
         }}

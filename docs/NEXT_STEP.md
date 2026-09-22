@@ -1,84 +1,104 @@
 # NEXT_STEP.md
 
-**Last updated:** 21 September 2026
-**Just finished:** Milestone E1, the internal app shell, plus sharing restricted documents and photos for the public site.
+**Last updated:** 22 September 2026
+**Just finished:** found and fixed the real cause of the phone menu bug (ccp-e4-drawer-fix reported back as still broken). Did not start E2 yet, on purpose, see below.
 
 ---
 
-## What I just completed
+## What was wrong (plain language)
 
-1. **The frame for signed-in staff.** One shared layout with a menu on the left (a menu button on a phone). The menu shows only what your account can use, worked out on the server. Loading, error and not-found screens included.
-2. **A real dashboard for each account.** It shows what needs attention first, then today's visits, referrals waiting (and for how long), patients without a primary nurse, and care plans to approve. Each part shows only if the account holds the permission for it. So the coordinator, the supervisor, the nurses and the admin each get a different dashboard without a list of roles to keep in step.
-3. **The six proof pages moved inside the frame** and restyled: tables that turn into cards on a phone, plain empty states, one title style.
-4. **Sharing restricted documents (your decision).** Insurance cards and ID scans are now visible to SUPER_ADMIN and ADMIN only. Your uncle (or any administrator) can let ONE named person see them: for one patient (all restricted documents, including ones filed later) or for one document, for 7 days, 30 days or until he takes it back. Taking it back works at once. The person must already be allowed to open documents and already be assigned to that patient. It lets them look and download only.
-5. **Photos on the public site.** Four Unsplash photos (homepage hero, homepage "Who we serve", About, Who we serve page), all named in one file, `src/lib/site-images.ts`, so swapping for real photos later is one edit each. Credits and steps are in `docs/IMAGES.md`.
+The phone menu is a native `<dialog>` element. Browsers already know how to
+hide a `<dialog>` when it is closed and show it when it is open, for free,
+with no code needed for that part.
 
-## IMPORTANT: three things you must do
+The menu's box also needed to be a column (header on top, links in the
+middle, account info at the bottom), so the last round added Tailwind's
+`flex flex-col` classes to it. That was the mistake: those classes tell the
+browser "always show this as a column box", with no exception for
+"unless it's closed". Your own styling always wins over the browser's
+built-in styling, so from that point on the menu box never actually
+went away when closed. It only ever slid sideways, just past the right
+edge of the screen. Still a full-height, full-width-ish box, still sitting
+there, still counted when the browser works out how big the page is,
+still reachable by keyboard, just pushed a bit further right than the
+visible screen.
 
-**1. Delete six old folders.** The screens moved into `src/app/(app)/`. Unzipping never deletes, so the old copies remain and the site will not start. `npm run dev` will tell you exactly which, or run:
+That explains everything you saw: a page that measures "too big", a
+second "Cheliv" panel that never goes away, and a menu that looks like it
+closes (it slides away) but never truly does.
 
-```powershell
-cd C:\Users\LENOVO\OneDrive\Desktop\compassionate-care-plus
-Remove-Item -Recurse -Force "src\app\dashboard"
-Remove-Item -Recurse -Force "src\app\patients"
-Remove-Item -Recurse -Force "src\app\visits"
-Remove-Item -Recurse -Force "src\app\care-plans"
-Remove-Item -Recurse -Force "src\app\documents"
-Remove-Item -Recurse -Force "src\app\referrals"
-```
+## The fix
 
-Only the ones directly under `src\app`, not the ones inside `src\app\(app)`.
+`display: none` / `display: flex` now live only in `globals.css`, tied to
+whether the dialog is open, exactly the way the dialog already worked
+before those two Tailwind classes were added to it. Closed now means
+gone, the way it did before, and the way the rest of the code already
+assumed it did. Two files touched: `src/app/globals.css`,
+`src/components/app/app-nav.tsx` (just removed the two classes from the
+dialog's className, the box's own shape now comes entirely from
+`.app-drawer` in the CSS file).
 
-**2. Run one migration** (a new table, `document_access_grants`): `npx prisma migrate dev --name add_document_access_grants`. I did not ship SQL.
+No schema change, no new dependency, no migration.
 
-**3. Run the seed**, which adds the new permission `documents.grant` (34 in total) to SUPER_ADMIN and ADMIN.
+## NOT starting E2 yet, on purpose
 
-## How to test it on your machine
+Last round's instructions said to wait for your confirmation that the
+menu holds before starting the Care Command Center. That menu did not
+hold, so by that same rule E2 is still on hold, this time until you
+confirm the ACTUAL bug (the page getting bigger, the second panel that
+would not go away) is gone too, not just the tap-through problem from
+before. Continuing to build on top of a shell that is still visibly
+broken risked compounding the confusion instead of fixing it.
 
-```powershell
-cd C:\Users\LENOVO\OneDrive\Desktop\compassionate-care-plus
-npm install
-npx prisma migrate dev --name add_document_access_grants
-npx prisma db seed
-npm run verify:access
-npm run verify:shell
-npm run dev
-```
+## ASK ME ONLY THIS (once)
 
-**Expect** the seed to say `34 permissions ready`. **Expect** `verify:access` to end with `661 passed, 0 failed` and `verify:shell` with `62 passed, 0 failed`.
+On your phone (or a narrow browser window): open the menu, then close it
+by X, by tapping outside it, and by Escape. Each time, check that:
 
-Then in the browser (http://localhost:3000):
+1. The page does not feel like it grew, and there is no sideways scroll.
+2. Nothing "Cheliv"-shaped is left showing anywhere once it is closed.
+3. The Patient dropdown on the Visits page (where this started) is
+   fully reachable again once the menu is closed, every time.
 
-- Sign in as each demo account and look at the dashboard. Menus differ: the coordinator has no Care plans or Documents, the supervisor has no Referrals.
-- Try sharing: as `demo.supervisor@cheliv.test`, open Documents (no Restricted badge). As `demo.admin@cheliv.test`, open Documents, press **Sharing**, share Eleanor Whitfield's restricted documents with Demo Supervisor. As the supervisor, they appear, marked "Shared with you". Take it back as the admin: gone at once.
-- Look at the homepage, About and Who we serve for the photos. Tell me which to swap.
-- Make the browser narrow (or use your phone) to check the phone menu and the cards.
+If all three hold: say so, and E2 (the Care Command Center) starts right
+away, no more screenshots needed first.
 
 ## What was tested, and what was not
 
-Type check, lint and production build clean. `verify:access` 661 checks (108 new for sharing). `verify:shell` 62 checks. I broke 24 rules on purpose, one at a time, and the tests failed each time. I fetched every page as each demo account over HTTP, checked that signed-out visitors are sent to sign-in, and called the share and take back actions through the real server actions.
+The two changed files were read back after editing and the CSS change
+matches the same `display: none` / `[open] { display: flex }` pattern
+already used for this exact dialog's own `::backdrop` a few lines below
+it in the same file, so it is consistent with code already in the
+project, not a new pattern. Full lint, type-check and Tailwind build
+were not run this round (asked to package and present the fix first
+rather than spend extra tool calls on that); worth running
+`npm run dev` and watching the terminal for errors as the first check
+on your end, before the phone test above.
 
-**Not tested:** how anything LOOKS. I could not open a browser, and I could not load the Unsplash photos in the build environment, so the picks come from their descriptions. A crop or a choice may need a second look.
+## Everything else from before is unchanged and still true
 
-## Decisions I made without you (tell me if you disagree)
-
-- **ADMIN holds `documents.grant` as well as SUPER_ADMIN.** If only the owner should share, remove it from the ADMIN list in `prisma/seed.ts` and from the ADMIN role in the database.
-- **The person receiving a share must already hold `documents.read` and reach the patient.** A share never widens who can see a patient.
-- **A small line "Demonstration data. Every patient here is made up." sits under the menu.** It is honest while everything is synthetic. Say if you want it removed.
-- **Sharing screen is reached from Documents, not from the menu.**
-
-## Still open from before
-
-The public `/request-care` form still says "Request received" and saves nothing. The repo is public and `PROJECT_HANDOFF.md` names the owner (you also want the site to stay a surprise, so a private repo or a trimmed file is worth deciding). Where real files will live (paid, I will ask first). Only SUPER_ADMIN can archive documents.
-
-## What comes next
-
-E2, the Care Command Center: referral inbox with waiting time, accept-and-assign, patient list and profile, the care team panel (add, end, and the list of patients who need a primary nurse), staff list, scheduling board, and the audit log page with filters.
+Milestones A to D done. E0 to E1.2 done and confirmed. Six old folders
+already deleted (you did this earlier). The `document_access_grants`
+migration and seed are already applied on your machine. Next after E2
+confirmation: E3 clinical portal, E4 caregiver portal, E5 patient and
+family portals. Open decisions list is unchanged, see
+`docs/REVIEW_MILESTONE_D.md`.
 
 ## Exact next commands after you have tested
 
 ```powershell
+cd C:\Users\LENOVO\OneDrive\Desktop\compassionate-care-plus
+npm install
+npm run dev
+```
+
+No migration this round, so no `npx prisma migrate dev` needed. If step 3
+in the phone test above passes, then:
+
+```powershell
+npm run verify:access
+npm run verify:shell
 git add .
-git commit -m "App shell, per-permission dashboards, sharing restricted documents, site photos, 661 access checks"
+git commit -m "Fix phone menu staying rendered when closed (display was locked to flex)"
 git push
 ```
