@@ -175,4 +175,65 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+
+  /* The universal selector above does not reach a dialog's own
+     ::backdrop pseudo-element (it is not a real node in the tree, so
+     `*` does not match it) - said explicitly here instead. */
+  dialog,
+  dialog::backdrop {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* App phone menu (src/components/app/app-nav.tsx). A native <dialog>,
+   used as a slide-in drawer instead of the browser's default centered
+   box. Opened with showModal(), it lives in the browser's own "top
+   layer" - above absolutely everything else on the page, including any
+   future component with its own z-index - so content behind it can
+   never be tapped by mistake. The transform and ::backdrop opacity
+   transitions use the modern @starting-style pattern so the panel
+   slides and fades both in and out; a browser that does not support it
+   simply shows and hides the panel instantly, which still works, just
+   without the slide. */
+.app-drawer {
+  position: fixed;
+  inset: 0 0 0 auto;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  width: 20rem;
+  max-width: 88vw;
+  height: 100dvh;
+  max-height: none;
+  transform: translateX(100%);
+  transition:
+    transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    overlay 260ms allow-discrete,
+    display 260ms allow-discrete;
+}
+.app-drawer[open] {
+  transform: translateX(0);
+}
+@starting-style {
+  .app-drawer[open] {
+    transform: translateX(100%);
+  }
+}
+.app-drawer::backdrop {
+  background: color-mix(in srgb, var(--color-ink) 45%, transparent);
+  opacity: 0;
+  transition:
+    opacity 260ms ease-out,
+    overlay 260ms allow-discrete,
+    display 260ms allow-discrete;
+}
+.app-drawer[open]::backdrop {
+  opacity: 1;
+}
+@starting-style {
+  .app-drawer[open]::backdrop {
+    opacity: 0;
+  }
 }

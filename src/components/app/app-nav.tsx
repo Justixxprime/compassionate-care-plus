@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -36,19 +36,27 @@ import {
   nothing: every page and action re-checks permission and reach on the
   server.
 
-  The phone panel is `position: fixed` to the viewport, not `absolute`
-  inside the header, so it cannot drift off-screen no matter what sits
-  around the button.
+  THE PHONE PANEL IS A NATIVE <dialog>, NOT A STYLED <div>.
+  A styled div plus a backdrop div plus z-index is a CSS trick, and a
+  trick can be defeated: a future component with its own z-index, a
+  stacking context created by something as ordinary as a `sticky`
+  header, or one dropped `pointer-events-none` class, and the "backdrop"
+  quietly stops blocking taps. That is exactly the shape of bug that was
+  reported (a field behind the open menu still being reachable). A real
+  <dialog>, opened with showModal(), does not have that failure mode: the
+  browser itself puts it in the page's "top layer", above absolutely
+  everything else, and makes its own backdrop the only thing behind it
+  that a tap can reach. There is no CSS to get wrong. Escape and the
+  backdrop tap are native browser behavior too, not hand-rolled listeners.
 
-  Closing the panel does NOT rely only on each link's onClick. A click
-  handler on a Next.js Link is not a reliable place to hang "close the
-  menu" on its own: the shell around it (src/app/(app)/layout.tsx) is a
-  Server Component that can legitimately re-run on navigation, and
-  exactly when a Client Component underneath it keeps or loses state is
-  an implementation detail, not a guarantee. So the panel also watches
-  the current path directly (usePathname) and closes itself the instant
-  the path changes, for ANY reason - a nav-item click, the browser back
-  button, anything. That is the one path that cannot fail to close it.
+  Closing still does not rely only on each link's onClick, for the
+  reason explained where it happens below: the shell around this
+  (src/app/(app)/layout.tsx) is a Server Component that can legitimately
+  re-run on navigation, and exactly when a Client Component underneath
+  it keeps or loses state is an implementation detail, not a guarantee.
+  So the panel also watches the current path directly and closes itself
+  the instant the path changes, for ANY reason - a nav-item click, the
+  browser back button, anything.
 */
 
 const ICONS: Record<NavIconKey, LucideIcon> = {
@@ -63,25 +71,27 @@ const ICONS: Record<NavIconKey, LucideIcon> = {
 function NavList({
   groups,
   onNavigate,
-  spacious = false,
+  density,
 }: {
   groups: NavGroup[];
   onNavigate?: () => void;
-  // The phone panel has room to breathe; the sidebar stays a touch
-  // denser so more of the menu is visible without scrolling, but both
-  // now get real air between groups.
-  spacious?: boolean;
+  // Two densities sharing one set of rules. "sidebar" keeps the desktop
+  // rail information-dense - it sits on screen all day, next to real
+  // work. "drawer" gives the phone panel real air: it briefly takes over
+  // the whole screen, so it is allowed to feel calm rather than packed.
+  density: "sidebar" | "drawer";
 }) {
   const pathname = usePathname();
+  const drawer = density === "drawer";
 
   return (
-    <nav aria-label="Main" className={spacious ? "space-y-8" : "space-y-7"}>
+    <nav aria-label="Main" className={drawer ? "space-y-9" : "space-y-7"}>
       {groups.map((group) => (
-        <div key={group.label}>
-          <p className="px-3 text-caption font-semibold uppercase tracking-wide text-slate">
+        <div key={group.label} className={drawer ? "space-y-3.5" : "space-y-2.5"}>
+          <p className="px-3 text-caption font-semibold uppercase tracking-widest text-slate/80">
             {group.label}
           </p>
-          <ul className={cn("mt-3", spacious ? "space-y-1.5" : "space-y-1")}>
+          <ul className={drawer ? "space-y-2" : "space-y-1"}>
             {group.items.map((item) => {
               const Icon = ICONS[item.icon];
               const current = isCurrentPath(pathname, item.href);
@@ -92,19 +102,19 @@ function NavList({
                     onClick={onNavigate}
                     aria-current={current ? "page" : undefined}
                     className={cn(
-                      "flex items-center gap-3 rounded-md border-l-2 font-medium transition-colors",
-                      spacious
-                        ? "min-h-12 px-3.5 text-body"
-                        : "min-h-11 px-3 text-body-sm",
+                      "flex items-center rounded-lg border-l-[3px] font-medium transition-colors duration-150",
+                      drawer
+                        ? "min-h-12 gap-3.5 px-4 py-3 text-body"
+                        : "min-h-11 gap-3 px-3.5 py-2.5 text-body-sm",
                       current
-                        ? "border-pine bg-sage text-pine-dark"
+                        ? "border-pine bg-sage font-semibold text-pine-dark"
                         : "border-transparent text-ink hover:bg-sage/60",
                     )}
                   >
                     <Icon
                       className={cn(
                         "flex-none",
-                        spacious ? "h-5 w-5" : "h-[1.125rem] w-[1.125rem]",
+                        drawer ? "h-5 w-5" : "h-[1.125rem] w-[1.125rem]",
                         current ? "text-pine" : "text-slate",
                       )}
                       aria-hidden="true"
@@ -123,7 +133,7 @@ function NavList({
 
 // The sidebar's list of links (wide screens).
 export function SidebarNav({ groups }: { groups: NavGroup[] }) {
-  return <NavList groups={groups} spacious />;
+  return <NavList groups={groups} density="sidebar" />;
 }
 
 // The menu button and the panel it opens (phones and tablets). `footer` is
@@ -137,35 +147,40 @@ export function MobileMenu({
   footer: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState(false);
 
-  // The one guaranteed close: whenever the visible page changes for any
-  // reason - a nav-item click, the browser back button, anything - shut
-  // the panel. This adjusts state during render rather than in an
-  // effect (React's own recommended pattern for "reset something when a
-  // value changes"), so it can't race with, or get skipped by, whatever
-  // else is happening on navigation.
+  // `open` is the one source of truth. This effect is the only place
+  // that ever calls showModal()/close() on the element, so the React
+  // state and the real DOM dialog can never quietly disagree.
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (open && !dialog.open) dialog.showModal();
+    if (!open && dialog.open) dialog.close();
+  }, [open]);
+
+  // The browser can close the dialog on its own (Escape). When it does,
+  // it fires "close" on the element - listen for that and bring the
+  // React state back in sync, instead of trusting only our own buttons.
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const onClose = () => setOpen(false);
+    dialog.addEventListener("close", onClose);
+    return () => dialog.removeEventListener("close", onClose);
+  }, []);
+
+  // The one guaranteed close-on-navigate: whenever the visible page
+  // changes for any reason, shut the panel. This adjusts state during
+  // render rather than in an effect (React's own recommended pattern for
+  // "reset something when a value changes"), so it can't race with, or
+  // get skipped by, whatever else is happening on navigation.
   const [renderedPathname, setRenderedPathname] = useState(pathname);
   if (pathname !== renderedPathname) {
     setRenderedPathname(pathname);
     if (open) setOpen(false);
   }
-
-  // Escape closes the menu, and the page behind it stops scrolling while
-  // the panel is open, as expected of any full-screen menu.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("keydown", onKey);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [open]);
 
   // Close automatically if the screen is resized up to the desktop
   // sidebar breakpoint while the panel happens to be open.
@@ -180,42 +195,25 @@ export function MobileMenu({
     <div className="lg:hidden">
       <button
         type="button"
-        aria-expanded={open}
-        aria-controls="mobile-menu-panel"
-        aria-label={open ? "Close menu" : "Open menu"}
+        aria-haspopup="dialog"
+        aria-label="Open menu"
         onClick={() => setOpen(true)}
         className="flex h-11 w-11 items-center justify-center rounded-md border border-border-strong bg-white"
       >
         <Menu className="h-5 w-5 text-ink" aria-hidden="true" />
       </button>
 
-      {/* Backdrop. Always mounted (not just when open) so the fade-out
-          plays instead of the panel simply vanishing. */}
-      <div
-        aria-hidden="true"
-        onClick={() => setOpen(false)}
-        className={cn(
-          "fixed inset-0 z-40 bg-ink/40 transition-opacity duration-200",
-          open ? "opacity-100" : "pointer-events-none opacity-0",
-        )}
-      />
-
-      {/* The panel itself. Fixed to the viewport and always mounted,
-          sliding in and out by transform, so the animation is smooth in
-          both directions. */}
-      <div
-        id="mobile-menu-panel"
-        role="dialog"
-        aria-modal="true"
+      {/* A native dialog. Tapping its own backdrop (the dimmed area the
+          browser itself draws) fires a click whose target is the dialog
+          element itself, because nothing else was under the tap - that
+          is how a plain click here is told apart from a click on
+          anything inside the panel, with no extra wrapper element. */}
+      <dialog
+        ref={dialogRef}
         aria-label="Main menu"
-        aria-hidden={!open}
-        className={cn(
-          "fixed inset-y-0 right-0 z-50 flex w-[20rem] max-w-[88vw] flex-col border-l border-border bg-white shadow-raised transition-transform duration-200 ease-out",
-          open ? "translate-x-0" : "pointer-events-none translate-x-full",
-        )}
-        style={{
-          paddingTop: "env(safe-area-inset-top, 0px)",
-          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        className="app-drawer flex flex-col overflow-hidden border-l border-border shadow-raised"
+        onClick={(e) => {
+          if (e.target === dialogRef.current) setOpen(false);
         }}
       >
         <div className="flex h-16 flex-none items-center justify-between border-b border-border px-6">
@@ -239,14 +237,18 @@ export function MobileMenu({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-7">
-          <NavList groups={groups} onNavigate={() => setOpen(false)} spacious />
+        <div className="flex-1 overflow-y-auto px-5 py-8">
+          <NavList
+            groups={groups}
+            onNavigate={() => setOpen(false)}
+            density="drawer"
+          />
         </div>
 
         <div className="flex-none border-t border-border px-6 py-6">
           {footer}
         </div>
-      </div>
+      </dialog>
     </div>
   );
 }

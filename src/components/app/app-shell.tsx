@@ -41,6 +41,17 @@ function BrandLink({ compact = false }: { compact?: boolean }) {
   );
 }
 
+// The initials shown in the account panel's avatar circle - the first
+// letter of up to the first two words in the person's name, so "Eleanor
+// Whitfield" becomes "EW" and a single-word name still shows something.
+function initialsOf(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "?";
+  const first = words[0]?.[0] ?? "";
+  const second = words.length > 1 ? (words[1]?.[0] ?? "") : "";
+  return (first + second).toUpperCase();
+}
+
 // Who is signed in, the demonstration note, and the way out. Drawn twice
 // (sidebar and phone menu), so it lives in one place.
 function AccountPanel({
@@ -52,8 +63,20 @@ function AccountPanel({
 }) {
   return (
     <div>
-      <p className="truncate text-body-sm font-medium text-ink">{userName}</p>
-      <p className="mt-0.5 truncate text-caption text-slate">{roleLabel}</p>
+      <div className="flex items-center gap-3">
+        <span
+          aria-hidden="true"
+          className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-pine text-body-sm font-semibold text-paper"
+        >
+          {initialsOf(userName)}
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-body-sm font-medium text-ink">
+            {userName}
+          </p>
+          <p className="truncate text-caption text-slate">{roleLabel}</p>
+        </div>
+      </div>
       <form action={signOutAction} className="mt-4">
         <button
           type="submit"
@@ -95,7 +118,7 @@ export function AppShell({
         <div className="border-b border-border px-6 py-6">
           <BrandLink />
         </div>
-        <div className="flex-1 overflow-y-auto px-4 pb-6 pt-6">
+        <div className="flex-1 overflow-y-auto px-4 pb-6 pt-7">
           <SidebarNav groups={groups} />
         </div>
         <div className="border-t border-border px-6 py-6">
