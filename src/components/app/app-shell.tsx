@@ -53,8 +53,8 @@ function AccountPanel({
   return (
     <div>
       <p className="truncate text-body-sm font-medium text-ink">{userName}</p>
-      <p className="truncate text-caption text-slate">{roleLabel}</p>
-      <form action={signOutAction} className="mt-3">
+      <p className="mt-0.5 truncate text-caption text-slate">{roleLabel}</p>
+      <form action={signOutAction} className="mt-4">
         <button
           type="submit"
           className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-border-strong bg-white px-3 text-body-sm font-medium text-ink transition-colors hover:bg-sage"
@@ -63,7 +63,7 @@ function AccountPanel({
           Sign out
         </button>
       </form>
-      <p className="mt-3 text-caption text-slate">
+      <p className="mt-4 text-caption text-slate">
         Demonstration data. Every patient here is made up.
       </p>
     </div>
@@ -92,13 +92,13 @@ export function AppShell({
 
       {/* Wide screens: a fixed sidebar. */}
       <aside className="hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-72 lg:flex-none lg:flex-col lg:border-r lg:border-border lg:bg-white">
-        <div className="px-6 py-6">
+        <div className="border-b border-border px-6 py-6">
           <BrandLink />
         </div>
-        <div className="flex-1 overflow-y-auto px-4 pb-4">
+        <div className="flex-1 overflow-y-auto px-4 pb-6 pt-6">
           <SidebarNav groups={groups} />
         </div>
-        <div className="border-t border-border px-6 py-5">
+        <div className="border-t border-border px-6 py-6">
           <AccountPanel userName={userName} roleLabel={roleLabel} />
         </div>
       </aside>

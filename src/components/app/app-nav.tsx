@@ -37,13 +37,18 @@ import {
   server.
 
   The phone panel is `position: fixed` to the viewport, not `absolute`
-  inside the header. That is deliberate: an `absolute` panel is
-  positioned against whichever ancestor happens to be positioned, and a
-  narrow flex child (the menu button's own wrapper) is not a reliable
-  anchor for a full-width panel - that mismatch is what pushed the panel
-  off the right edge of the screen before. `fixed inset-y-0 right-0`
-  anchors to the viewport itself, so it cannot drift no matter what sits
+  inside the header, so it cannot drift off-screen no matter what sits
   around the button.
+
+  Closing the panel does NOT rely only on each link's onClick. A click
+  handler on a Next.js Link is not a reliable place to hang "close the
+  menu" on its own: the shell around it (src/app/(app)/layout.tsx) is a
+  Server Component that can legitimately re-run on navigation, and
+  exactly when a Client Component underneath it keeps or loses state is
+  an implementation detail, not a guarantee. So the panel also watches
+  the current path directly (usePathname) and closes itself the instant
+  the path changes, for ANY reason - a nav-item click, the browser back
+  button, anything. That is the one path that cannot fail to close it.
 */
 
 const ICONS: Record<NavIconKey, LucideIcon> = {
@@ -62,20 +67,21 @@ function NavList({
 }: {
   groups: NavGroup[];
   onNavigate?: () => void;
-  // The phone panel has room to breathe; the sidebar stays a little
-  // denser so more of the menu is visible without scrolling.
+  // The phone panel has room to breathe; the sidebar stays a touch
+  // denser so more of the menu is visible without scrolling, but both
+  // now get real air between groups.
   spacious?: boolean;
 }) {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Main" className={spacious ? "space-y-7" : "space-y-6"}>
+    <nav aria-label="Main" className={spacious ? "space-y-8" : "space-y-7"}>
       {groups.map((group) => (
         <div key={group.label}>
           <p className="px-3 text-caption font-semibold uppercase tracking-wide text-slate">
             {group.label}
           </p>
-          <ul className={cn("mt-2", spacious ? "space-y-1" : "space-y-0.5")}>
+          <ul className={cn("mt-3", spacious ? "space-y-1.5" : "space-y-1")}>
             {group.items.map((item) => {
               const Icon = ICONS[item.icon];
               const current = isCurrentPath(pathname, item.href);
@@ -86,13 +92,13 @@ function NavList({
                     onClick={onNavigate}
                     aria-current={current ? "page" : undefined}
                     className={cn(
-                      "flex items-center gap-3 rounded-md font-medium transition-colors",
+                      "flex items-center gap-3 rounded-md border-l-2 font-medium transition-colors",
                       spacious
                         ? "min-h-12 px-3.5 text-body"
                         : "min-h-11 px-3 text-body-sm",
                       current
-                        ? "bg-sage text-pine-dark"
-                        : "text-ink hover:bg-sage/60",
+                        ? "border-pine bg-sage text-pine-dark"
+                        : "border-transparent text-ink hover:bg-sage/60",
                     )}
                   >
                     <Icon
@@ -130,7 +136,20 @@ export function MobileMenu({
   groups: NavGroup[];
   footer: React.ReactNode;
 }) {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
+
+  // The one guaranteed close: whenever the visible page changes for any
+  // reason - a nav-item click, the browser back button, anything - shut
+  // the panel. This adjusts state during render rather than in an
+  // effect (React's own recommended pattern for "reset something when a
+  // value changes"), so it can't race with, or get skipped by, whatever
+  // else is happening on navigation.
+  const [renderedPathname, setRenderedPathname] = useState(pathname);
+  if (pathname !== renderedPathname) {
+    setRenderedPathname(pathname);
+    if (open) setOpen(false);
+  }
 
   // Escape closes the menu, and the page behind it stops scrolling while
   // the panel is open, as expected of any full-screen menu.
@@ -181,24 +200,25 @@ export function MobileMenu({
         )}
       />
 
-      {/* The panel itself. Fixed to the viewport (see the note above the
-          component) and always mounted, sliding in and out by transform,
-          so the animation is smooth in both directions. */}
+      {/* The panel itself. Fixed to the viewport and always mounted,
+          sliding in and out by transform, so the animation is smooth in
+          both directions. */}
       <div
         id="mobile-menu-panel"
         role="dialog"
         aria-modal="true"
         aria-label="Main menu"
+        aria-hidden={!open}
         className={cn(
-          "fixed inset-y-0 right-0 z-50 flex w-[19rem] max-w-[85vw] flex-col border-l border-border bg-white shadow-raised transition-transform duration-200 ease-out",
-          open ? "translate-x-0" : "translate-x-full",
+          "fixed inset-y-0 right-0 z-50 flex w-[20rem] max-w-[88vw] flex-col border-l border-border bg-white shadow-raised transition-transform duration-200 ease-out",
+          open ? "translate-x-0" : "pointer-events-none translate-x-full",
         )}
         style={{
           paddingTop: "env(safe-area-inset-top, 0px)",
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
         }}
       >
-        <div className="flex h-16 flex-none items-center justify-between border-b border-border px-5">
+        <div className="flex h-16 flex-none items-center justify-between border-b border-border px-6">
           <Link
             href="/dashboard"
             onClick={() => setOpen(false)}
@@ -213,17 +233,17 @@ export function MobileMenu({
             type="button"
             aria-label="Close menu"
             onClick={() => setOpen(false)}
-            className="flex h-11 w-11 flex-none items-center justify-center rounded-md border border-border-strong bg-white"
+            className="flex h-11 w-11 flex-none items-center justify-center rounded-md border border-border-strong bg-white transition-colors hover:bg-sage"
           >
             <X className="h-5 w-5 text-ink" aria-hidden="true" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-6">
+        <div className="flex-1 overflow-y-auto px-5 py-7">
           <NavList groups={groups} onNavigate={() => setOpen(false)} spacious />
         </div>
 
-        <div className="flex-none border-t border-border px-5 py-5">
+        <div className="flex-none border-t border-border px-6 py-6">
           {footer}
         </div>
       </div>
