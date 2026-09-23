@@ -1,4 +1,3 @@
-import { DevelopmentBanner } from "@/components/marketing/development-banner";
 import { Header } from "@/components/marketing/header";
 import { Footer } from "@/components/marketing/footer";
 
@@ -20,7 +19,6 @@ export default function PublicLayout({
 }) {
   return (
     <div className="flex min-h-screen flex-col">
-      <DevelopmentBanner />
       <Header />
       <main className="flex-1">{children}</main>
       <Footer />
