@@ -69,7 +69,9 @@ Order follows the revised milestone plan in `PHASE_0_ARCHITECTURE.md` section 12
 - **Status:** In progress
 - **E0 (shared helpers, care teams, office role permissions):** Written and verified in the build environment (21 September 2026): 553 access checks, 18 deliberate rule breaks all caught, tsc, eslint and build clean. No migration. **Waiting on:** his machine (`npx prisma db seed`, `npm run verify:access` expecting 553 passed).
 - **E1 (internal app shell, dashboards, sharing restricted documents, site photos):** Written and verified in the build environment (21 September 2026): 661 access checks, 62 shell checks, 24 deliberate rule breaks all caught, tsc, eslint and build clean, pages fetched over HTTP. **Waiting on:** his machine (six old folders deleted, migration `add_document_access_grants`, seed, both verify scripts, a look at the pages and the four photos).
-- **E2 (Care Command Center, including the care team screens):** After E1
+- **E1.3 (phone drawer fix):** Confirmed on his machine (23 September 2026) after one earlier round that did not fully fix it. Root cause: `flex`/`flex-col` on the `<dialog>` element itself always beat the browser's own `display: none` default. Two files, no migration.
+- **E2 round 1 (Care Command Center, patient profile and care team panel, staff directory, scheduling board, audit log page, referral accept-and-assign):** Written and verified in the build environment (23 September 2026): 661 access checks and 62 shell checks both still pass (five shell expectations updated for the four new nav items), tsc/eslint/build all clean, a live smoke test over HTTP with real session cookies for an admin and a nurse. **Needs a real migration** (`add_organization_to_audit_log` - see docs/NEXT_STEP.md). **Waiting on:** his machine (migration, seed, both verify scripts, and clicking through the "add to care team" / "end assignment" buttons for real - the one thing the HTTP smoke test could not exercise).
+- **E2 round 2 and beyond:** open items in docs/NEXT_STEP.md
 - **E3 clinical portal, E4 caregiver portal (phone first), E5 patient and family portals:** Later
 
 ## MILESTONE F - Production readiness

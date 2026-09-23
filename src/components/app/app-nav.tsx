@@ -5,11 +5,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   CalendarDays,
+  CalendarRange,
   ClipboardList,
   FileText,
+  History,
   Inbox,
   LayoutDashboard,
   Menu,
+  UserCog,
   Users,
   X,
   type LucideIcon,
@@ -63,9 +66,12 @@ const ICONS: Record<NavIconKey, LucideIcon> = {
   home: LayoutDashboard,
   patients: Users,
   visits: CalendarDays,
+  schedule: CalendarRange,
   carePlans: ClipboardList,
   referrals: Inbox,
   documents: FileText,
+  staff: UserCog,
+  auditLog: History,
 };
 
 function NavList({

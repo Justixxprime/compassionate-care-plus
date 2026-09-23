@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Users } from "lucide-react";
 import { requireUser } from "@/lib/app/access";
 import { AuthorizationError } from "@/lib/auth/authorize";
 import { getAccessiblePatients, type PatientSummary } from "@/lib/patients";
+import { listPatientsNeedingTeam } from "@/lib/care-team";
 import { formatCalendarDate } from "@/lib/time";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/app/page-header";
+import { Section } from "@/components/app/section";
 import { EmptyState } from "@/components/app/empty-state";
 import { DataTable } from "@/components/app/data-table";
 import { NoAccess } from "@/components/app/no-access";
@@ -27,6 +30,18 @@ export default async function PatientsPage() {
     throw err;
   }
 
+  // The coordinator's worklist: active patients nobody is the primary
+  // nurse for. care_team.read is a different permission from
+  // patients.read, so this is null (and simply left out) for an account
+  // that does not hold it - the same "no section" pattern the dashboard
+  // uses, not a second access check reinvented here.
+  let needsTeam: Awaited<ReturnType<typeof listPatientsNeedingTeam>> | null = null;
+  try {
+    needsTeam = await listPatientsNeedingTeam(user.id);
+  } catch (err) {
+    if (!(err instanceof AuthorizationError)) throw err;
+  }
+
   return (
     <>
       <PageHeader
@@ -34,7 +49,30 @@ export default async function PatientsPage() {
         description="Administrative roles see every patient in the organization. Everyone else sees only the patients they are assigned to."
       />
 
-      <div className="mt-6">
+      {needsTeam && needsTeam.length > 0 ? (
+        <Section
+          title="Need a primary nurse"
+          description="Every active patient should have exactly one. Open a patient's profile to put someone on their care team."
+        >
+          <ul className="space-y-2">
+            {needsTeam.map((p) => (
+              <li key={p.id}>
+                <Link
+                  href={`/patients/${p.id}`}
+                  className="flex items-center justify-between rounded-md border border-border bg-white px-4 py-3 text-body hover:bg-sage/40"
+                >
+                  <span className="font-medium text-ink">{p.name}</span>
+                  <Badge tone={p.hasAnyTeam ? "warning" : "danger"}>
+                    {p.hasAnyTeam ? "No primary nurse" : "No one on the team"}
+                  </Badge>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      ) : null}
+
+      <Section title="All patients">
         <DataTable
           caption="Patients you can see"
           rows={patients}
@@ -49,9 +87,12 @@ export default async function PatientsPage() {
               key: "name",
               header: "Name",
               cell: (p) => (
-                <span className="font-medium">
+                <Link
+                  href={`/patients/${p.id}`}
+                  className="font-medium text-pine underline-offset-2 hover:underline"
+                >
                   {p.firstName} {p.lastName}
-                </span>
+                </Link>
               ),
             },
             {
@@ -72,7 +113,7 @@ export default async function PatientsPage() {
             },
           ]}
         />
-      </div>
+      </Section>
     </>
   );
 }

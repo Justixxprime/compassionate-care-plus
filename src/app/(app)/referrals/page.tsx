@@ -14,7 +14,7 @@ import {
   type ReferralStatus,
 } from "@/lib/referral-constants";
 import { visitTypeLabel } from "@/lib/visit-constants";
-import { formatCalendarDate, formatOrgDate } from "@/lib/time";
+import { formatCalendarDate, formatOrgDate, formatWaiting } from "@/lib/time";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { PageHeader } from "@/components/app/page-header";
 import { Section } from "@/components/app/section";
@@ -28,8 +28,11 @@ import {
 
 // Referral access is permission AND reach AND which fields; every rule
 // lives in src/lib/referrals.ts. This screen only draws what that file
-// says the person may see and do. The full intake inbox (waiting time,
-// accept and assign in one flow) arrives with the Care Command Center (E2).
+// says the person may see and do. Waiting time (below) is computed here
+// from createdAt with formatWaiting, not stored anywhere - it is always
+// "as of the moment this page rendered". Accept-and-assign is one flow:
+// see referral-controls.tsx, which redirects to the new patient's care
+// team panel the moment "accept" succeeds.
 
 export const metadata: Metadata = { title: "Referrals" };
 
@@ -49,7 +52,13 @@ function statusTone(status: string) {
   return STATUS_TONE[status as ReferralStatus] ?? "neutral";
 }
 
-function ReferralCard({ referral }: { referral: ReferralRow }) {
+function ReferralCard({
+  referral,
+  showWaiting,
+}: {
+  referral: ReferralRow;
+  showWaiting: boolean;
+}) {
   const office = referral.office;
   const hasOfficeContent =
     office !== null &&
@@ -68,6 +77,9 @@ function ReferralCard({ referral }: { referral: ReferralRow }) {
             </Badge>
             {referral.urgency === "urgent" ? (
               <Badge tone="danger">Urgent</Badge>
+            ) : null}
+            {showWaiting ? (
+              <Badge tone="neutral">Waiting {formatWaiting(referral.createdAt)}</Badge>
             ) : null}
             <span className="text-body-sm text-slate">
               {visitTypeLabel(referral.requestedService)}
@@ -177,11 +189,13 @@ function ReferralList({
   referrals,
   emptyTitle,
   emptyText,
+  showWaiting = false,
 }: {
   title: string;
   referrals: ReferralRow[];
   emptyTitle: string;
   emptyText: string;
+  showWaiting?: boolean;
 }) {
   return (
     <Section title={title}>
@@ -192,7 +206,7 @@ function ReferralList({
       ) : (
         <div className="space-y-4">
           {referrals.map((r) => (
-            <ReferralCard key={r.id} referral={r} />
+            <ReferralCard key={r.id} referral={r} showWaiting={showWaiting} />
           ))}
         </div>
       )}
@@ -236,6 +250,7 @@ export default async function ReferralsPage() {
         referrals={lists.open}
         emptyTitle="No open referrals"
         emptyText="Nothing is waiting for an answer in what you can see."
+        showWaiting
       />
       <ReferralList
         title="Accepted, declined and withdrawn"

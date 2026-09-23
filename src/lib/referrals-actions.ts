@@ -25,6 +25,7 @@ import {
 export interface ReferralActionResult {
   ok: boolean;
   error?: string;
+  patientId?: string | null;
 }
 
 const SIGNED_OUT = "Your session has expired. Sign in again.";
@@ -90,13 +91,29 @@ export async function changeReferralStatusAction(
   action: string,
   input: { note?: string; existingPatientId?: string | null } = {},
 ): Promise<ReferralActionResult> {
-  return run((userId) =>
-    changeReferralStatus(userId, referralId, action, {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: SIGNED_OUT };
+
+  try {
+    const result = await changeReferralStatus(user.id, referralId, action, {
       note: typeof input.note === "string" ? input.note : undefined,
       existingPatientId:
         typeof input.existingPatientId === "string"
           ? input.existingPatientId
           : null,
-    }),
-  );
+    });
+    if (!result.ok) return { ok: false, error: result.error };
+    revalidatePath("/referrals");
+    // Accepting can create a patient, so the patient list is stale too.
+    revalidatePath("/patients");
+    // Accepting links (or creates) a patient - the caller uses this to
+    // send the coordinator straight to that patient's care team so
+    // accepting and assigning is one flow, not two separate trips.
+    return { ok: true, patientId: result.value.patientId };
+  } catch (err) {
+    if (err instanceof AuthorizationError) {
+      return { ok: false, error: NO_PERMISSION };
+    }
+    throw err;
+  }
 }

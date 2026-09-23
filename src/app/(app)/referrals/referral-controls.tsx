@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import {
   changeReferralStatusAction,
   updateReferralAction,
@@ -45,6 +46,7 @@ export function ReferralDecisionButtons({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
 
   const simple = actions.filter((a) => a === "start_review" || a === "accept");
   const withNote = actions.filter((a) => a === "decline" || a === "withdraw");
@@ -65,7 +67,16 @@ export function ReferralDecisionButtons({
           ? { existingPatientId: matchingPatient?.id ?? null }
           : {},
       );
-      if (!result.ok) setError(result.error ?? "Something went wrong.");
+      if (!result.ok) {
+        setError(result.error ?? "Something went wrong.");
+        return;
+      }
+      // Accept-and-assign, in one flow: land straight on the patient's
+      // care team panel so the next step (put someone on the team) does
+      // not need a second trip through the patient list to find them.
+      if (action === "accept" && result.patientId) {
+        router.push(`/patients/${result.patientId}`);
+      }
     });
   }
 

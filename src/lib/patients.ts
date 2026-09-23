@@ -21,6 +21,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/authorize";
+import { auditDenied, loadActor } from "@/lib/auth/actor";
 
 // Roles that legitimately need to see every patient in the
 // organization, not just their own assigned cases - office-side roles,
@@ -161,5 +162,28 @@ export async function getAccessiblePatients(
         ? { organizationId: scope.organizationId }
         : { organizationId: scope.organizationId, id: { in: scope.patientIds } },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+  });
+}
+
+// One patient, for the patient profile screen (Milestone E2). Same two
+// questions as every other read here - permission, then relationship -
+// and the same vague answer (null) whether the patient does not exist
+// or simply is not reachable by this viewer, so guessing an id from the
+// URL bar tells nobody which case they hit.
+export async function getPatientDetail(
+  userId: string,
+  patientId: string,
+): Promise<PatientSummary | null> {
+  await requirePermission(userId, "patients.read");
+
+  const actor = await loadActor(userId);
+  const scope = await getPatientScope(userId);
+  if (!(await scopeAllowsPatient(scope, patientId))) {
+    await auditDenied(actor, "patient", patientId);
+    return null;
+  }
+
+  return prisma.patient.findFirst({
+    where: { id: patientId, organizationId: actor.organizationId },
   });
 }

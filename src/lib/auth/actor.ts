@@ -45,6 +45,7 @@ export async function auditDenied(
   resourceId?: string,
 ): Promise<void> {
   await writeAuditLog({
+    organizationId: actor.organizationId,
     actorUserId: actor.id,
     actorEmail: actor.email,
     action: "access_denied",
@@ -61,6 +62,7 @@ export async function auditAllowed(
   resourceId: string,
 ): Promise<void> {
   await writeAuditLog({
+    organizationId: actor.organizationId,
     actorUserId: actor.id,
     actorEmail: actor.email,
     action,

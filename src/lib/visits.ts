@@ -328,6 +328,7 @@ export async function scheduleVisit(
   });
 
   await writeAuditLog({
+    organizationId: actor.organizationId,
     actorUserId: actor.id,
     actorEmail: actor.email,
     action: "visit_created",
@@ -417,6 +418,7 @@ export async function changeVisitStatus(
   }
 
   await writeAuditLog({
+    organizationId: actor.organizationId,
     actorUserId: actor.id,
     actorEmail: actor.email,
     action: transition.auditAction,

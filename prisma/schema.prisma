@@ -46,6 +46,7 @@ model Organization {
   documents Document[]
   referrals Referral[]
   documentAccessGrants DocumentAccessGrant[]
+  auditLogs AuditLog[]
 
   @@map("organizations")
 }
@@ -168,7 +169,13 @@ model UserRole {
 // itself useful security signal (repeated failures against one email is
 // what a lockout policy would watch for later).
 model AuditLog {
-  id           String   @id @default(uuid())
+  id             String   @id @default(uuid())
+  // Nullable on purpose: a failed sign-in against an email that matches
+  // no user belongs to no organization yet, and old rows written before
+  // this column existed have no value to backfill it from. Every entry
+  // written going forward carries the actor's organization, and the
+  // audit log page only ever shows one organization's own rows.
+  organizationId String?  @map("organization_id")
   actorUserId  String?  @map("actor_user_id")
   actorEmail   String?  @map("actor_email") // set on failed sign-in, where there is no real user row yet
   action       String // e.g. "sign_in", "sign_in_failed", "sign_out", "permission_denied"
@@ -177,8 +184,11 @@ model AuditLog {
   outcome      String // "allowed" | "denied"
   occurredAt   DateTime @default(now()) @map("occurred_at")
 
+  organization Organization? @relation(fields: [organizationId], references: [id])
+
   @@index([actorUserId])
   @@index([occurredAt])
+  @@index([organizationId, occurredAt])
   @@map("audit_logs")
 }
 

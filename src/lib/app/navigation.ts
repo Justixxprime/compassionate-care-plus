@@ -17,9 +17,12 @@ export type NavIconKey =
   | "home"
   | "patients"
   | "visits"
+  | "schedule"
   | "carePlans"
   | "referrals"
-  | "documents";
+  | "documents"
+  | "staff"
+  | "auditLog";
 
 export interface NavItem {
   href: string;
@@ -46,6 +49,7 @@ export const NAV_DEFINITION: readonly NavGroup[] = [
     items: [
       { href: "/patients", label: "Patients", icon: "patients", requires: "patients.read" },
       { href: "/visits", label: "Visits", icon: "visits", requires: "visits.read" },
+      { href: "/schedule", label: "Scheduling board", icon: "schedule", requires: "visits.read" },
       { href: "/care-plans", label: "Care plans", icon: "carePlans", requires: "care_plans.read" },
     ],
   },
@@ -54,6 +58,8 @@ export const NAV_DEFINITION: readonly NavGroup[] = [
     items: [
       { href: "/referrals", label: "Referrals", icon: "referrals", requires: "referrals.read" },
       { href: "/documents", label: "Documents", icon: "documents", requires: "documents.read" },
+      { href: "/staff", label: "Staff", icon: "staff", requires: "staff.manage" },
+      { href: "/audit-log", label: "Audit log", icon: "auditLog", requires: "audit.read" },
     ],
   },
 ];

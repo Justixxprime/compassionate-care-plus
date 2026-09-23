@@ -10,11 +10,30 @@
 // or sign-out fails for the person using the app. It logs the failure
 // to the server console instead, so it's visible to a developer without
 // becoming the user's problem.
+//
+// ORGANIZATION SCOPE - fixed this round. Every entry now carries the
+// actor's organizationId, and getRecentAuditLog below takes one and
+// filters by it. Before this, it returned entries from every
+// organization in the database - harmless with the one organization
+// that exists today, but the kind of gap that becomes a real
+// cross-tenant leak the moment a second one exists. There is no
+// retroactive fix for rows written before this column existed; they
+// simply have a null organizationId and will not appear in any
+// organization's scoped view.
+//
+// This file stays foundational on purpose: it has no dependency on
+// src/lib/auth/authorize.ts, even though authorize.ts depends on IT (to
+// write the permission_denied entry). The permission check for the
+// standalone audit log PAGE lives one layer up, in src/lib/audit-log.ts,
+// specifically to avoid that import cycle.
 
 import "server-only";
 import { prisma } from "@/lib/prisma";
 
 interface AuditEntry {
+  // Omitted (not just left undefined) on the one entry that can never
+  // have one: a failed sign-in against an email matching no user.
+  organizationId?: string | null;
   actorUserId?: string;
   actorEmail?: string;
   action: string;
@@ -31,7 +50,7 @@ export async function writeAuditLog(entry: AuditEntry): Promise<void> {
   }
 }
 
-interface AuditLogEntry {
+export interface AuditLogEntry {
   id: string;
   actorUserId: string | null;
   actorEmail: string | null;
@@ -42,12 +61,44 @@ interface AuditLogEntry {
   occurredAt: Date;
 }
 
-// The most recent entries, newest first - used by the dashboard's
-// activity list right now, and by the real security center/audit page
-// later (Milestone F).
-export async function getRecentAuditLog(limit = 20): Promise<AuditLogEntry[]> {
+export interface AuditLogFilters {
+  action?: string;
+  outcome?: "allowed" | "denied";
+  // Matched against the actor's email, case-insensitively, substring OK -
+  // "j" finds every account with a j in the address. Good enough for a
+  // small staff list; a real search box is Milestone F territory.
+  actor?: string;
+}
+
+const LIST_LIMIT = 200;
+
+// The most recent entries for ONE organization, newest first, with
+// optional filters. It is the CALLER's job to pass its own
+// organizationId - never anything a caller passes in from the browser -
+// which is why this stays untrusted-input-free and unexported outside
+// lib/: src/lib/app/dashboard.ts and src/lib/audit-log.ts are the two
+// callers, and both already know their own organizationId before they
+// call this.
+export async function getRecentAuditLog(
+  organizationId: string,
+  limit = 20,
+  filters: AuditLogFilters = {},
+): Promise<AuditLogEntry[]> {
   return prisma.auditLog.findMany({
+    where: {
+      organizationId,
+      ...(filters.action ? { action: filters.action } : {}),
+      ...(filters.outcome ? { outcome: filters.outcome } : {}),
+      ...(filters.actor
+        ? {
+            actorEmail: {
+              contains: filters.actor,
+              mode: "insensitive" as const,
+            },
+          }
+        : {}),
+    },
     orderBy: { occurredAt: "desc" },
-    take: limit,
+    take: Math.min(limit, LIST_LIMIT),
   });
 }

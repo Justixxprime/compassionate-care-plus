@@ -31,6 +31,7 @@ import { listReferrals, type ReferralRow } from "@/lib/referrals";
 import { listCarePlans, type CarePlanRow } from "@/lib/care-plans";
 import { listPatientsNeedingTeam, type PatientNeedingTeam } from "@/lib/care-team";
 import { getRecentAuditLog } from "@/lib/audit/log";
+import { loadActor } from "@/lib/auth/actor";
 import {
   buildAttention,
   summarizeReferralQueue,
@@ -77,7 +78,11 @@ export async function getDashboardData(
       can("care_plans.read") && can("care_plans.approve")
         ? listCarePlans(userId)
         : null,
-      can("audit.read") ? getRecentAuditLog(8) : null,
+      // Scoped to this person's own organization - see src/lib/audit/log.ts
+      // for why that was not always true.
+      can("audit.read")
+        ? loadActor(userId).then((actor) => getRecentAuditLog(actor.organizationId, 8))
+        : null,
     ]);
 
   // ----- visits -----

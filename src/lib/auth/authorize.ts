@@ -57,7 +57,15 @@ export async function requirePermission(
   if (!allowed) {
     // A denied permission check is exactly the kind of event the audit
     // log exists for - it's what a real security review looks at first.
+    // One extra query for the organization: this only runs on the
+    // exceptional (denied) path, never on an allowed check, so it does
+    // not add a query to the common case.
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { organizationId: true },
+    });
     await writeAuditLog({
+      organizationId: user?.organizationId,
       actorUserId: userId,
       action: "permission_denied",
       resourceType: "permission",

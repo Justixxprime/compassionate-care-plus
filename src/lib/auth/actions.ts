@@ -55,6 +55,7 @@ export async function signInAction(
 
   await createSession(user.id);
   await writeAuditLog({
+    organizationId: user.organizationId,
     actorUserId: user.id,
     actorEmail: user.email,
     action: "sign_in",
@@ -72,6 +73,7 @@ export async function signOutAction() {
 
   if (user) {
     await writeAuditLog({
+      organizationId: user.organizationId,
       actorUserId: user.id,
       actorEmail: user.email,
       action: "sign_out",

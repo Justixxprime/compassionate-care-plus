@@ -132,15 +132,19 @@ async function main() {
 
   const permsOf = async (key: string) => new Set(await getUserPermissions(users[key].id));
   const menuOf = async (key: string) => navHrefs(buildNavigation(await permsOf(key)));
-  const everything = ["/dashboard", "/patients", "/visits", "/care-plans", "/referrals", "/documents"];
+  // "Clinical" content (patients, visits, scheduling, care plans,
+  // referrals, documents) minus the two office-management-only items
+  // (staff, audit log), which only ADMIN and SUPER_ADMIN hold.
+  const clinical = ["/dashboard", "/patients", "/visits", "/schedule", "/care-plans", "/referrals", "/documents"];
+  const everything = [...clinical, "/staff", "/audit-log"];
   check("admin sees every menu item", sameSet(await menuOf("admin"), everything), (await menuOf("admin")).join(" "));
-  check("coordinator sees dashboard, patients, visits, referrals (no clinical content)", sameSet(await menuOf("coordinator"), ["/dashboard", "/patients", "/visits", "/referrals"]), (await menuOf("coordinator")).join(" "));
-  check("supervisor sees dashboard, patients, visits, care plans, documents (no referrals)", sameSet(await menuOf("supervisor"), ["/dashboard", "/patients", "/visits", "/care-plans", "/documents"]), (await menuOf("supervisor")).join(" "));
-  check("nurse one sees the clinical menu", sameSet(await menuOf("nurse"), everything), (await menuOf("nurse")).join(" "));
+  check("coordinator sees dashboard, patients, visits, scheduling, referrals (no clinical content)", sameSet(await menuOf("coordinator"), ["/dashboard", "/patients", "/visits", "/schedule", "/referrals"]), (await menuOf("coordinator")).join(" "));
+  check("supervisor sees dashboard, patients, visits, scheduling, care plans, documents (no referrals)", sameSet(await menuOf("supervisor"), ["/dashboard", "/patients", "/visits", "/schedule", "/care-plans", "/documents"]), (await menuOf("supervisor")).join(" "));
+  check("nurse one sees the clinical menu", sameSet(await menuOf("nurse"), clinical), (await menuOf("nurse")).join(" "));
   check("nurse two sees the same menu as nurse one", sameSet(await menuOf("nurse2"), await menuOf("nurse")));
   check("an account with no permissions gets the dashboard and nothing else", sameSet(navHrefs(buildNavigation(new Set())), ["/dashboard"]));
   check("a group with nothing in it is left out", buildNavigation(new Set()).every((g) => g.items.length > 0));
-  check("holding one permission adds exactly that item", sameSet(navHrefs(buildNavigation(new Set(["visits.read"]))), ["/dashboard", "/visits"]));
+  check("holding one permission adds exactly the items it unlocks", sameSet(navHrefs(buildNavigation(new Set(["visits.read"]))), ["/dashboard", "/visits", "/schedule"]));
   check("an unrelated permission adds no item", sameSet(navHrefs(buildNavigation(new Set(["documents.grant", "care_team.read"]))), ["/dashboard"]));
   check("the current page is recognised, including pages below it", isCurrentPath("/visits", "/visits") && isCurrentPath("/documents/sharing", "/documents") && !isCurrentPath("/visitsx", "/visits") && !isCurrentPath("/patients", "/visits"));
 
