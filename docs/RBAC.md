@@ -49,3 +49,7 @@ Two new permissions, `care_team.read` and `care_team.manage`, and real permissio
 ## Update, 21 September 2026: sharing restricted documents
 
 One new permission, `documents.grant` (34 in total), held by SUPER_ADMIN and ADMIN. Sharing asks permission, THEN a second lock (the person must be SUPER_ADMIN or ADMIN themselves), THEN the patient, the document and the person. A share makes a restricted document visible to one named person and changes nothing else about what they can do. See `docs/DOCUMENTS.md`. The staff menu and dashboard are drawn from the permissions a person holds (`docs/APP_SHELL.md`), which is a convenience and never the lock.
+
+## Update, 23 September 2026: an author question for visit notes
+
+Two permissions that already existed in the seed but were never assigned to a role - `visits.document` and `visits.review` - are now real (see `docs/VISIT_NOTES.md`). Visit notes ask permission, relationship, and a third question shaped like care plans' team check but narrower: WRITING is restricted to the visit's own assigned clinician, not just anyone on the patient's care team, because a visit note is a first-person record of what that one person did at that one visit. `visits.document` was already held by NURSE; `visits.review` is now held by ADMIN and CLINICAL_SUPERVISOR. Reviewing repeats the four-eyes rule from care plan approval: the author of a note can never be the one who reviews it.

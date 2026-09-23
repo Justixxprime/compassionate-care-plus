@@ -42,6 +42,7 @@ model Organization {
   roles    Role[]
   patients  Patient[]
   visits    Visit[]
+  visitNotes VisitNote[]
   carePlans CarePlan[]
   documents Document[]
   referrals Referral[]
@@ -71,6 +72,8 @@ model User {
   careTeamMemberships CareTeamMember[]
   assignedVisits      Visit[]          @relation("VisitClinician")
   scheduledVisits     Visit[]          @relation("VisitScheduler")
+  authoredVisitNotes  VisitNote[]      @relation("VisitNoteAuthor")
+  reviewedVisitNotes  VisitNote[]      @relation("VisitNoteReviewer")
   authoredCarePlans   CarePlan[]       @relation("CarePlanAuthor")
   approvedCarePlans   CarePlan[]       @relation("CarePlanApprover")
   uploadedDocuments   Document[]       @relation("DocumentUploader")
@@ -285,11 +288,66 @@ model Visit {
   patient      Patient      @relation(fields: [patientId], references: [id], onDelete: Restrict)
   clinician    User         @relation("VisitClinician", fields: [clinicianId], references: [id], onDelete: Restrict)
   scheduledBy  User         @relation("VisitScheduler", fields: [scheduledById], references: [id], onDelete: Restrict)
+  visitNote    VisitNote?
 
   @@index([organizationId, scheduledStart])
   @@index([patientId])
   @@index([clinicianId])
   @@map("visits")
+}
+
+// ---------- Visit notes ----------
+// The first piece of real clinical CONTENT written about a specific
+// visit - what the clinician actually found and did, as opposed to the
+// Visit row above, which only ever says a visit is happening. This is
+// the "visit_notes" table PHASE_0_ARCHITECTURE.md section 7 held back
+// for later - later is now, at the start of the clinical portal (E3).
+//
+// One note per visit, written only by that visit's assigned clinician,
+// only once the visit has actually started (in_progress or completed -
+// documenting something that has not happened yet makes no sense). Who
+// may read, write and review it is decided in src/lib/visit-notes.ts,
+// using the same three-question shape as care plans:
+//
+//   1. PERMISSION   visits.document to write, visits.review to review
+//                   (requirePermission, a hard stop)
+//   2. RELATIONSHIP is this visit's patient one this person can reach?
+//                   (getPatientScope, the same code visits itself uses)
+//   3. AUTHOR       WRITING is further restricted to the visit's own
+//                   assigned clinician - not just anyone on the care
+//                   team, because this note is a first-person record of
+//                   what THEY did at THIS visit.
+//
+// draft -> submitted -> reviewed. A draft can be edited by its author.
+// Once submitted the wording is locked, the same way an active care plan
+// is locked - a correction after that point is a new event, not a quiet
+// edit. Four eyes on review, exactly like care plan approval: the person
+// who wrote the note can never be the one who reviews it.
+//
+// Never hard-deleted, and the content itself is never written to the
+// audit log - only that a note was created, submitted or reviewed, the
+// same "what happened, never what it said" rule every other clinical
+// table here follows.
+model VisitNote {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  visitId        String    @unique @map("visit_id")
+  authorId       String    @map("author_id")
+  reviewedById   String?   @map("reviewed_by_id")
+  content        String
+  status         String    @default("draft") // draft | submitted | reviewed
+  submittedAt    DateTime? @map("submitted_at")
+  reviewedAt     DateTime? @map("reviewed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  visit        Visit        @relation(fields: [visitId], references: [id], onDelete: Restrict)
+  author       User         @relation("VisitNoteAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  reviewedBy   User?        @relation("VisitNoteReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId])
+  @@map("visit_notes")
 }
 
 // ---------- Care plans ----------

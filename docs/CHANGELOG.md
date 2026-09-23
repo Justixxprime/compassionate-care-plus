@@ -1,3 +1,13 @@
+## Milestone E3 - clinical portal, round 1: visit notes
+
+Date: 23 September 2026
+
+- The first real clinical-portal slice: a visit note, one per visit, written by the visit's own assigned clinician, submitted, then reviewed by someone else. New table `visit_notes` (migration `add_visit_notes`), new files `src/lib/visit-notes.ts`, `src/lib/visit-note-constants.ts`, `src/lib/visit-notes-actions.ts`. See `docs/VISIT_NOTES.md`.
+- New page `/visits/[id]` - a visit's detail plus its note. `/visits` list now links each visit's date/time there, and gained two worklists shown only when non-empty: "Needs your documentation" and "Notes waiting on review".
+- `visits.document` and `visits.review` existed in the permission seed since 19 September but were never assigned to a role. NURSE already held `visits.document`; ADMIN and CLINICAL_SUPERVISOR now hold `visits.review` (`prisma/seed.ts`).
+- New audit actions: `visit_note_created`, `visit_note_updated`, `visit_note_submitted`, `visit_note_reviewed`.
+- Migration to run: `add_visit_notes`.
+
 ## Milestone E1 - internal app shell, dashboards, sharing restricted documents, site photos
 
 Date: 21 September 2026

@@ -106,7 +106,7 @@ async function main() {
     ADMIN: [
       "patients.read", "patients.create", "patients.update", "patients.archive",
       "clinical_records.read", "care_plans.read", "care_plans.approve",
-      "visits.read", "visits.create", "visits.update",
+      "visits.read", "visits.create", "visits.update", "visits.review",
       "documents.read", "documents.upload", "documents.grant",
       "messages.read", "messages.send",
       "referrals.read", "referrals.manage",
@@ -143,7 +143,7 @@ async function main() {
     CLINICAL_SUPERVISOR: [
       "patients.read",
       "care_plans.read", "care_plans.approve",
-      "visits.read",
+      "visits.read", "visits.review",
       "documents.read",
       "care_team.read",
     ],

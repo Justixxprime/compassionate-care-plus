@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { CalendarDays } from "lucide-react";
 import { requireUser } from "@/lib/app/access";
 import { AuthorizationError } from "@/lib/auth/authorize";
@@ -8,6 +9,10 @@ import {
   type VisitLists,
   type VisitRow,
 } from "@/lib/visits";
+import {
+  listNotesPendingReview,
+  listVisitsNeedingDocumentation,
+} from "@/lib/visit-notes";
 import {
   VISIT_STATUS_LABELS,
   actionsAvailableFor,
@@ -48,12 +53,12 @@ const visitColumns: Column<VisitRow>[] = [
     key: "when",
     header: "When",
     cell: (v) => (
-      <>
+      <Link href={`/visits/${v.id}`} className="hover:underline">
         <span className="font-medium tabular-nums">{formatOrgDate(v.scheduledStart)}</span>
         <span className="block text-slate tabular-nums">
           {formatOrgTimeRange(v.scheduledStart, v.scheduledEnd)}
         </span>
-      </>
+      </Link>
     ),
   },
   { key: "patient", header: "Patient", cell: (v) => v.patientName },
@@ -106,6 +111,10 @@ export default async function VisitsPage() {
   }
 
   const options = await getSchedulingOptions(user.id);
+  const [needsDocumentation, pendingReview] = await Promise.all([
+    listVisitsNeedingDocumentation(user.id),
+    listNotesPendingReview(user.id),
+  ]);
 
   return (
     <>
@@ -113,6 +122,46 @@ export default async function VisitsPage() {
         title="Visits"
         description="Administrative roles see every visit. A clinical role sees the visits of the patients they are assigned to and can change only their own. All times are office time (Central)."
       />
+
+      {needsDocumentation.length > 0 ? (
+        <Section
+          title="Needs your documentation"
+          description="Visits you finished that have no note yet."
+        >
+          <ul className="divide-y divide-border rounded-md border border-border bg-white">
+            {needsDocumentation.map((v) => (
+              <li key={v.visitId} className="p-4">
+                <Link href={`/visits/${v.visitId}`} className="font-medium hover:underline">
+                  {v.patientName} - {visitTypeLabel(v.visitType)}
+                </Link>
+                <span className="block text-body-sm text-slate">
+                  {formatOrgDate(v.scheduledStart)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      ) : null}
+
+      {pendingReview.length > 0 ? (
+        <Section
+          title="Notes waiting on review"
+          description="Submitted by someone else, waiting for a reviewer."
+        >
+          <ul className="divide-y divide-border rounded-md border border-border bg-white">
+            {pendingReview.map((v) => (
+              <li key={v.visitId} className="p-4">
+                <Link href={`/visits/${v.visitId}`} className="font-medium hover:underline">
+                  {v.patientName} - {visitTypeLabel(v.visitType)}
+                </Link>
+                <span className="block text-body-sm text-slate">
+                  {formatOrgDate(v.scheduledStart)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      ) : null}
 
       {options !== null ? (
         <Section
