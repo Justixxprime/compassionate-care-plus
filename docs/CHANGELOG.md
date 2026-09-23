@@ -1,3 +1,15 @@
+## Milestone E3 round 2 and E4 round 1 - note verification and tasks
+
+Date: 23 September 2026
+
+- E3 round 1 is now verified against a real database. New `scripts/verify-notes.ts` (`npm run verify:notes`, 39 checks) covers starting, editing, locking, submitting, four-eyes review, reach, worklists and the audit log. Four rules were deliberately broken one at a time and the script failed each time.
+- Fixed a stale expectation in `scripts/verify-access.ts`: the supervisor permission list did not yet include `visits.review`, so `verify:access` would have shown one failure. It now expects the agreed set.
+- New: tasks. `Task` model (migration `add_tasks`), `src/lib/tasks.ts`, `src/lib/task-constants.ts`, `src/lib/tasks-actions.ts`, page `/tasks`, menu item "Tasks". See `docs/TASKS.md`.
+- Permissions: NURSE, CARE_COORDINATOR and CLINICAL_SUPERVISOR now hold `tasks.manage` (coordinator and supervisor also `tasks.read`).
+- New audit actions: `task_created`, `task_completed`, `task_cancelled`.
+- `scripts/verify-access.ts` and `scripts/verify-shell.ts` expectations updated for the new permissions and menu item. New `scripts/verify-tasks.ts` (`npm run verify:tasks`, 40 checks).
+- Migration to run: `add_tasks`.
+
 ## Milestone E3 - clinical portal, round 1: visit notes
 
 Date: 23 September 2026

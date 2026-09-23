@@ -135,11 +135,11 @@ async function main() {
   // "Clinical" content (patients, visits, scheduling, care plans,
   // referrals, documents) minus the two office-management-only items
   // (staff, audit log), which only ADMIN and SUPER_ADMIN hold.
-  const clinical = ["/dashboard", "/patients", "/visits", "/schedule", "/care-plans", "/referrals", "/documents"];
+  const clinical = ["/dashboard", "/patients", "/visits", "/schedule", "/care-plans", "/tasks", "/referrals", "/documents"];
   const everything = [...clinical, "/staff", "/audit-log"];
   check("admin sees every menu item", sameSet(await menuOf("admin"), everything), (await menuOf("admin")).join(" "));
-  check("coordinator sees dashboard, patients, visits, scheduling, referrals (no clinical content)", sameSet(await menuOf("coordinator"), ["/dashboard", "/patients", "/visits", "/schedule", "/referrals"]), (await menuOf("coordinator")).join(" "));
-  check("supervisor sees dashboard, patients, visits, scheduling, care plans, documents (no referrals)", sameSet(await menuOf("supervisor"), ["/dashboard", "/patients", "/visits", "/schedule", "/care-plans", "/documents"]), (await menuOf("supervisor")).join(" "));
+  check("coordinator sees dashboard, patients, visits, scheduling, referrals (no clinical content)", sameSet(await menuOf("coordinator"), ["/dashboard", "/patients", "/visits", "/schedule", "/tasks", "/referrals"]), (await menuOf("coordinator")).join(" "));
+  check("supervisor sees dashboard, patients, visits, scheduling, care plans, documents (no referrals)", sameSet(await menuOf("supervisor"), ["/dashboard", "/patients", "/visits", "/schedule", "/care-plans", "/tasks", "/documents"]), (await menuOf("supervisor")).join(" "));
   check("nurse one sees the clinical menu", sameSet(await menuOf("nurse"), clinical), (await menuOf("nurse")).join(" "));
   check("nurse two sees the same menu as nurse one", sameSet(await menuOf("nurse2"), await menuOf("nurse")));
   check("an account with no permissions gets the dashboard and nothing else", sameSet(navHrefs(buildNavigation(new Set())), ["/dashboard"]));

@@ -77,3 +77,4 @@ Order follows the revised milestone plan in `PHASE_0_ARCHITECTURE.md` section 12
 
 ## MILESTONE F - Production readiness
 - **Status:** Not started
+- **E3 round 2 and E4 round 1 (note verification and tasks):** Verified in the build environment against a real Postgres (23 September 2026): the E3 note rules (`verify:notes`, 39 passed, rule breaks caught), `verify:access` 661 passed, `verify:shell` 62 passed, `verify:tasks` 40 passed with four rule breaks caught, tsc and eslint clean, `next build` passed, and /tasks, /visits and /visits/[id] rendered with status 200 as nurse and admin. Tasks: permission, reach and ownership rules, `/tasks` page, menu item. **Needs a real migration** (`add_tasks`). **Waiting on:** his machine (migration, seed, four verify scripts, click-through).

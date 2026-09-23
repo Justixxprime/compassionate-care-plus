@@ -19,6 +19,7 @@ export type NavIconKey =
   | "visits"
   | "schedule"
   | "carePlans"
+  | "tasks"
   | "referrals"
   | "documents"
   | "staff"
@@ -51,6 +52,7 @@ export const NAV_DEFINITION: readonly NavGroup[] = [
       { href: "/visits", label: "Visits", icon: "visits", requires: "visits.read" },
       { href: "/schedule", label: "Scheduling board", icon: "schedule", requires: "visits.read" },
       { href: "/care-plans", label: "Care plans", icon: "carePlans", requires: "care_plans.read" },
+      { href: "/tasks", label: "Tasks", icon: "tasks", requires: "tasks.read" },
     ],
   },
   {

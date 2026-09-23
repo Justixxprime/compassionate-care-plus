@@ -123,7 +123,7 @@ async function main() {
       "documents.read", "documents.upload",
       "messages.read", "messages.send",
       "referrals.read",
-      "tasks.read",
+      "tasks.read", "tasks.manage",
     ],
     // The care coordinator's job is intake: referrals in, patients put on
     // care teams, visits scheduled. patients.create is there because
@@ -136,6 +136,7 @@ async function main() {
       "referrals.read", "referrals.manage",
       "visits.read", "visits.create", "visits.update",
       "care_team.read", "care_team.manage",
+      "tasks.read", "tasks.manage",
     ],
     // The clinical supervisor reviews: approves care plans (someone other
     // than the author, always) and can read visits and documents. Cannot
@@ -146,6 +147,7 @@ async function main() {
       "visits.read", "visits.review",
       "documents.read",
       "care_team.read",
+      "tasks.read", "tasks.manage",
     ],
   };
 
@@ -672,6 +674,64 @@ async function main() {
     console.log(`${referralDefs.length} synthetic demo referrals ready`);
   } else {
     console.log(`Referrals already exist (${existingReferralCount}), leaving them alone`);
+  }
+
+  // --- Synthetic demo tasks ---
+  // Three made-up tasks so the Tasks page is not empty on first sight.
+  // Only created when the organization has none, so re-seeding never
+  // duplicates them. Nothing here is a real person or a real need.
+  const existingTaskCount = await prisma.task.count({ where: { organizationId: org.id } });
+  if (existingTaskCount === 0) {
+    const byEmail = async (email: string) =>
+      prisma.user.findUnique({ where: { email }, select: { id: true } });
+    const [adminUser, nurseUser, coordUser] = await Promise.all([
+      byEmail("demo.admin@cheliv.test"),
+      byEmail("demo.nurse@cheliv.test"),
+      byEmail("demo.coordinator@cheliv.test"),
+    ]);
+    const eleanorRow = await prisma.patient.findFirst({
+      where: { organizationId: org.id, firstName: "Eleanor", lastName: "Whitfield" },
+      select: { id: true },
+    });
+    if (adminUser && nurseUser && coordUser && eleanorRow) {
+      const day = (n: number) => {
+        const d = new Date();
+        d.setUTCHours(0, 0, 0, 0);
+        d.setUTCDate(d.getUTCDate() + n);
+        return d;
+      };
+      await prisma.task.createMany({
+        data: [
+          {
+            organizationId: org.id,
+            patientId: eleanorRow.id,
+            assigneeId: nurseUser.id,
+            createdById: adminUser.id,
+            title: "Confirm the medication list with the family",
+            details: "Synthetic demo task.",
+            dueDate: day(2),
+          },
+          {
+            organizationId: org.id,
+            assigneeId: coordUser.id,
+            createdById: adminUser.id,
+            title: "Call back the two referral sources waiting on an answer",
+            details: "Synthetic demo task.",
+            dueDate: day(-1),
+          },
+          {
+            organizationId: org.id,
+            assigneeId: adminUser.id,
+            createdById: adminUser.id,
+            title: "Review this week's schedule for gaps",
+            dueDate: day(5),
+          },
+        ],
+      });
+      console.log("3 synthetic demo tasks ready");
+    }
+  } else {
+    console.log(`Tasks already exist (${existingTaskCount}), leaving them alone`);
   }
 
   console.log("Seed complete.");

@@ -53,3 +53,7 @@ One new permission, `documents.grant` (34 in total), held by SUPER_ADMIN and ADM
 ## Update, 23 September 2026: an author question for visit notes
 
 Two permissions that already existed in the seed but were never assigned to a role - `visits.document` and `visits.review` - are now real (see `docs/VISIT_NOTES.md`). Visit notes ask permission, relationship, and a third question shaped like care plans' team check but narrower: WRITING is restricted to the visit's own assigned clinician, not just anyone on the patient's care team, because a visit note is a first-person record of what that one person did at that one visit. `visits.document` was already held by NURSE; `visits.review` is now held by ADMIN and CLINICAL_SUPERVISOR. Reviewing repeats the four-eyes rule from care plan approval: the author of a note can never be the one who reviews it.
+
+## Update, 23 September 2026: an ownership question for tasks
+
+Tasks ask three things: permission (`tasks.read` to see and finish, `tasks.manage` to create and cancel), reach (a task about a patient is visible only to someone who can still reach that patient) and ownership (administrative roles see every task, everyone else only tasks given to or created by them). A non-administrative role can only give tasks to themselves, and a task about a patient can only go to someone who can reach that patient. See `docs/TASKS.md`.

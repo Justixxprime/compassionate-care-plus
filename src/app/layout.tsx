@@ -1,25 +1,27 @@
-import type { Metadata } from "next";
-import "./globals.css";
+import { Header } from "@/components/marketing/header";
+import { Footer } from "@/components/marketing/footer";
 
-export const metadata: Metadata = {
-  title: "Cheliv Compassionate Care Plus",
-  description:
-    "Cheliv Compassionate Care Plus Inc. Home health care serving Texas.",
-  robots: { index: false, follow: false },
-};
+/*
+  Every page under app/(public)/ renders inside this. The route group -
+  the parentheses in the folder name - organizes files without adding
+  anything to the URL, so app/(public)/about/page.tsx is still just
+  "/about".
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+  This is deliberately a SEPARATE layout from the portals. The public site
+  and the internal application share color and type tokens but not this
+  chrome - see docs/PHASE_0_ARCHITECTURE.md section 1.
+*/
+
+export default function PublicLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <html lang="en" className="h-full antialiased">
-      <body
-        className="min-h-full bg-white text-neutral-900"
-        suppressHydrationWarning
-      >
-        <noscript>
-          <style>{`.reveal { opacity: 1 !important; transform: none !important; }`}</style>
-        </noscript>
-        {children}
-      </body>
-    </html>
+    <div className="flex min-h-screen flex-col">
+      <Header />
+      <main className="flex-1">{children}</main>
+      <Footer />
+    </div>
   );
 }

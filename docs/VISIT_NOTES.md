@@ -72,3 +72,7 @@ Same as every other clinical table here: written to the audit log as `access_den
 - **No amendment workflow.** A reviewed note is locked, and there is nowhere yet to record "this needs correcting" the way a real clinical record eventually will.
 - **No demo notes are seeded.** The demo nurse accounts have real completed visits with no note (`prisma/seed.ts` already creates these), so "Needs your documentation" has something to click through on a fresh seed without needing new seed data written for this feature specifically.
 - **Caregiver and patient/family visibility do not exist yet.** CAREGIVER, PATIENT and AUTHORIZED_FAMILY hold no permissions yet, so none of this is reachable from those roles - by design, same as `VISITS.md` and `CARE_PLANS.md` already note for their own tables.
+
+## Verification (23 September 2026)
+
+`npm run verify:notes` runs 39 checks against the real database: who can start a note, one note per visit, only the assigned clinician writes (even a colleague on the same care team is refused), editing and locking, four-eyes review (even an author who holds `visits.review` cannot review their own note), reach after a care team assignment ends, both worklists, and that the audit log never holds the note text.

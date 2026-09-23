@@ -1273,12 +1273,12 @@ async function main() {
       const supPerms = await permsOf("CLINICAL_SUPERVISOR");
       check(
         "CARE_COORDINATOR holds exactly the agreed set",
-        sameSet(coordPerms, ["patients.read", "patients.create", "referrals.read", "referrals.manage", "visits.read", "visits.create", "visits.update", "care_team.read", "care_team.manage"]),
+        sameSet(coordPerms, ["patients.read", "patients.create", "referrals.read", "referrals.manage", "visits.read", "visits.create", "visits.update", "care_team.read", "care_team.manage", "tasks.read", "tasks.manage"]),
         coordPerms.join(", "),
       );
       check(
         "CLINICAL_SUPERVISOR holds exactly the agreed set",
-        sameSet(supPerms, ["patients.read", "care_plans.read", "care_plans.approve", "visits.read", "documents.read", "care_team.read"]),
+        sameSet(supPerms, ["patients.read", "care_plans.read", "care_plans.approve", "visits.read", "visits.review", "documents.read", "care_team.read", "tasks.read", "tasks.manage"]),
         supPerms.join(", "),
       );
       const nursePerms = await permsOf("NURSE");

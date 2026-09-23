@@ -15,6 +15,7 @@ import {
   UserCog,
   Users,
   X,
+  ListChecks,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -68,6 +69,7 @@ const ICONS: Record<NavIconKey, LucideIcon> = {
   visits: CalendarDays,
   schedule: CalendarRange,
   carePlans: ClipboardList,
+  tasks: ListChecks,
   referrals: Inbox,
   documents: FileText,
   staff: UserCog,

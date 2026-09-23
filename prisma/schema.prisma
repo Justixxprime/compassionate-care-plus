@@ -43,6 +43,7 @@ model Organization {
   patients  Patient[]
   visits    Visit[]
   visitNotes VisitNote[]
+  tasks Task[]
   carePlans CarePlan[]
   documents Document[]
   referrals Referral[]
@@ -72,6 +73,9 @@ model User {
   careTeamMemberships CareTeamMember[]
   assignedVisits      Visit[]          @relation("VisitClinician")
   scheduledVisits     Visit[]          @relation("VisitScheduler")
+  assignedTasks       Task[]           @relation("TaskAssignee")
+  createdTasks        Task[]           @relation("TaskCreator")
+  completedTasks      Task[]           @relation("TaskCompleter")
   authoredVisitNotes  VisitNote[]      @relation("VisitNoteAuthor")
   reviewedVisitNotes  VisitNote[]      @relation("VisitNoteReviewer")
   authoredCarePlans   CarePlan[]       @relation("CarePlanAuthor")
@@ -216,6 +220,7 @@ model Patient {
   organization  Organization     @relation(fields: [organizationId], references: [id])
   careTeam      CareTeamMember[]
   visits        Visit[]
+  tasks         Task[]
   carePlans     CarePlan[]
   documents     Document[]
   referrals     Referral[]
@@ -593,4 +598,49 @@ model Referral {
   @@index([organizationId, status])
   @@index([patientId])
   @@map("referrals")
+}
+
+// ---------- Tasks ----------
+// A small piece of work somebody owes: "call the pharmacy about
+// Eleanor's refill", "collect the signed consent form". Optionally about
+// one patient, always with one person responsible (the assignee) and one
+// person who asked for it (the creator).
+//
+// Who may see, create and close a task is decided in src/lib/tasks.ts:
+//   1. PERMISSION   tasks.read to see and finish tasks, tasks.manage to
+//                   create and cancel them (requirePermission).
+//   2. RELATIONSHIP a task about a patient is only visible to someone who
+//                   can still reach that patient (getPatientScope).
+//   3. OWNERSHIP    administrative roles see every task in the
+//                   organization; everyone else sees only tasks assigned
+//                   to them or created by them.
+//
+// open -> done or open -> cancelled, and both are final. Never hard
+// deleted. The audit log records that a task was created or closed,
+// never its title or details, because a title can name a patient's need.
+model Task {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  patientId      String?   @map("patient_id")
+  assigneeId     String    @map("assignee_id")
+  createdById    String    @map("created_by_id")
+  completedById  String?   @map("completed_by_id")
+  title          String
+  details        String?
+  dueDate        DateTime? @map("due_date") // a calendar day, stored as midnight UTC
+  status         String    @default("open") // open | done | cancelled
+  completedAt    DateTime? @map("completed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  patient      Patient?     @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  assignee     User         @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
+  createdBy    User         @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  completedBy  User?        @relation("TaskCompleter", fields: [completedById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status])
+  @@index([assigneeId])
+  @@index([patientId])
+  @@map("tasks")
 }
