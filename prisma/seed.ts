@@ -48,6 +48,7 @@ const PERMISSIONS = [
   "visits.document",
   "visits.review",
   "visits.checkin",
+  "portal.read",
   "documents.read",
   "documents.upload",
   "documents.delete",
@@ -94,8 +95,8 @@ async function main() {
 
   // --- Roles ---
   // Permission sets defined so far: SUPER_ADMIN (everything), ADMIN,
-  // NURSE, CARE_COORDINATOR, CLINICAL_SUPERVISOR and CAREGIVER. The
-  // remaining roles (PATIENT, AUTHORIZED_FAMILY, REFERRAL_PARTNER)
+  // NURSE, CARE_COORDINATOR, CLINICAL_SUPERVISOR, CAREGIVER and PATIENT.
+  // The remaining roles (AUTHORIZED_FAMILY, REFERRAL_PARTNER)
   // intentionally still hold no permissions yet - each one's real
   // permission set is designed together with its own portal, not rushed
   // as a side effect of another round.
@@ -145,6 +146,11 @@ async function main() {
     // src/lib/caregiver.ts). No patient list, no chart, no scheduling, no
     // notes: each of those is a later, separate decision.
     CAREGIVER: ["visits.checkin", "tasks.read"],
+    // The patient sees THEIR OWN care and nothing else: next visits, care
+    // team, active care plan. portal.read means exactly that, and only
+    // works for the one patient record linked to the account (see
+    // src/lib/patient-portal.ts). It opens no staff screen at all.
+    PATIENT: ["portal.read"],
     // The clinical supervisor reviews: approves care plans (someone other
     // than the author, always) and can read visits and documents. Cannot
     // write plans, schedule, or change care teams.
@@ -850,6 +856,73 @@ async function main() {
         ],
       });
       console.log("2 synthetic checklist tasks ready for the demo caregiver");
+    }
+  }
+
+  // --- A demo patient account ---
+  // Exists so the patient portal (/my-care) can be clicked through. The
+  // account is linked to Eleanor Whitfield's record, so it shows her care
+  // and nobody else's. The link is only made when the record has none.
+  const patientRoleRow = roleRows.get("PATIENT")!;
+  const demoPatientUser = await prisma.user.upsert({
+    where: { email: "demo.patient@cheliv.test" },
+    update: {},
+    create: {
+      organizationId: org.id,
+      email: "demo.patient@cheliv.test",
+      passwordHash: demoPasswordHash, // same demo password, see docs/DEMO_ACCOUNTS.md
+      name: "Eleanor Whitfield",
+    },
+  });
+  await prisma.userRole.upsert({
+    where: { userId_roleId: { userId: demoPatientUser.id, roleId: patientRoleRow.id } },
+    update: {},
+    create: { userId: demoPatientUser.id, roleId: patientRoleRow.id },
+  });
+  const eleanorRecord = await prisma.patient.findUniqueOrThrow({ where: { id: patients[0].id } });
+  if (!eleanorRecord.userId) {
+    await prisma.patient.update({
+      where: { id: eleanorRecord.id },
+      data: { userId: demoPatientUser.id },
+    });
+  }
+  console.log(`Demo patient ready: ${demoPatientUser.email}`);
+
+  {
+    // Two visits ahead for her (tomorrow and the day after), created only
+    // when she has fewer than two coming up, so the portal has something to
+    // show on any day the seed is run.
+    const ahead = await prisma.visit.count({
+      where: { patientId: eleanorRecord.id, status: "scheduled", scheduledStart: { gt: new Date() } },
+    });
+    if (ahead < 2) {
+      const dayKey = (n: number) =>
+        new Intl.DateTimeFormat("en-CA", {
+          timeZone: ORG_TIMEZONE,
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(new Date(Date.now() + n * 24 * 60 * 60 * 1000));
+      for (const def of [
+        { n: 1, time: "10:00", minutes: 60, clinician: demoNurse.id, type: "skilled_nursing" },
+        { n: 2, time: "14:00", minutes: 60, clinician: demoCaregiver.id, type: "home_health_aide" },
+      ]) {
+        const start = orgLocalToUtc(`${dayKey(def.n)}T${def.time}`);
+        if (!start) throw new Error("Seed produced an invalid visit date");
+        await prisma.visit.create({
+          data: {
+            organizationId: org.id,
+            patientId: eleanorRecord.id,
+            clinicianId: def.clinician,
+            scheduledById: demoAdmin.id,
+            visitType: def.type,
+            status: "scheduled",
+            scheduledStart: start,
+            scheduledEnd: new Date(start.getTime() + def.minutes * 60000),
+          },
+        });
+      }
+      console.log("2 synthetic upcoming visits ready for the demo patient");
     }
   }
 

@@ -1285,8 +1285,12 @@ async function main() {
       );
       const nursePerms = await permsOf("NURSE");
       check("a nurse holds neither care team permission", !nursePerms.includes("care_team.read") && !nursePerms.includes("care_team.manage"));
-      const stillEmpty = await Promise.all(["PATIENT", "AUTHORIZED_FAMILY", "REFERRAL_PARTNER"].map(async (k) => (await permsOf(k)).length));
-      check("patient, family and referral partner still hold no permissions", stillEmpty.every((n) => n === 0), stillEmpty.join(","));
+      const stillEmpty = await Promise.all(["AUTHORIZED_FAMILY", "REFERRAL_PARTNER"].map(async (k) => (await permsOf(k)).length));
+      check("family and referral partner still hold no permissions", stillEmpty.every((n) => n === 0), stillEmpty.join(","));
+      const patientPerms = await permsOf("PATIENT");
+      check("PATIENT holds exactly the agreed set: see own care (portal.read) and nothing else", sameSet(patientPerms, ["portal.read"]), patientPerms.join(", "));
+      const portalHolders = await prisma.rolePermission.findMany({ where: { permission: { key: "portal.read" }, role: { organizationId: orgId } }, include: { role: true } });
+      check("only PATIENT and SUPER_ADMIN hold portal.read", sameSet(portalHolders.map((h) => h.role.key).sort(), ["PATIENT", "SUPER_ADMIN"]), portalHolders.map((h) => h.role.key).join(", "));
       const caregiverPerms = await permsOf("CAREGIVER");
       check("CAREGIVER holds exactly the agreed set: check in and out of own visits, and read tasks", sameSet(caregiverPerms, ["visits.checkin", "tasks.read"]), caregiverPerms.join(", "));
       const checkinHolders = await prisma.rolePermission.findMany({ where: { permission: { key: "visits.checkin" }, role: { organizationId: orgId } }, include: { role: true } });

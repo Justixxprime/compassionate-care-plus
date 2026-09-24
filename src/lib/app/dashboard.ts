@@ -32,6 +32,8 @@ import { listReferrals, type ReferralRow } from "@/lib/referrals";
 import { listCarePlans, type CarePlanRow } from "@/lib/care-plans";
 import { listPatientsNeedingTeam, type PatientNeedingTeam } from "@/lib/care-team";
 import { getCaregiverDay } from "@/lib/caregiver";
+import { getMyCare } from "@/lib/patient-portal";
+import { formatOrgDate } from "@/lib/time";
 import { getRecentAuditLog } from "@/lib/audit/log";
 import { loadActor } from "@/lib/auth/actor";
 import {
@@ -71,7 +73,7 @@ export async function getDashboardData(
 ): Promise<DashboardData> {
   const can = (key: string) => permissions.has(key);
 
-  const [patients, visitLists, referralLists, needsTeam, planLists, activity, myDay] =
+  const [patients, visitLists, referralLists, needsTeam, planLists, activity, myDay, myCare] =
     await Promise.all([
       can("patients.read") ? getAccessiblePatients(userId) : null,
       can("visits.read") ? listVisits(userId) : null,
@@ -86,6 +88,7 @@ export async function getDashboardData(
         ? loadActor(userId).then((actor) => getRecentAuditLog(actor.organizationId, 8))
         : null,
       can("visits.checkin") ? getCaregiverDay(userId, now) : null,
+      can("portal.read") ? getMyCare(userId, now) : null,
     ]);
 
   // ----- visits -----
@@ -124,6 +127,18 @@ export async function getDashboardData(
 
   // ----- tiles -----
   const tiles: DashboardTile[] = [];
+  if (myCare) {
+    tiles.push({
+      key: "my-upcoming-visits",
+      label: "My upcoming visits",
+      value: myCare.upcoming.length,
+      hint:
+        myCare.upcoming.length === 0
+          ? "None scheduled"
+          : `Next: ${formatOrgDate(myCare.upcoming[0].scheduledStart)}`,
+      href: "/my-care",
+    });
+  }
   if (myDay) {
     const todo = myDay.today.filter(
       (v) => v.status === "scheduled" || v.status === "in_progress",

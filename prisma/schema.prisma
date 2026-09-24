@@ -73,6 +73,7 @@ model User {
   userRoles    UserRole[]
   sessions     Session[]
   careTeamMemberships CareTeamMember[]
+  patientRecord       Patient?         @relation("PatientAccount")
   assignedVisits      Visit[]          @relation("VisitClinician")
   scheduledVisits     Visit[]          @relation("VisitScheduler")
   assignedTasks       Task[]           @relation("TaskAssignee")
@@ -219,10 +220,16 @@ model Patient {
   lastName       String   @map("last_name")
   dateOfBirth    DateTime @map("date_of_birth")
   status         String   @default("active") // active | discharged | on_hold
+  // The patient's own sign-in account, when they have one (the patient
+  // portal, src/lib/patient-portal.ts). Unique: one account per patient
+  // and one patient per account. It is set by an administrator or the
+  // seed, never by the patient and never from a form.
+  userId         String?  @unique @map("user_id")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   organization  Organization     @relation(fields: [organizationId], references: [id])
+  account       User?            @relation("PatientAccount", fields: [userId], references: [id], onDelete: SetNull)
   careTeam      CareTeamMember[]
   visits        Visit[]
   tasks         Task[]
