@@ -85,5 +85,5 @@ It was also tested the other way: two rules were deliberately broken in a copy o
 - **Double-booking has a tiny race.** Two people scheduling the same clinician at the same instant could both pass the check. The real fix is a database exclusion constraint, which comes with the real scheduling board (Milestone E).
 - **Future-dated care team assignments** are not treated specially yet. `activeAssignmentFilter` checks the end date, not the start date. No screen can create a future-dated assignment yet.
 - **Reading visits is not audit-logged.** Only changes and refusals are. Viewing a list of visit times is not clinical content. Opening a chart will need view logging, when charts exist.
-- **A caregiver can be assigned a visit but cannot see it yet**, because CAREGIVER holds no permissions. That comes with the caregiver portal.
+- **A caregiver sees and acts on her own visits through the caregiver portal only** (`/caregiver`, permission `visits.checkin`, see `CAREGIVER_PORTAL.md`): today's visits, check in and check out, nothing else. She still cannot see the Visits screen, schedule, cancel or mark a visit missed.
 - **Priya Raman has nobody on her care team**, so she cannot be scheduled. That is deliberate: she is the "unassigned patient" a care coordinator will eventually work from.

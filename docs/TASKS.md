@@ -67,3 +67,7 @@ patient's need.
 Recurring tasks, comments on a task, and a task widget on the dashboard.
 Notifications (assigned, finished, cancelled) now exist: see
 `docs/NOTIFICATIONS.md`.
+
+## Update, 24 September 2026: the caregiver checklist
+
+A caregiver holds `tasks.read` only. The caregiver portal (`/caregiver`) shows her open tasks as a checklist with one big **Mark done** button each, using the same `listTasks` and `changeTaskStatus` as the Tasks screen, so the same rules apply: she can finish a task given to her, cannot create one, cannot cancel one and cannot see anyone else's. See `CAREGIVER_PORTAL.md`.

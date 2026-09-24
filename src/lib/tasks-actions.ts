@@ -29,6 +29,8 @@ async function run(
     const result = await work(user.id);
     if (!result.ok) return { ok: false, error: result.error };
     revalidatePath("/tasks");
+    // The caregiver portal shows the same tasks as a checklist.
+    revalidatePath("/caregiver");
     return { ok: true };
   } catch (err) {
     if (err instanceof AuthorizationError) return { ok: false, error: NO_PERMISSION };

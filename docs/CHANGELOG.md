@@ -1,3 +1,18 @@
+## Milestone E5 round 1 - the caregiver portal
+
+Date: 24 September 2026
+
+- E3 round 2 (note addenda) and E4 round 2 (notifications) are confirmed on the owner's machine (click-through done 24 September 2026).
+- New permission `visits.checkin` (35 in total): see my own visits for today and check in and out. CAREGIVER now holds exactly `visits.checkin` and `tasks.read`. SUPER_ADMIN holds it too (it holds every permission). See `docs/CAREGIVER_PORTAL.md`.
+- New screen `/caregiver` ("My day", phone first): own visits for today, big Check in and Check out buttons, a checklist of open tasks with Mark done. A visit still checked in from an earlier day is shown so it can be closed.
+- Rules: permission, reach (active care team assignment right now) and ownership (assigned to me, even for an administrator). Check in only on the visit's own office day. One place at a time, decided inside a transaction that locks the caregiver's own row. Cancel and mark missed are refused to a caregiver. Refusals give the same words and are audited.
+- New files: `src/lib/caregiver.ts`, `src/lib/caregiver-actions.ts`, `src/app/(app)/caregiver/page.tsx`, `src/app/(app)/caregiver/caregiver-controls.tsx`, `scripts/verify-caregiver.ts` (`npm run verify:caregiver`, 75 checks).
+- Menu item "My day" (holders of `visits.checkin`). Dashboard tile "My visits today" for a caregiver. The caregiver's dashboard sentence is now a real sentence.
+- Seed: the permission, the CAREGIVER set, and `demo.caregiver@cheliv.test` on Eleanor Whitfield's care team with three visits today and two checklist tasks (created only when she has none for today).
+- `changeTaskStatusAction` also refreshes `/caregiver`.
+- `verify:access` (663), `verify:shell` (68) and `verify:tasks` (40) updated: CAREGIVER is no longer the "holds nothing" account (`verify:tasks` uses PATIENT now).
+- No database change. No migration.
+
 ## Milestone E3 round 2 and E4 round 2 - note addenda and notifications
 
 Date: 23 September 2026

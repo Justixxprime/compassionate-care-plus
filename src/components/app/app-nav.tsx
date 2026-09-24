@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  CalendarCheck,
   CalendarDays,
   CalendarRange,
   ClipboardList,
@@ -66,6 +67,7 @@ import {
 const ICONS: Record<NavIconKey, LucideIcon> = {
   home: LayoutDashboard,
   patients: Users,
+  today: CalendarCheck,
   visits: CalendarDays,
   schedule: CalendarRange,
   carePlans: ClipboardList,

@@ -92,7 +92,7 @@ When an addendum is reviewed, its author gets a notification. When a note is rev
 - **One note per visit.** A visit with several distinct clinical events (a long shift, more than one clinician involved) has nowhere to put a second entry yet. That is a real limitation, not an oversight - it matches the "who did YOU document" scope this slice was built to prove, and multi-entry notes are a reasonable E3 round 2 ask if it turns out to matter.
 - **Amendments are addenda, not edits.** A reviewed note is locked forever. Corrections are added under it (see "Addenda" above). There is still no way to withdraw a note that is submitted and waiting, or to ask the author for a correction from inside the app.
 - **No demo notes are seeded.** The demo nurse accounts have real completed visits with no note (`prisma/seed.ts` already creates these), so "Needs your documentation" has something to click through on a fresh seed without needing new seed data written for this feature specifically.
-- **Caregiver and patient/family visibility do not exist yet.** CAREGIVER, PATIENT and AUTHORIZED_FAMILY hold no permissions yet, so none of this is reachable from those roles - by design, same as `VISITS.md` and `CARE_PLANS.md` already note for their own tables.
+- **Caregiver and patient/family visibility of notes do not exist.** CAREGIVER holds only `visits.checkin` and `tasks.read` (see `CAREGIVER_PORTAL.md`), so no note is reachable from that role. PATIENT and AUTHORIZED_FAMILY hold no permissions at all. Whether an aide writes a note is a separate design.
 
 ## Verification (23 September 2026)
 

@@ -28,7 +28,7 @@ The permission list and which roles hold which permissions are real rows (`permi
 
 ## Update, 19 September 2026: relationship checks now exist for visits
 
-The "no fine-grained per-resource checks yet" gap above is closing. Visits (see `docs/VISITS.md`) check permission AND relationship on every operation: `requirePermission` first, then `getPatientScope` from `src/lib/patients.ts`. Permissions in use for visits: `visits.read`, `visits.create`, `visits.update`. Since 21 September 2026 CARE_COORDINATOR and CLINICAL_SUPERVISOR hold real permission sets (see the last update in this file); CAREGIVER, PATIENT, AUTHORIZED_FAMILY and REFERRAL_PARTNER still hold none.
+The "no fine-grained per-resource checks yet" gap above is closing. Visits (see `docs/VISITS.md`) check permission AND relationship on every operation: `requirePermission` first, then `getPatientScope` from `src/lib/patients.ts`. Permissions in use for visits: `visits.read`, `visits.create`, `visits.update`. Since 21 September 2026 CARE_COORDINATOR and CLINICAL_SUPERVISOR hold real permission sets (see the last update in this file); PATIENT, AUTHORIZED_FAMILY and REFERRAL_PARTNER still hold none. Since 24 September 2026 CAREGIVER holds exactly `visits.checkin` (new: see and check in and out of MY OWN visits) and `tasks.read`, see the last update in this file.
 
 ## Update, 19 September 2026: a third question for clinical content
 
@@ -57,3 +57,7 @@ Two permissions that already existed in the seed but were never assigned to a ro
 ## Update, 23 September 2026: an ownership question for tasks
 
 Tasks ask three things: permission (`tasks.read` to see and finish, `tasks.manage` to create and cancel), reach (a task about a patient is visible only to someone who can still reach that patient) and ownership (administrative roles see every task, everyone else only tasks given to or created by them). A non-administrative role can only give tasks to themselves, and a task about a patient can only go to someone who can reach that patient. See `docs/TASKS.md`.
+
+## Update, 24 September 2026: a narrow permission for the caregiver portal
+
+One new permission, `visits.checkin` (35 in total), held by CAREGIVER and SUPER_ADMIN. It means: see my own visits for today and check in and out of them. It deliberately does not include `visits.read` (every visit on my patients) or `visits.update` (which also cancels and marks missed). Every caregiver action asks three things: permission, reach (an active care team assignment right now) and ownership (the visit is assigned to me, even for an administrator). Something missing, out of reach or a colleague's all get the same words. The CAREGIVER set is `visits.checkin` and `tasks.read`, nothing else. See `docs/CAREGIVER_PORTAL.md`.

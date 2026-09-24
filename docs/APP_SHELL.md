@@ -92,3 +92,7 @@ If you forget, `npm run dev` stops before starting and prints exactly which ones
 ## Not built yet
 
 No screens for care teams, staff, scheduling board or audit log (E2). No patient profile page. No notifications. Not checked in a real browser at phone size in the build environment (the HTML was fetched and checked, not looked at).
+
+## Update, 24 September 2026: My day
+
+A new menu item, **My day** (`/caregiver`), appears for anyone holding `visits.checkin`, at the top of the Care group. A caregiver's dashboard has one tile, "My visits today", that opens it. The menu still only decides what is drawn; `/caregiver` asks who is signed in by itself and the service checks permission, reach and ownership. See `CAREGIVER_PORTAL.md`.

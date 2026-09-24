@@ -12,6 +12,7 @@
 // grows the matching section.
 //
 //   visits.read                      today's visits, overdue visits
+//   visits.checkin                   the caregiver's own visits today
 //   referrals.manage (+ reach)       open referrals and how long they wait
 //   care_team.read                   patients who still need a primary nurse
 //   care_plans.approve + read        care plans waiting for approval
@@ -30,6 +31,7 @@ import { listVisits, type VisitRow } from "@/lib/visits";
 import { listReferrals, type ReferralRow } from "@/lib/referrals";
 import { listCarePlans, type CarePlanRow } from "@/lib/care-plans";
 import { listPatientsNeedingTeam, type PatientNeedingTeam } from "@/lib/care-team";
+import { getCaregiverDay } from "@/lib/caregiver";
 import { getRecentAuditLog } from "@/lib/audit/log";
 import { loadActor } from "@/lib/auth/actor";
 import {
@@ -69,7 +71,7 @@ export async function getDashboardData(
 ): Promise<DashboardData> {
   const can = (key: string) => permissions.has(key);
 
-  const [patients, visitLists, referralLists, needsTeam, planLists, activity] =
+  const [patients, visitLists, referralLists, needsTeam, planLists, activity, myDay] =
     await Promise.all([
       can("patients.read") ? getAccessiblePatients(userId) : null,
       can("visits.read") ? listVisits(userId) : null,
@@ -83,6 +85,7 @@ export async function getDashboardData(
       can("audit.read")
         ? loadActor(userId).then((actor) => getRecentAuditLog(actor.organizationId, 8))
         : null,
+      can("visits.checkin") ? getCaregiverDay(userId, now) : null,
     ]);
 
   // ----- visits -----
@@ -121,6 +124,18 @@ export async function getDashboardData(
 
   // ----- tiles -----
   const tiles: DashboardTile[] = [];
+  if (myDay) {
+    const todo = myDay.today.filter(
+      (v) => v.status === "scheduled" || v.status === "in_progress",
+    ).length;
+    tiles.push({
+      key: "my-visits-today",
+      label: "My visits today",
+      value: myDay.today.length,
+      hint: myDay.today.length === 0 ? "None scheduled" : `${todo} still to do`,
+      href: "/caregiver",
+    });
+  }
   if (todaysVisits) {
     const todo = todaysVisits.filter(
       (v) => v.status === "scheduled" || v.status === "in_progress",

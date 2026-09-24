@@ -177,7 +177,7 @@ src/lib/auth/authorize.ts, the single path every permission check goes through:
 
 Permissions live in the database (permissions, role_permissions, user_roles tables), not hardcoded in TypeScript, granting a role a new permission later is a data change, not a redeploy.
 
-Real permission sets defined so far: SUPER_ADMIN (all 34), ADMIN (broad administrative set, includes care_plans.read and care_plans.approve but not create or update, and both care team permissions), NURSE (16 permissions, clinical-focused, includes care_plans.read/create/update but not approve, no care team permissions), CARE_COORDINATOR and CLINICAL_SUPERVISOR (added 21 September 2026, listed in section 10f and docs/CARE_TEAMS.md). The remaining four roles (CAREGIVER, PATIENT, AUTHORIZED_FAMILY, REFERRAL_PARTNER) intentionally hold zero permissions still, each one's real set is designed with its own portal.
+Real permission sets defined so far: SUPER_ADMIN (all 35), ADMIN (broad administrative set, includes care_plans.read and care_plans.approve but not create or update, and both care team permissions), NURSE (16 permissions, clinical-focused, includes care_plans.read/create/update but not approve, no care team permissions), CARE_COORDINATOR and CLINICAL_SUPERVISOR (added 21 September 2026, listed in section 10f and docs/CARE_TEAMS.md). CAREGIVER got its set on 24 September 2026 with the caregiver portal: exactly `visits.checkin` and `tasks.read` (docs/CAREGIVER_PORTAL.md). The remaining three roles (PATIENT, AUTHORIZED_FAMILY, REFERRAL_PARTNER) intentionally hold zero permissions still, each one's real set is designed with its own portal.
 
 ---
 

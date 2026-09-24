@@ -3,8 +3,8 @@
 // Populates a fresh database with the minimum needed to sign in and test
 // the system: the organization, the permission list, roles with real
 // permission sets (SUPER_ADMIN, ADMIN, NURSE, CARE_COORDINATOR and
-// CLINICAL_SUPERVISOR so far), five demo accounts (an admin, two nurses, a
-// care coordinator and a clinical supervisor), three synthetic demo
+// CLINICAL_SUPERVISOR and CAREGIVER so far), six demo accounts (an admin, two
+// nurses, a care coordinator, a clinical supervisor and a caregiver), three synthetic demo
 // patients - each nurse
 // assigned to a different one, so relationship-based access
 // (src/lib/patients.ts) can be tested for real, not just trusted - and a
@@ -47,6 +47,7 @@ const PERMISSIONS = [
   "visits.update",
   "visits.document",
   "visits.review",
+  "visits.checkin",
   "documents.read",
   "documents.upload",
   "documents.delete",
@@ -93,8 +94,8 @@ async function main() {
 
   // --- Roles ---
   // Permission sets defined so far: SUPER_ADMIN (everything), ADMIN,
-  // NURSE, CARE_COORDINATOR and CLINICAL_SUPERVISOR. The remaining roles
-  // (CAREGIVER, PATIENT, AUTHORIZED_FAMILY, REFERRAL_PARTNER)
+  // NURSE, CARE_COORDINATOR, CLINICAL_SUPERVISOR and CAREGIVER. The
+  // remaining roles (PATIENT, AUTHORIZED_FAMILY, REFERRAL_PARTNER)
   // intentionally still hold no permissions yet - each one's real
   // permission set is designed together with its own portal, not rushed
   // as a side effect of another round.
@@ -138,6 +139,12 @@ async function main() {
       "care_team.read", "care_team.manage",
       "tasks.read", "tasks.manage",
     ],
+    // The caregiver (home health aide) works from a phone: sees their OWN
+    // visits for today, checks in and out, and finishes tasks given to
+    // them. visits.checkin means exactly that and nothing more (see
+    // src/lib/caregiver.ts). No patient list, no chart, no scheduling, no
+    // notes: each of those is a later, separate decision.
+    CAREGIVER: ["visits.checkin", "tasks.read"],
     // The clinical supervisor reviews: approves care plans (someone other
     // than the author, always) and can read visits and documents. Cannot
     // write plans, schedule, or change care teams.
@@ -732,6 +739,118 @@ async function main() {
     }
   } else {
     console.log(`Tasks already exist (${existingTaskCount}), leaving them alone`);
+  }
+
+  // --- A demo caregiver (home health aide) ---
+  // Exists so the caregiver portal (/caregiver) can be clicked through for
+  // real. She is on Eleanor Whitfield's care team in the caregiver place, so
+  // she reaches only Eleanor. Her visits and tasks are created only when
+  // she has none for today, so running the seed again never piles up
+  // duplicates, and running it on a later day gives her a fresh day.
+  const demoCaregiver = await prisma.user.upsert({
+    where: { email: "demo.caregiver@cheliv.test" },
+    update: {},
+    create: {
+      organizationId: org.id,
+      email: "demo.caregiver@cheliv.test",
+      passwordHash: demoPasswordHash, // same demo password, see docs/DEMO_ACCOUNTS.md
+      name: "Demo Caregiver",
+    },
+  });
+  const caregiverRoleRow = roleRows.get("CAREGIVER")!;
+  await prisma.userRole.upsert({
+    where: { userId_roleId: { userId: demoCaregiver.id, roleId: caregiverRoleRow.id } },
+    update: {},
+    create: { userId: demoCaregiver.id, roleId: caregiverRoleRow.id },
+  });
+  const caregiverOnTeam = await prisma.careTeamMember.findFirst({
+    where: { patientId: patients[0].id, userId: demoCaregiver.id },
+  });
+  if (!caregiverOnTeam) {
+    await prisma.careTeamMember.create({
+      data: { patientId: patients[0].id, userId: demoCaregiver.id, roleOnCase: "caregiver" },
+    });
+  }
+  console.log(`Demo caregiver ready: ${demoCaregiver.email}`);
+
+  {
+    const todayKey = new Intl.DateTimeFormat("en-CA", {
+      timeZone: ORG_TIMEZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    const soon = new Date(Date.now() - 36 * 60 * 60 * 1000);
+    const later = new Date(Date.now() + 36 * 60 * 60 * 1000);
+    const near = await prisma.visit.findMany({
+      where: { clinicianId: demoCaregiver.id, scheduledStart: { gte: soon, lte: later } },
+      select: { scheduledStart: true },
+    });
+    const hasToday = near.some(
+      (v) =>
+        new Intl.DateTimeFormat("en-CA", {
+          timeZone: ORG_TIMEZONE,
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(v.scheduledStart) === todayKey,
+    );
+    if (!hasToday) {
+      for (const def of [
+        { time: "09:00", minutes: 60 },
+        { time: "13:00", minutes: 60 },
+        { time: "16:30", minutes: 45 },
+      ]) {
+        const start = orgLocalToUtc(`${todayKey}T${def.time}`);
+        if (!start) throw new Error("Seed produced an invalid visit date");
+        await prisma.visit.create({
+          data: {
+            organizationId: org.id,
+            patientId: patients[0].id,
+            clinicianId: demoCaregiver.id,
+            scheduledById: demoAdmin.id,
+            visitType: "home_health_aide",
+            status: "scheduled",
+            scheduledStart: start,
+            scheduledEnd: new Date(start.getTime() + def.minutes * 60000),
+          },
+        });
+      }
+      console.log("3 synthetic visits today ready for the demo caregiver");
+    }
+
+    const caregiverTasks = await prisma.task.count({ where: { assigneeId: demoCaregiver.id } });
+    if (caregiverTasks === 0) {
+      const day = (n: number) => {
+        const d = new Date();
+        d.setUTCHours(0, 0, 0, 0);
+        d.setUTCDate(d.getUTCDate() + n);
+        return d;
+      };
+      await prisma.task.createMany({
+        data: [
+          {
+            organizationId: org.id,
+            patientId: patients[0].id,
+            assigneeId: demoCaregiver.id,
+            createdById: demoAdmin.id,
+            title: "Walk to the mailbox and back with the walker",
+            details: "Synthetic demo task.",
+            dueDate: day(0),
+          },
+          {
+            organizationId: org.id,
+            patientId: patients[0].id,
+            assigneeId: demoCaregiver.id,
+            createdById: demoAdmin.id,
+            title: "Check that the floors are clear of loose rugs and cords",
+            details: "Synthetic demo task.",
+            dueDate: day(1),
+          },
+        ],
+      });
+      console.log("2 synthetic checklist tasks ready for the demo caregiver");
+    }
   }
 
   console.log("Seed complete.");

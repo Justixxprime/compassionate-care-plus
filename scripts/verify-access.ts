@@ -356,7 +356,9 @@ async function main() {
     const nurseA = await makeUser("a", nurseRole.id); // on the team
     const nurseB = await makeUser("b", nurseRole.id); // on the team, a colleague
     const nurseC = await makeUser("c", nurseRole.id); // NOT on the team
-    const noPerms = await makeUser("none", caregiverRole.id); // holds no permissions at all
+    // A caregiver: holds none of the permissions the checks below need (visits.read,
+    // care plans, documents, referrals, care teams), only visits.checkin and tasks.read.
+    const noPerms = await makeUser("none", caregiverRole.id);
 
     const patient = await prisma.patient.create({
       data: { organizationId: orgId, firstName: "Verify", lastName: `Testpatient${runId}`, dateOfBirth: new Date("1950-01-01") },
@@ -1283,8 +1285,12 @@ async function main() {
       );
       const nursePerms = await permsOf("NURSE");
       check("a nurse holds neither care team permission", !nursePerms.includes("care_team.read") && !nursePerms.includes("care_team.manage"));
-      const stillEmpty = await Promise.all(["CAREGIVER", "PATIENT", "AUTHORIZED_FAMILY", "REFERRAL_PARTNER"].map(async (k) => (await permsOf(k)).length));
-      check("caregiver, patient, family and referral partner still hold no permissions", stillEmpty.every((n) => n === 0), stillEmpty.join(","));
+      const stillEmpty = await Promise.all(["PATIENT", "AUTHORIZED_FAMILY", "REFERRAL_PARTNER"].map(async (k) => (await permsOf(k)).length));
+      check("patient, family and referral partner still hold no permissions", stillEmpty.every((n) => n === 0), stillEmpty.join(","));
+      const caregiverPerms = await permsOf("CAREGIVER");
+      check("CAREGIVER holds exactly the agreed set: check in and out of own visits, and read tasks", sameSet(caregiverPerms, ["visits.checkin", "tasks.read"]), caregiverPerms.join(", "));
+      const checkinHolders = await prisma.rolePermission.findMany({ where: { permission: { key: "visits.checkin" }, role: { organizationId: orgId } }, include: { role: true } });
+      check("only CAREGIVER and SUPER_ADMIN hold visits.checkin", sameSet(checkinHolders.map((h) => h.role.key).sort(), ["CAREGIVER", "SUPER_ADMIN"]), checkinHolders.map((h) => h.role.key).join(", "));
       const demoOffice = await Promise.all(
         [["demo.coordinator@cheliv.test", "CARE_COORDINATOR"], ["demo.supervisor@cheliv.test", "CLINICAL_SUPERVISOR"]].map(async ([email, roleKey]) => {
           const u = await prisma.user.findUnique({ where: { email }, include: { userRoles: { include: { role: true } } } });

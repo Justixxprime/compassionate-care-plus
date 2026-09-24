@@ -87,14 +87,17 @@ async function main() {
     const temp = await prisma.user.create({
       data: {
         organizationId: orgId,
-        email: `verify.caregiver.${Date.now().toString(36)}@cheliv.test`,
+        email: `verify.nopermissions.${Date.now().toString(36)}@cheliv.test`,
         passwordHash: "not-a-real-hash",
-        name: "Verify Caregiver",
+        name: "Verify No Permissions",
       },
     });
     tempUserIds.push(temp.id);
-    const cgRole = await prisma.role.findFirstOrThrow({ where: { organizationId: orgId, key: "CAREGIVER" } });
-    await prisma.userRole.create({ data: { userId: temp.id, roleId: cgRole.id } });
+    // The PATIENT role holds no permissions. (The caregiver role holds
+    // tasks.read since the caregiver portal, so it is no longer the
+    // stand-in for "an account with no task permission".)
+    const noPermRole = await prisma.role.findFirstOrThrow({ where: { organizationId: orgId, key: "PATIENT" } });
+    await prisma.userRole.create({ data: { userId: temp.id, roleId: noPermRole.id } });
     check("an account with no task permission cannot list", await throwsAuth(() => listTasks(temp.id)));
     check("or create", await throwsAuth(() => mk(temp.id, {}).then((r) => r)));
     check("or see the create options", await throwsAuth(() => getTaskCreateOptions(temp.id)));
