@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { AppShell } from "@/components/app/app-shell";
 import { getRequestPermissions, requireUser } from "@/lib/app/access";
 import { buildNavigation } from "@/lib/app/navigation";
+import { getUnreadNotificationCount } from "@/lib/notifications";
 
 // Every page under app/(app)/ renders inside this. The route group (the
 // parentheses in the folder name) adds nothing to the URL, so
@@ -33,6 +34,8 @@ export default async function AppLayout({
 }) {
   const user = await requireUser();
   const permissions = await getRequestPermissions(user.id);
+  // Only a count, for the bell. Never anything about what the notices say.
+  const unreadCount = await getUnreadNotificationCount(user.id);
 
   const roleLabel =
     user.userRoles.map((ur: { role: { name: string } }) => ur.role.name).join(", ") ||
@@ -43,6 +46,7 @@ export default async function AppLayout({
       userName={user.name}
       roleLabel={roleLabel}
       groups={buildNavigation(permissions)}
+      unreadCount={unreadCount}
     >
       {children}
     </AppShell>

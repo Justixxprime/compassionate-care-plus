@@ -4,22 +4,31 @@
 // verify-access.ts, kept in its own file so the note rules can be run on
 // their own:   npm run verify:notes
 //
+// Covers the note itself (sections 1 to 6) and the addenda written under a
+// reviewed note (sections 7 to 9).
+//
 // Needs the demo data (npx prisma db seed). Creates temporary visits and
-// one temporary care team row, and removes them (and their audit entries)
-// at the end, even when a check fails. Refuses to run unless DATABASE_URL
+// one temporary care team row, and removes them (and their notes, addenda,
+// notifications and audit entries) at the end, even when a check fails. Refuses to run unless DATABASE_URL
 // points at this machine.
 
 import { prisma } from "@/lib/prisma";
 import { AuthorizationError } from "@/lib/auth/authorize";
 import {
+  addVisitNoteAddendum,
   changeVisitNoteStatus,
   createVisitNote,
   getVisitNote,
   listNotesPendingReview,
   listVisitsNeedingDocumentation,
+  reviewVisitNoteAddendum,
   updateVisitNote,
 } from "@/lib/visit-notes";
-import { NOTE_CONTENT_MAX } from "@/lib/visit-note-constants";
+import {
+  ADDENDA_MAX_PER_NOTE,
+  ADDENDUM_CONTENT_MAX,
+  NOTE_CONTENT_MAX,
+} from "@/lib/visit-note-constants";
 
 let passed = 0;
 const failures: string[] = [];
@@ -48,6 +57,7 @@ async function main() {
     console.error("Refusing to run: DATABASE_URL does not point at localhost.");
     process.exit(2);
   }
+  const runId = Date.now().toString(36);
   console.log("Visit note verification");
 
   const emails = ["admin", "nurse", "nurse2", "supervisor", "coordinator"].map(
@@ -66,6 +76,9 @@ async function main() {
 
   const visitIds: string[] = [];
   let teamRowId: string | null = null;
+  let limitedTeamId: string | null = null;
+  let tempUserId: string | null = null;
+  let tempRoleId: string | null = null;
   const mk = async (patientId: string, clinicianId: string, status: string) => {
     const start = new Date(Date.now() + 86400000 * (visitIds.length + 30));
     const v = await prisma.visit.create({
@@ -157,13 +170,157 @@ async function main() {
     check("created, submitted and reviewed were recorded", ["visit_note_created", "visit_note_submitted", "visit_note_reviewed"].every((a) => logs.some((l) => l.action === a)));
     check("denials were recorded", logs.some((l) => l.action === "access_denied"));
     check("no entry contains note text", !JSON.stringify(logs).includes("Updated text"));
+
+    section("7. Addenda: who may add one, and when");
+    const inProgNote = await prisma.visitNote.findUniqueOrThrow({ where: { visitId: inProg } });
+    const addendaOn = (noteId: string) => prisma.visitNoteAddendum.count({ where: { noteId } });
+    const doseText = "Correction: the dose was five milligrams";
+    const nurse2Back = await prisma.careTeamMember.update({ where: { id: team.id }, data: { endsAt: null } });
+    void nurse2Back;
+
+    const marcusNoteDraft = await addVisitNoteAddendum(nurse2.id, marcusVisit, "correction", "too early");
+    check("an addendum cannot be added while the note is a draft", !marcusNoteDraft.ok && err(marcusNoteDraft).includes("has been reviewed"), err(marcusNoteDraft));
+    await changeVisitNoteStatus(nurse2.id, marcusVisit, "submit");
+    const marcusNoteSubmitted = await addVisitNoteAddendum(nurse2.id, marcusVisit, "correction", "too early");
+    check("nor while the note is submitted and waiting for review", !marcusNoteSubmitted.ok && err(marcusNoteSubmitted).includes("has been reviewed"), err(marcusNoteSubmitted));
+    check("a visit with no note has nothing to add to", err(await addVisitNoteAddendum(nurse1.id, sched, "correction", "x")).includes("no note"));
+
+    const notClinician = await addVisitNoteAddendum(nurse2.id, inProg, "correction", "not mine");
+    check("a nurse ON the care team but not the visit's clinician is refused", !notClinician.ok && err(notClinician).includes("assigned clinician"), err(notClinician));
+    check("a supervisor is stopped by permission", await throwsAuth(() => addVisitNoteAddendum(supervisor.id, inProg, "correction", "x")));
+    check("a coordinator is stopped by permission", await throwsAuth(() => addVisitNoteAddendum(coordinator.id, inProg, "correction", "x")));
+    const adminTry = await addVisitNoteAddendum(admin.id, inProg, "correction", "x");
+    check("an administrator holds the permission but never writes for a visit that is not theirs", !adminTry.ok && err(adminTry).includes("assigned clinician"), err(adminTry));
+    check("a nurse outside the patient's reach gets the not-found words", err(await addVisitNoteAddendum(nurse1.id, marcusVisit, "correction", "x")).includes("could not be found"));
+    check("a made-up visit looks the same", err(await addVisitNoteAddendum(nurse1.id, "00000000-0000-0000-0000-00000000dead", "correction", "x")).includes("could not be found"));
+    check("an unknown kind is refused", !(await addVisitNoteAddendum(nurse1.id, inProg, "rewrite_history", "x")).ok);
+    check("empty text is refused", !(await addVisitNoteAddendum(nurse1.id, inProg, "correction", "   ")).ok);
+    check("over-long text is refused", !(await addVisitNoteAddendum(nurse1.id, inProg, "correction", "a".repeat(ADDENDUM_CONTENT_MAX + 1))).ok);
+    check("none of those attempts left an addendum behind", (await addendaOn(inProgNote.id)) === 0);
+
+    const first = await addVisitNoteAddendum(nurse1.id, inProg, "correction", doseText);
+    check("the visit's own clinician CAN add a correction to a reviewed note", first.ok, err(first));
+    const second = await addVisitNoteAddendum(nurse1.id, inProg, "late_entry", "second one");
+    check("only one addendum may wait for review at a time", !second.ok && err(second).includes("still waiting"), err(second));
+    const untouched = await prisma.visitNote.findUniqueOrThrow({ where: { visitId: inProg } });
+    check("the original note is exactly as it was reviewed", untouched.content === "Updated text" && untouched.status === "reviewed" && untouched.reviewedAt !== null);
+    const seenBy1 = await getVisitNote(nurse1.id, inProg);
+    check("the author sees the addendum, cannot add another yet and cannot review it", seenBy1.ok && seenBy1.value.note?.addenda.length === 1 && seenBy1.value.note.canAddAddendum === false && seenBy1.value.note.addenda[0]?.canReview === false);
+
+    section("8. Addenda: review, four eyes and the worklist");
+    const firstRow = await prisma.visitNoteAddendum.findFirstOrThrow({ where: { noteId: inProgNote.id } });
+    const supersOwn = await prisma.visitNoteAddendum.create({
+      data: { organizationId: orgId, noteId: inProgNote.id, authorId: supervisor.id, kind: "late_entry", content: "supervisor wrote", status: "submitted" },
+    });
+    check("the author cannot review their own addendum (no visits.review)", await throwsAuth(() => reviewVisitNoteAddendum(nurse1.id, inProg, firstRow.id)));
+    check("a nurse cannot review", await throwsAuth(() => reviewVisitNoteAddendum(nurse2.id, inProg, firstRow.id)));
+    const selfAddendum = await reviewVisitNoteAddendum(supervisor.id, inProg, supersOwn.id);
+    check("an author who holds visits.review still cannot review their own addendum", !selfAddendum.ok && err(selfAddendum).includes("cannot review an addendum you wrote"), err(selfAddendum));
+    const wrongVisit = await reviewVisitNoteAddendum(supervisor.id, done, firstRow.id);
+    check("an addendum cannot be reviewed through a different visit", !wrongVisit.ok && err(wrongVisit).includes("could not be found"), err(wrongVisit));
+    check("a made-up addendum id looks the same", err(await reviewVisitNoteAddendum(supervisor.id, inProg, "00000000-0000-0000-0000-00000000dead")).includes("could not be found"));
+    check("a made-up visit id is refused", err(await reviewVisitNoteAddendum(supervisor.id, "00000000-0000-0000-0000-00000000dead", firstRow.id)).includes("could not be found"));
+
+    const supPending = await listNotesPendingReview(supervisor.id);
+    check("the supervisor's review list holds the nurse's addendum, marked as an addendum", supPending.some((p) => p.visitId === inProg && p.kind === "addendum"));
+    check("...but not the addendum the supervisor wrote", supPending.filter((p) => p.visitId === inProg && p.kind === "addendum").length === 1);
+    const adminPending = await listNotesPendingReview(admin.id);
+    check("an administrator sees both addenda waiting", adminPending.filter((p) => p.visitId === inProg && p.kind === "addendum").length === 2);
+    check("the nurse has no review list", (await listNotesPendingReview(nurse1.id)).length === 0);
+    const asViewer = await getVisitNote(supervisor.id, inProg);
+    check("the supervisor is offered review on the nurse's addendum only", asViewer.ok && asViewer.value.note !== null && asViewer.value.note.addenda.filter((a) => a.canReview).length === 1);
+
+    check("the supervisor CAN review the nurse's addendum", (await reviewVisitNoteAddendum(supervisor.id, inProg, firstRow.id)).ok);
+    const reviewedRow = await prisma.visitNoteAddendum.findUniqueOrThrow({ where: { id: firstRow.id } });
+    check("reviewer and time are recorded", reviewedRow.status === "reviewed" && reviewedRow.reviewedById === supervisor.id && reviewedRow.reviewedAt !== null);
+    check("an addendum cannot be reviewed twice", err(await reviewVisitNoteAddendum(supervisor.id, inProg, firstRow.id)).includes("already been reviewed"));
+    check("another reviewer CAN review the supervisor's row", (await reviewVisitNoteAddendum(admin.id, inProg, supersOwn.id)).ok);
+    check("it leaves the review list", !(await listNotesPendingReview(supervisor.id)).some((p) => p.visitId === inProg && p.kind === "addendum"));
+
+    const third = await addVisitNoteAddendum(nurse1.id, inProg, "additional_information", "Also noted the family was present");
+    check("once nothing is waiting, another addendum CAN be added", third.ok, err(third));
+    const secondRow = await prisma.visitNoteAddendum.findFirstOrThrow({ where: { noteId: inProgNote.id, authorId: nurse1.id, status: "submitted" } });
+    check("an addendum can never be edited (no way to change one exists, and the text is as written)", secondRow.content === "Also noted the family was present");
+    await reviewVisitNoteAddendum(admin.id, inProg, secondRow.id);
+    const now = new Date();
+    const fillers = ADDENDA_MAX_PER_NOTE - (await addendaOn(inProgNote.id));
+    for (let i = 0; i < fillers; i++) {
+      await prisma.visitNoteAddendum.create({
+        data: { organizationId: orgId, noteId: inProgNote.id, authorId: nurse1.id, kind: "late_entry", content: `filler ${i}`, status: "reviewed", reviewedById: admin.id, reviewedAt: now },
+      });
+    }
+    const capped = await addVisitNoteAddendum(nurse1.id, inProg, "correction", "one too many");
+    check("a note holds at most the limit of addenda", !capped.ok && err(capped).includes(`at most ${ADDENDA_MAX_PER_NOTE}`), err(capped));
+    const cappedView = await getVisitNote(nurse1.id, inProg);
+    check("and the form is no longer offered", cappedView.ok && cappedView.value.note?.canAddAddendum === false);
+
+    section("8b. Addenda: two people at the same moment, and reach");
+    await changeVisitNoteStatus(nurse1.id, done, "submit");
+    await changeVisitNoteStatus(supervisor.id, done, "review");
+    const both = await Promise.all([
+      addVisitNoteAddendum(nurse1.id, done, "correction", "Concurrent A"),
+      addVisitNoteAddendum(nurse1.id, done, "late_entry", "Concurrent B"),
+    ]);
+    check("exactly one of two simultaneous addenda succeeded", both.filter((r) => r.ok).length === 1, JSON.stringify(both));
+    const doneNote = await prisma.visitNote.findUniqueOrThrow({ where: { visitId: done } });
+    check("and exactly one is waiting", (await prisma.visitNoteAddendum.count({ where: { noteId: doneNote.id, status: "submitted" } })) === 1);
+    await prisma.careTeamMember.update({ where: { id: team.id }, data: { endsAt: new Date(Date.now() - 1000) } });
+    check("a nurse whose assignment ended cannot read the addenda", !(await getVisitNote(nurse2.id, inProg)).ok);
+    check("nor review one", await throwsAuth(() => reviewVisitNoteAddendum(nurse2.id, inProg, firstRow.id)));
+
+    // A reviewer who holds visits.review but whose reach is only the
+    // patients they are assigned to. Reach is the second question, and the
+    // demo accounts cannot ask it: every demo reviewer sees the whole
+    // organization.
+    const waiting = await prisma.visitNoteAddendum.findFirstOrThrow({ where: { noteId: doneNote.id, status: "submitted" } });
+    const reviewPerms = await prisma.permission.findMany({ where: { key: { in: ["visits.read", "visits.review"] } } });
+    const limitedRole = await prisma.role.create({ data: { organizationId: orgId, key: `VERIFYNOTE_${runId}`, name: "Verify limited reviewer" } });
+    tempRoleId = limitedRole.id;
+    await prisma.rolePermission.createMany({ data: reviewPerms.map((p) => ({ roleId: limitedRole.id, permissionId: p.id })) });
+    const limited = await prisma.user.create({
+      data: { organizationId: orgId, email: `verify-note-${runId}@cheliv.test`, passwordHash: "x", name: "Verify Limited Reviewer" },
+    });
+    tempUserId = limited.id;
+    await prisma.userRole.create({ data: { userId: limited.id, roleId: limitedRole.id } });
+    const outOfReach = await reviewVisitNoteAddendum(limited.id, done, waiting.id);
+    check("a reviewer with no reach to the patient hears 'not found'", !outOfReach.ok && err(outOfReach).includes("could not be found"), err(outOfReach));
+    check("...and the addendum is still waiting", (await prisma.visitNoteAddendum.findUniqueOrThrow({ where: { id: waiting.id } })).status === "submitted");
+    check("...and it is not on their review list", !(await listNotesPendingReview(limited.id)).some((p) => p.visitId === done));
+    check("...and the refusal is on record as denied", (await prisma.auditLog.count({ where: { actorUserId: limited.id, action: "access_denied", resourceId: done } })) >= 1);
+    const limitedTeam = await prisma.careTeamMember.create({ data: { patientId: eleanor.id, userId: limited.id, roleOnCase: "nurse" } });
+    limitedTeamId = limitedTeam.id;
+    check("the same reviewer sees it on their list once they reach the patient", (await listNotesPendingReview(limited.id)).some((p) => p.visitId === done && p.kind === "addendum"));
+    check("...and can then review it", (await reviewVisitNoteAddendum(limited.id, done, waiting.id)).ok);
+
+    section("9. Addenda and notifications: the audit log and the notices hold no words");
+    const logs2 = await prisma.auditLog.findMany({ where: { resourceId: { in: visitIds } } });
+    check("addendum added and reviewed were recorded", ["visit_note_addendum_added", "visit_note_addendum_reviewed"].every((a) => logs2.some((l) => l.action === a)));
+    check("the attempts by the wrong people were recorded as denied", logs2.filter((l) => l.action === "access_denied").length >= 3);
+    check("no audit entry contains an addendum's words", !JSON.stringify(logs2).includes("five milligrams") && !JSON.stringify(logs2).includes("family was present"));
+    const noticeNote = await prisma.notification.count({ where: { userId: nurse1.id, kind: "note_reviewed", resourceId: inProg } });
+    check("the note's author was told it was reviewed", noticeNote === 1, String(noticeNote));
+    const noticeAddendum = await prisma.notification.count({ where: { userId: nurse1.id, kind: "addendum_reviewed", resourceId: inProg } });
+    check("the addendum's author was told each addendum they wrote was reviewed", noticeAddendum >= 2, String(noticeAddendum));
+    const supNotices = await prisma.notification.findMany({ where: { userId: supervisor.id, resourceId: { in: visitIds } } });
+    check("a reviewer is never told about a review they did themselves (only that another person reviewed THEIR addendum)", supNotices.length === 1 && supNotices[0]?.kind === "addendum_reviewed", JSON.stringify(supNotices.map((n) => n.kind)));
+    const noticeRows = await prisma.notification.findMany({ where: { resourceId: { in: visitIds } } });
+    check("no notice holds any of the words", !JSON.stringify(noticeRows).includes("five milligrams") && !JSON.stringify(noticeRows).includes("Updated text"));
   } finally {
     try {
+      if (limitedTeamId) await prisma.careTeamMember.deleteMany({ where: { id: limitedTeamId } });
+      if (tempUserId) {
+        await prisma.auditLog.deleteMany({ where: { actorUserId: tempUserId } });
+        await prisma.userRole.deleteMany({ where: { userId: tempUserId } });
+      }
+      await prisma.notification.deleteMany({ where: { resourceId: { in: visitIds } } });
+      await prisma.visitNoteAddendum.deleteMany({ where: { note: { is: { visitId: { in: visitIds } } } } });
       await prisma.visitNote.deleteMany({ where: { visitId: { in: visitIds } } });
       if (teamRowId) await prisma.careTeamMember.deleteMany({ where: { id: teamRowId } });
       await prisma.auditLog.deleteMany({ where: { resourceId: { in: visitIds } } });
       await prisma.visit.deleteMany({ where: { id: { in: visitIds } } });
-      console.log("\n  removed the temporary visits, notes, team row and audit entries");
+      if (tempUserId) await prisma.user.deleteMany({ where: { id: tempUserId } });
+      if (tempRoleId) await prisma.role.deleteMany({ where: { id: tempRoleId } });
+      console.log("\n  removed the temporary visits, notes, addenda, notices, team row and audit entries");
     } catch (e) {
       console.error("  CLEANUP FAILED:", e);
       failures.push("cleanup");

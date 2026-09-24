@@ -43,6 +43,8 @@ model Organization {
   patients  Patient[]
   visits    Visit[]
   visitNotes VisitNote[]
+  visitNoteAddenda VisitNoteAddendum[]
+  notifications Notification[]
   tasks Task[]
   carePlans CarePlan[]
   documents Document[]
@@ -78,6 +80,9 @@ model User {
   completedTasks      Task[]           @relation("TaskCompleter")
   authoredVisitNotes  VisitNote[]      @relation("VisitNoteAuthor")
   reviewedVisitNotes  VisitNote[]      @relation("VisitNoteReviewer")
+  authoredAddenda     VisitNoteAddendum[] @relation("AddendumAuthor")
+  reviewedAddenda     VisitNoteAddendum[] @relation("AddendumReviewer")
+  notifications       Notification[]
   authoredCarePlans   CarePlan[]       @relation("CarePlanAuthor")
   approvedCarePlans   CarePlan[]       @relation("CarePlanApprover")
   uploadedDocuments   Document[]       @relation("DocumentUploader")
@@ -350,9 +355,66 @@ model VisitNote {
   visit        Visit        @relation(fields: [visitId], references: [id], onDelete: Restrict)
   author       User         @relation("VisitNoteAuthor", fields: [authorId], references: [id], onDelete: Restrict)
   reviewedBy   User?        @relation("VisitNoteReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
+  addenda      VisitNoteAddendum[]
 
   @@index([organizationId])
   @@map("visit_notes")
+}
+
+// ---------- Visit note addenda ----------
+// A reviewed note is final and is never edited. When it turns out to need
+// correcting or completing, the visit's own clinician adds an ADDENDUM: a
+// separate, permanent entry that sits under the note. The original words
+// are never touched. An addendum is written once (no editing, no
+// deleting) and then waits for a second person, exactly like a note.
+//
+// Rules live in src/lib/visit-notes.ts. Never hard-deleted (Restrict).
+model VisitNoteAddendum {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  noteId         String    @map("note_id")
+  authorId       String    @map("author_id")
+  reviewedById   String?   @map("reviewed_by_id")
+  kind           String    // correction | additional_information | late_entry
+  content        String
+  status         String    @default("submitted") // submitted | reviewed
+  reviewedAt     DateTime? @map("reviewed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  note         VisitNote    @relation(fields: [noteId], references: [id], onDelete: Restrict)
+  author       User         @relation("AddendumAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  reviewedBy   User?        @relation("AddendumReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
+
+  @@index([noteId])
+  @@index([organizationId, status])
+  @@map("visit_note_addenda")
+}
+
+// ---------- Notifications ----------
+// A short "something happened for you" entry. It holds NO words about
+// patients or clinical content: only what kind of thing happened and
+// which record it points at. The screen turns the kind into a plain,
+// generic sentence and a link, and the page behind the link checks access
+// again. One row belongs to exactly one person.
+//
+// Rules live in src/lib/notifications.ts.
+model Notification {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  userId         String    @map("user_id")
+  kind           String
+  resourceType   String    @map("resource_type")
+  resourceId     String    @map("resource_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  readAt         DateTime? @map("read_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+  @@map("notifications")
 }
 
 // ---------- Care plans ----------

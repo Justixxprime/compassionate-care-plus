@@ -14,7 +14,13 @@
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth/session";
 import { AuthorizationError } from "@/lib/auth/authorize";
-import { changeVisitNoteStatus, createVisitNote, updateVisitNote } from "@/lib/visit-notes";
+import {
+  addVisitNoteAddendum,
+  changeVisitNoteStatus,
+  createVisitNote,
+  reviewVisitNoteAddendum,
+  updateVisitNote,
+} from "@/lib/visit-notes";
 
 export interface VisitNoteActionResult {
   ok: boolean;
@@ -73,4 +79,20 @@ export async function reviewVisitNoteAction(
   visitId: string,
 ): Promise<VisitNoteActionResult> {
   return run(visitId, (userId) => changeVisitNoteStatus(userId, visitId, "review"));
+}
+
+export async function addAddendumAction(
+  formData: FormData,
+): Promise<VisitNoteActionResult> {
+  const visitId = text(formData, "visitId");
+  return run(visitId, (userId) =>
+    addVisitNoteAddendum(userId, visitId, text(formData, "kind"), text(formData, "content")),
+  );
+}
+
+export async function reviewAddendumAction(
+  visitId: string,
+  addendumId: string,
+): Promise<VisitNoteActionResult> {
+  return run(visitId, (userId) => reviewVisitNoteAddendum(userId, visitId, addendumId));
 }

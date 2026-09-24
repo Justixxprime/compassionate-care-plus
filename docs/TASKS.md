@@ -64,5 +64,6 @@ patient's need.
 
 ## Not built yet
 
-Notifications when a task is assigned, recurring tasks, comments on a
-task, and a task widget on the dashboard.
+Recurring tasks, comments on a task, and a task widget on the dashboard.
+Notifications (assigned, finished, cancelled) now exist: see
+`docs/NOTIFICATIONS.md`.

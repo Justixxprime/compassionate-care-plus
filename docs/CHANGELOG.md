@@ -1,3 +1,15 @@
+## Milestone E3 round 2 and E4 round 2 - note addenda and notifications
+
+Date: 23 September 2026
+
+- New: note addenda. A reviewed note is never edited; the visit's own clinician adds a correction, an addition or a late entry under it, and a second person reviews it. New table `visit_note_addenda`. See `docs/VISIT_NOTES.md`, section "Addenda".
+- New: notifications. A bell with an unread count in the app shell, a page `/notifications`, and notices for task assigned, finished, cancelled, and for a note or addendum reviewed. New table `notifications`. No patient names or titles in a notice. See `docs/NOTIFICATIONS.md`.
+- `/visits` review list now also shows addenda waiting for review, marked "Addendum", oldest first.
+- New audit actions: `visit_note_addendum_added`, `visit_note_addendum_reviewed`.
+- `scripts/verify-notes.ts` grew from 39 to 93 checks. New `scripts/verify-notifications.ts` (`npm run verify:notifications`, 44 checks).
+- The documents page file is the correct Documents page again (GitHub commit 25b28d4 had the Sharing page in `src/app/(app)/documents/page.tsx` by mistake).
+- Migration to run: `add_addenda_and_notifications`.
+
 ## Milestone E3 round 2 and E4 round 1 - note verification and tasks
 
 Date: 23 September 2026

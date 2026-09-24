@@ -2,7 +2,9 @@
 
 import { useState, useTransition, type FormEvent } from "react";
 import {
+  addAddendumAction,
   createVisitNoteAction,
+  reviewAddendumAction,
   reviewVisitNoteAction,
   submitVisitNoteAction,
   updateVisitNoteAction,
@@ -11,10 +13,16 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import {
+  ADDENDUM_CONTENT_MAX,
+  ADDENDUM_KINDS,
+  ADDENDUM_STATUS_LABELS,
   VISIT_NOTE_STATUS_LABELS,
+  addendumKindLabel,
+  type AddendumStatus,
   type VisitNoteStatus,
 } from "@/lib/visit-note-constants";
-import type { VisitNoteRow } from "@/lib/visit-notes";
+import type { AddendumRow, VisitNoteRow } from "@/lib/visit-notes";
+import { formatOrgDate } from "@/lib/time";
 
 const textareaStyles =
   "w-full min-h-40 rounded-md border border-border-strong bg-white px-3 py-2 " +
@@ -139,6 +147,136 @@ function ReviewButton({ visitId }: { visitId: string }) {
   );
 }
 
+// One correction or addition under a reviewed note, and (for a reviewer)
+// the button that marks it reviewed.
+function AddendumReviewButton({
+  visitId,
+  addendumId,
+}: {
+  visitId: string;
+  addendumId: string;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function run() {
+    if (!window.confirm("Mark this addendum as reviewed?")) return;
+    setError(null);
+    startTransition(async () => {
+      const result = await reviewAddendumAction(visitId, addendumId);
+      if (!result.ok) setError(result.error ?? "Something went wrong.");
+    });
+  }
+
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <Button type="button" size="sm" disabled={pending} onClick={run}>
+        {pending ? "Marking reviewed..." : "Mark addendum reviewed"}
+      </Button>
+      {error ? (
+        <p role="alert" className="text-caption text-danger">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function AddendumItem({ visitId, addendum }: { visitId: string; addendum: AddendumRow }) {
+  return (
+    <li className="space-y-2 rounded-md border border-border bg-white p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge tone="info">{addendumKindLabel(addendum.kind)}</Badge>
+        <Badge tone={addendum.status === "reviewed" ? "success" : "warning"}>
+          {ADDENDUM_STATUS_LABELS[addendum.status as AddendumStatus] ?? addendum.status}
+        </Badge>
+        <span className="text-body-sm text-slate">
+          by {addendum.authorName} on {formatOrgDate(addendum.createdAt)}
+        </span>
+        {addendum.reviewedByName ? (
+          <span className="text-body-sm text-slate">reviewed by {addendum.reviewedByName}</span>
+        ) : null}
+      </div>
+      <p className="whitespace-pre-wrap text-body-sm text-ink">{addendum.content}</p>
+      {addendum.canReview ? (
+        <AddendumReviewButton visitId={visitId} addendumId={addendum.id} />
+      ) : null}
+    </li>
+  );
+}
+
+// The form for a new addendum. It is written once: there is no edit and
+// no delete, so the form says so before anyone presses the button.
+function AddendumForm({ visitId }: { visitId: string }) {
+  const [kind, setKind] = useState<string>(ADDENDUM_KINDS[0].key);
+  const [content, setContent] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (
+      !window.confirm(
+        "Add this addendum? It becomes part of the record and cannot be edited or removed.",
+      )
+    ) {
+      return;
+    }
+    const data = new FormData();
+    data.set("visitId", visitId);
+    data.set("kind", kind);
+    data.set("content", content);
+    setError(null);
+    startTransition(async () => {
+      const result = await addAddendumAction(data);
+      if (result.ok) {
+        setContent("");
+      } else {
+        setError(result.error ?? "Something went wrong.");
+      }
+    });
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-3" noValidate>
+      <div>
+        <Label htmlFor={`addendum-kind-${visitId}`}>What kind of addendum</Label>
+        <select
+          id={`addendum-kind-${visitId}`}
+          value={kind}
+          onChange={(e) => setKind(e.target.value)}
+          className="h-11 w-full rounded-md border border-border-strong bg-white px-3 text-body text-ink focus-visible:outline-none sm:w-72"
+        >
+          {ADDENDUM_KINDS.map((k) => (
+            <option key={k.key} value={k.key}>
+              {k.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <Label htmlFor={`addendum-${visitId}`}>What are you adding or correcting</Label>
+        <textarea
+          id={`addendum-${visitId}`}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          required
+          maxLength={ADDENDUM_CONTENT_MAX}
+          className={textareaStyles}
+        />
+      </div>
+      {error ? (
+        <p role="alert" className="rounded-md bg-danger-bg px-3 py-2 text-body-sm text-danger">
+          {error}
+        </p>
+      ) : null}
+      <Button type="submit" size="sm" variant="secondary" disabled={pending}>
+        {pending ? "Adding..." : "Add addendum"}
+      </Button>
+    </form>
+  );
+}
+
 export function VisitNotePanel({
   visitId,
   note,
@@ -179,6 +317,24 @@ export function VisitNotePanel({
         {note.canSubmit ? <SubmitButton visitId={visitId} /> : null}
         {note.canReview ? <ReviewButton visitId={visitId} /> : null}
       </div>
+
+      {note.addenda.length > 0 || note.canAddAddendum ? (
+        <div className="space-y-3 border-t border-border pt-4">
+          <h3 className="text-body font-semibold text-ink">Addenda</h3>
+          <p className="text-body-sm text-slate">
+            The reviewed note above is never changed. Corrections and additions are added here,
+            each one permanent, and each one is reviewed by someone other than its author.
+          </p>
+          {note.addenda.length > 0 ? (
+            <ul className="space-y-3">
+              {note.addenda.map((a) => (
+                <AddendumItem key={a.id} visitId={visitId} addendum={a} />
+              ))}
+            </ul>
+          ) : null}
+          {note.canAddAddendum ? <AddendumForm visitId={visitId} /> : null}
+        </div>
+      ) : null}
     </div>
   );
 }

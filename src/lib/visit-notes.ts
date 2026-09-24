@@ -28,6 +28,15 @@
 // one more rule: nobody reviews a note they wrote themselves - four
 // eyes, exactly like care plan approval.
 //
+// ADDENDA. A reviewed note is final and is never edited. When it needs
+// correcting or completing, the visit's own clinician adds an addendum: a
+// separate, permanent entry under the note that waits for a second person,
+// like the note did. Rules: permission (visits.document to add,
+// visits.review to review), reach, the visit's own clinician only, only
+// once the note is reviewed, one addendum waiting at a time, at most ten
+// per note, and nobody reviews their own. The original words are never
+// touched. (docs/VISIT_NOTES.md, "Addenda")
+//
 // What a denial does: it is written to the audit log (action
 // "access_denied", outcome "denied") and the caller gets a plain
 // message that does not reveal whether the thing they asked about
@@ -40,8 +49,12 @@ import { hasPermission, requirePermission } from "@/lib/auth/authorize";
 import { auditAllowed, auditDenied, loadActor, type Actor } from "@/lib/auth/actor";
 import { getPatientScope, scopeAllowsPatient, type PatientScope } from "@/lib/patients";
 import type { Result } from "@/lib/visits";
+import { notifyUser } from "@/lib/notifications";
 import {
+  ADDENDA_MAX_PER_NOTE,
+  ADDENDUM_CONTENT_MAX,
   NOTE_CONTENT_MAX,
+  isAddendumKind,
   VISIT_NOTE_TRANSITIONS,
   VISIT_STATUSES_ALLOWING_NOTE,
   isVisitNoteAction,
@@ -50,16 +63,27 @@ import {
 const NOT_FOUND = "That visit could not be found.";
 const NO_PATIENT_ACCESS = "You do not have access to that patient.";
 const NOT_THE_CLINICIAN = "Only the visit's assigned clinician can write this note.";
+const NO_ADDENDUM = "That addendum could not be found.";
 
-function validateContent(raw: string): Result<{ content: string }> {
+function validateContent(
+  raw: string,
+  max: number = NOTE_CONTENT_MAX,
+  what: "note" | "addendum" = "note",
+): Result<{ content: string }> {
   const content = raw.replace(/\u0000/g, "").trim();
   if (content.length === 0) {
-    return { ok: false, error: "Write what happened at this visit." };
-  }
-  if (content.length > NOTE_CONTENT_MAX) {
     return {
       ok: false,
-      error: `The note can be at most ${NOTE_CONTENT_MAX} characters.`,
+      error:
+        what === "note"
+          ? "Write what happened at this visit."
+          : "Write what you are adding or correcting.",
+    };
+  }
+  if (content.length > max) {
+    return {
+      ok: false,
+      error: `The ${what} can be at most ${max} characters.`,
     };
   }
   return { ok: true, value: { content } };
@@ -94,6 +118,19 @@ async function loadVisitInScope(actor: Actor, scope: PatientScope, visitId: stri
 
 // ---------- Reading ----------
 
+export interface AddendumRow {
+  id: string;
+  kind: string;
+  authorName: string;
+  reviewedByName: string | null;
+  content: string;
+  status: string;
+  createdAt: Date;
+  reviewedAt: Date | null;
+  // Whether THIS viewer may mark it reviewed (the server re-checks).
+  canReview: boolean;
+}
+
 export interface VisitNoteRow {
   id: string;
   visitId: string;
@@ -112,6 +149,10 @@ export interface VisitNoteRow {
   canEdit: boolean;
   canSubmit: boolean;
   canReview: boolean;
+  // The corrections and additions written under a reviewed note, oldest
+  // first, and whether THIS viewer may add another.
+  addenda: AddendumRow[];
+  canAddAddendum: boolean;
 }
 
 // One visit's note, if there is one and this viewer can reach it. Never
@@ -154,6 +195,26 @@ export async function getVisitNote(
   // changing the one that is already there.
   if (!row) return { ok: true, value: { note: null, canWrite } };
 
+  const addendaRows = await prisma.visitNoteAddendum.findMany({
+    where: { noteId: row.id },
+    orderBy: { createdAt: "asc" },
+    include: {
+      author: { select: { name: true } },
+      reviewedBy: { select: { name: true } },
+    },
+  });
+  const addenda: AddendumRow[] = addendaRows.map((a) => ({
+    id: a.id,
+    kind: a.kind,
+    authorName: a.author.name,
+    reviewedByName: a.reviewedBy?.name ?? null,
+    content: a.content,
+    status: a.status,
+    createdAt: a.createdAt,
+    reviewedAt: a.reviewedAt,
+    canReview: canReviewPermission && a.status === "submitted" && a.authorId !== userId,
+  }));
+
   const note: VisitNoteRow = {
     id: row.id,
     visitId: row.visitId,
@@ -169,6 +230,13 @@ export async function getVisitNote(
     canEdit: canWrite && row.authorId === userId && row.status === "draft",
     canSubmit: canWrite && row.authorId === userId && row.status === "draft",
     canReview: canReviewPermission && row.status === "submitted" && row.authorId !== userId,
+    addenda,
+    canAddAddendum:
+      canDocument &&
+      isClinician &&
+      row.status === "reviewed" &&
+      addendaRows.length < ADDENDA_MAX_PER_NOTE &&
+      !addendaRows.some((a) => a.status === "submitted"),
   };
 
   return { ok: true, value: { note, canWrite: false } };
@@ -182,6 +250,11 @@ export interface NoteWorklistRow {
   visitType: string;
   scheduledStart: Date;
   status: string; // the note's status, or "not_started"
+  // A note waiting for its first review, or an addendum waiting for its.
+  kind: "note" | "addendum";
+  // Since when it has been waiting (the note's submission, or the
+  // addendum's writing). Used to put the oldest first.
+  waitingSince: Date | null;
 }
 
 const WORKLIST_LIMIT = 100;
@@ -215,12 +288,15 @@ export async function listVisitsNeedingDocumentation(
     visitType: v.visitType,
     scheduledStart: v.scheduledStart,
     status: "not_started",
+    kind: "note" as const,
+    waitingSince: null,
   }));
 }
 
-// Notes waiting on a reviewer, within this person's reach. Empty (not
-// denied) for anyone without visits.review, so the page can simply skip
-// the section.
+// Notes and addenda waiting on a reviewer, within this person's reach,
+// oldest first. Empty (not denied) for anyone without visits.review, so
+// the page can simply skip the section. Never lists something the person
+// wrote themselves: nobody reviews their own words.
 export async function listNotesPendingReview(userId: string): Promise<NoteWorklistRow[]> {
   await requirePermission(userId, "visits.read");
   if (!(await hasPermission(userId, "visits.review"))) return [];
@@ -231,33 +307,61 @@ export async function listNotesPendingReview(userId: string): Promise<NoteWorkli
       ? { organizationId: scope.organizationId }
       : { organizationId: scope.organizationId, patientId: { in: scope.patientIds } };
 
-  const notes = await prisma.visitNote.findMany({
-    where: {
-      status: "submitted",
-      authorId: { not: userId },
-      visit: { is: scopeWhere },
-    },
-    include: {
-      visit: {
-        select: {
-          id: true,
-          visitType: true,
-          scheduledStart: true,
-          patient: { select: { firstName: true, lastName: true } },
-        },
-      },
-    },
-    orderBy: { submittedAt: "asc" },
-    take: WORKLIST_LIMIT,
-  });
+  const visitSelect = {
+    id: true,
+    visitType: true,
+    scheduledStart: true,
+    patient: { select: { firstName: true, lastName: true } },
+  } as const;
 
-  return notes.map((n) => ({
-    visitId: n.visit.id,
-    patientName: `${n.visit.patient.firstName} ${n.visit.patient.lastName}`,
-    visitType: n.visit.visitType,
-    scheduledStart: n.visit.scheduledStart,
-    status: n.status,
-  }));
+  const [notes, addenda] = await Promise.all([
+    prisma.visitNote.findMany({
+      where: {
+        status: "submitted",
+        authorId: { not: userId },
+        visit: { is: scopeWhere },
+      },
+      include: { visit: { select: visitSelect } },
+      orderBy: { submittedAt: "asc" },
+      take: WORKLIST_LIMIT,
+    }),
+    prisma.visitNoteAddendum.findMany({
+      where: {
+        status: "submitted",
+        authorId: { not: userId },
+        note: { is: { visit: { is: scopeWhere } } },
+      },
+      include: { note: { select: { visit: { select: visitSelect } } } },
+      orderBy: { createdAt: "asc" },
+      take: WORKLIST_LIMIT,
+    }),
+  ]);
+
+  const rows: NoteWorklistRow[] = [
+    ...notes.map((n) => ({
+      visitId: n.visit.id,
+      patientName: `${n.visit.patient.firstName} ${n.visit.patient.lastName}`,
+      visitType: n.visit.visitType,
+      scheduledStart: n.visit.scheduledStart,
+      status: n.status,
+      kind: "note" as const,
+      waitingSince: n.submittedAt,
+    })),
+    ...addenda.map((a) => ({
+      visitId: a.note.visit.id,
+      patientName: `${a.note.visit.patient.firstName} ${a.note.visit.patient.lastName}`,
+      visitType: a.note.visit.visitType,
+      scheduledStart: a.note.visit.scheduledStart,
+      status: a.status,
+      kind: "addendum" as const,
+      waitingSince: a.createdAt,
+    })),
+  ];
+
+  rows.sort(
+    (x, y) => (x.waitingSince?.getTime() ?? 0) - (y.waitingSince?.getTime() ?? 0),
+  );
+  return rows.slice(0, WORKLIST_LIMIT);
 }
 
 // ---------- Writing ----------
@@ -441,5 +545,172 @@ export async function changeVisitNoteStatus(
   }
 
   await auditAllowed(actor, transition.auditAction, "visit", visit.id);
+
+  // The author hears that their note was reviewed. The notice holds no
+  // patient name and none of the note's words.
+  if (action === "review") {
+    await notifyUser({
+      organizationId: actor.organizationId,
+      userId: note.authorId,
+      kind: "note_reviewed",
+      resourceType: "visit",
+      resourceId: visit.id,
+    });
+  }
   return { ok: true, value: { status: transition.to } };
+}
+
+// ---------- Addenda ----------
+
+// The visit's own clinician adds a correction or an addition under a
+// REVIEWED note. The note itself is never touched.
+export async function addVisitNoteAddendum(
+  userId: string,
+  visitId: string,
+  kindRaw: string,
+  contentRaw: string,
+): Promise<Result<{ visitId: string }>> {
+  // 1. Permission - a hard stop.
+  await requirePermission(userId, "visits.document");
+
+  const actor = await loadActor(userId);
+  const scope = await getPatientScope(userId);
+
+  // 2. Relationship to the patient.
+  const visit = await loadVisitInScope(actor, scope, visitId);
+  if (!visit) return { ok: false, error: NOT_FOUND };
+
+  // 3. Author: only the visit's own assigned clinician.
+  if (visit.clinicianId !== userId) {
+    await auditDenied(actor, "visit", visit.id);
+    return { ok: false, error: NOT_THE_CLINICIAN };
+  }
+
+  if (!isAddendumKind(kindRaw)) {
+    return { ok: false, error: "Choose what kind of addendum this is." };
+  }
+  const text = validateContent(contentRaw, ADDENDUM_CONTENT_MAX, "addendum");
+  if (!text.ok) return text;
+
+  const note = await prisma.visitNote.findUnique({
+    where: { visitId: visit.id },
+    select: { id: true },
+  });
+  if (!note) {
+    return { ok: false, error: "This visit has no note to add to." };
+  }
+
+  // 4. The rules that depend on what is already there are checked while
+  //    the note's row is locked, so two people (or two clicks) cannot both
+  //    slip past "only one waiting at a time" or "at most ten".
+  const outcome = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM visit_notes WHERE id = ${note.id} FOR UPDATE`;
+
+    const current = await tx.visitNote.findUnique({
+      where: { id: note.id },
+      select: { status: true },
+    });
+    if (!current || current.status !== "reviewed") {
+      return {
+        ok: false as const,
+        error:
+          "An addendum can only be added once the note has been reviewed. Until then, the note can still be edited or is waiting for its review.",
+      };
+    }
+
+    const existing = await tx.visitNoteAddendum.findMany({
+      where: { noteId: note.id },
+      select: { status: true },
+    });
+    if (existing.some((a) => a.status === "submitted")) {
+      return {
+        ok: false as const,
+        error: "An earlier addendum is still waiting for review. Wait for it to be reviewed first.",
+      };
+    }
+    if (existing.length >= ADDENDA_MAX_PER_NOTE) {
+      return {
+        ok: false as const,
+        error: `A note can hold at most ${ADDENDA_MAX_PER_NOTE} addenda.`,
+      };
+    }
+
+    await tx.visitNoteAddendum.create({
+      data: {
+        organizationId: actor.organizationId,
+        noteId: note.id,
+        authorId: userId,
+        kind: kindRaw,
+        content: text.value.content,
+      },
+    });
+    return { ok: true as const };
+  });
+
+  if (!outcome.ok) return { ok: false, error: outcome.error };
+
+  await auditAllowed(actor, "visit_note_addendum_added", "visit", visit.id);
+  return { ok: true, value: { visitId: visit.id } };
+}
+
+// A second person marks an addendum reviewed. Never the person who wrote it.
+export async function reviewVisitNoteAddendum(
+  userId: string,
+  visitId: string,
+  addendumId: string,
+): Promise<Result<{ status: string }>> {
+  // 1. Permission - a hard stop.
+  await requirePermission(userId, "visits.review");
+
+  const actor = await loadActor(userId);
+  const scope = await getPatientScope(userId);
+
+  // 2. Relationship to the patient.
+  const visit = await loadVisitInScope(actor, scope, visitId);
+  if (!visit) return { ok: false, error: NOT_FOUND };
+
+  // The addendum must really belong to THIS visit's note, so an id from
+  // another visit cannot be reviewed through a visit the person may reach.
+  const addendum = await prisma.visitNoteAddendum.findFirst({
+    where: { id: addendumId, note: { is: { visitId: visit.id } } },
+    select: { id: true, authorId: true, status: true },
+  });
+  if (!addendum) {
+    await auditDenied(actor, "visit", visit.id);
+    return { ok: false, error: NO_ADDENDUM };
+  }
+
+  // 3. Four eyes.
+  if (addendum.authorId === userId) {
+    await auditDenied(actor, "visit", visit.id);
+    return {
+      ok: false,
+      error: "You cannot review an addendum you wrote. Another reviewer must do it.",
+    };
+  }
+
+  // 4. The status machine, guarded again in the write itself.
+  if (addendum.status !== "submitted") {
+    return { ok: false, error: "This addendum has already been reviewed." };
+  }
+  const result = await prisma.visitNoteAddendum.updateMany({
+    where: { id: addendum.id, status: "submitted" },
+    data: { status: "reviewed", reviewedById: userId, reviewedAt: new Date() },
+  });
+  if (result.count === 0) {
+    return {
+      ok: false,
+      error: "This addendum was just changed by someone else. Refresh and try again.",
+    };
+  }
+
+  await auditAllowed(actor, "visit_note_addendum_reviewed", "visit", visit.id);
+  await notifyUser({
+    organizationId: actor.organizationId,
+    userId: addendum.authorId,
+    kind: "addendum_reviewed",
+    resourceType: "visit",
+    resourceId: visit.id,
+  });
+  return { ok: true, value: { status: "reviewed" } };
 }

@@ -97,7 +97,7 @@ export default async function VisitDetailPage({
 
       <Section
         title="Visit note"
-        description="What the assigned clinician found and did. Only the assigned clinician can write it, and only once the visit is in progress or completed. A submitted note is locked and needs a second person to mark it reviewed."
+        description="What the assigned clinician found and did. Only the assigned clinician can write it, and only once the visit is in progress or completed. A submitted note is locked and needs a second person to mark it reviewed. After that it is never edited; corrections are added below it as addenda."
       >
         {noteData ? (
           <VisitNotePanel visitId={visit.id} note={noteData.note} canWrite={noteData.canWrite} />

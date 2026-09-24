@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LogOut } from "lucide-react";
+import { Bell, LogOut } from "lucide-react";
 import { signOutAction } from "@/lib/auth/actions";
 import { LogoMark } from "@/components/marketing/logo-mark";
 import { MobileMenu, SidebarNav } from "@/components/app/app-nav";
@@ -37,6 +37,30 @@ function BrandLink({ compact = false }: { compact?: boolean }) {
           </span>
         )}
       </span>
+    </Link>
+  );
+}
+
+// The bell: a link to the person's own notifications with the number of
+// unread ones. The number is only a count. It says nothing about what the
+// notifications are about (src/lib/notification-constants.ts).
+function NotificationBell({ count }: { count: number }) {
+  const label = count > 0 ? `Notifications, ${count} unread` : "Notifications";
+  return (
+    <Link
+      href="/notifications"
+      aria-label={label}
+      className="relative flex h-11 w-11 flex-none items-center justify-center rounded-md border border-border-strong bg-white transition-colors hover:bg-sage"
+    >
+      <Bell className="h-5 w-5 text-ink" aria-hidden="true" />
+      {count > 0 ? (
+        <span
+          aria-hidden="true"
+          className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-marigold px-1 text-caption font-semibold leading-none text-ink"
+        >
+          {count > 99 ? "99+" : count}
+        </span>
+      ) : null}
     </Link>
   );
 }
@@ -97,11 +121,13 @@ export function AppShell({
   userName,
   roleLabel,
   groups,
+  unreadCount,
   children,
 }: {
   userName: string;
   roleLabel: string;
   groups: NavGroup[];
+  unreadCount: number;
   children: React.ReactNode;
 }) {
   return (
@@ -115,8 +141,9 @@ export function AppShell({
 
       {/* Wide screens: a fixed sidebar. */}
       <aside className="hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-72 lg:flex-none lg:flex-col lg:border-r lg:border-border lg:bg-white">
-        <div className="border-b border-border px-6 py-6">
+        <div className="flex items-center justify-between gap-3 border-b border-border px-6 py-6">
           <BrandLink />
+          <NotificationBell count={unreadCount} />
         </div>
         <div className="flex-1 overflow-y-auto px-4 pb-6 pt-7">
           <SidebarNav groups={groups} />
@@ -131,10 +158,13 @@ export function AppShell({
         <header className="sticky top-0 z-30 border-b border-border bg-white/95 backdrop-blur lg:hidden">
           <div className="relative flex h-16 items-center justify-between px-4">
             <BrandLink compact />
-            <MobileMenu
-              groups={groups}
-              footer={<AccountPanel userName={userName} roleLabel={roleLabel} />}
-            />
+            <div className="flex items-center gap-2">
+              <NotificationBell count={unreadCount} />
+              <MobileMenu
+                groups={groups}
+                footer={<AccountPanel userName={userName} roleLabel={roleLabel} />}
+              />
+            </div>
           </div>
         </header>
 

@@ -146,14 +146,19 @@ export default async function VisitsPage() {
       {pendingReview.length > 0 ? (
         <Section
           title="Notes waiting on review"
-          description="Submitted by someone else, waiting for a reviewer."
+          description="Notes and addenda written by someone else, waiting for a reviewer. The oldest is first."
         >
           <ul className="divide-y divide-border rounded-md border border-border bg-white">
             {pendingReview.map((v) => (
-              <li key={v.visitId} className="p-4">
+              <li key={`${v.kind}-${v.visitId}-${v.waitingSince?.getTime() ?? 0}`} className="p-4">
                 <Link href={`/visits/${v.visitId}`} className="font-medium hover:underline">
                   {v.patientName} - {visitTypeLabel(v.visitType)}
                 </Link>
+                {v.kind === "addendum" ? (
+                  <Badge tone="info" className="ml-2">
+                    Addendum
+                  </Badge>
+                ) : null}
                 <span className="block text-body-sm text-slate">
                   {formatOrgDate(v.scheduledStart)}
                 </span>

@@ -34,6 +34,7 @@ import { auditAllowed, auditDenied, loadActor, type Actor } from "@/lib/auth/act
 import { getPatientScope, scopeAllowsPatient, type PatientScope } from "@/lib/patients";
 import type { Result } from "@/lib/visits";
 import { parseCalendarDate } from "@/lib/time";
+import { notifyUser } from "@/lib/notifications";
 import {
   TASK_DETAILS_MAX,
   TASK_TITLE_MAX,
@@ -272,6 +273,19 @@ export async function createTask(
   });
 
   await auditAllowed(actor, "task_created", "task", task.id);
+
+  // A task given to somebody else tells them so. A task you give yourself
+  // needs no notice. The notice holds no title and no patient (see
+  // src/lib/notification-constants.ts).
+  if (assignee.id !== actor.id) {
+    await notifyUser({
+      organizationId: actor.organizationId,
+      userId: assignee.id,
+      kind: "task_assigned",
+      resourceType: "task",
+      resourceId: task.id,
+    });
+  }
   return { ok: true, value: { id: task.id } };
 }
 
@@ -334,5 +348,26 @@ export async function changeTaskStatus(
   }
 
   await auditAllowed(actor, transition.auditAction, "task", task.id);
+
+  // Tell the other person, never yourself: the one who asked hears that it
+  // was finished; the one responsible hears that it was cancelled.
+  if (action === "complete" && task.createdById !== actor.id) {
+    await notifyUser({
+      organizationId: actor.organizationId,
+      userId: task.createdById,
+      kind: "task_completed",
+      resourceType: "task",
+      resourceId: task.id,
+    });
+  }
+  if (action === "cancel" && task.assigneeId !== actor.id) {
+    await notifyUser({
+      organizationId: actor.organizationId,
+      userId: task.assigneeId,
+      kind: "task_cancelled",
+      resourceType: "task",
+      resourceId: task.id,
+    });
+  }
   return { ok: true, value: { status: transition.to } };
 }

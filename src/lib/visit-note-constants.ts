@@ -60,3 +60,43 @@ export const VISIT_STATUSES_ALLOWING_NOTE = ["in_progress", "completed"] as cons
 // Size limit. Keeps the database sensible and the screen readable, and
 // stops someone pasting an entire chart into one field.
 export const NOTE_CONTENT_MAX = 4000;
+
+// ---------- Addenda ----------
+//
+// A reviewed note is never edited. When it needs correcting or
+// completing, the visit's own clinician adds an ADDENDUM: a separate,
+// permanent entry under the note. The original words stay exactly as they
+// were reviewed. An addendum is written once (no editing, no deleting)
+// and then waits for a second person to mark it reviewed:
+//
+//   (written)  ->  submitted  ->  review  ->  reviewed
+//
+// Only one addendum may wait for review at a time, and a note holds at
+// most ADDENDA_MAX_PER_NOTE of them, so the trail stays readable.
+
+export const ADDENDUM_KINDS = [
+  { key: "correction", label: "Correction" },
+  { key: "additional_information", label: "Additional information" },
+  { key: "late_entry", label: "Late entry" },
+] as const;
+
+export type AddendumKind = (typeof ADDENDUM_KINDS)[number]["key"];
+
+export function isAddendumKind(value: string): value is AddendumKind {
+  return ADDENDUM_KINDS.some((k) => k.key === value);
+}
+
+export function addendumKindLabel(key: string): string {
+  return ADDENDUM_KINDS.find((k) => k.key === key)?.label ?? key;
+}
+
+export const ADDENDUM_STATUSES = ["submitted", "reviewed"] as const;
+export type AddendumStatus = (typeof ADDENDUM_STATUSES)[number];
+
+export const ADDENDUM_STATUS_LABELS: Record<AddendumStatus, string> = {
+  submitted: "Waiting for review",
+  reviewed: "Reviewed",
+};
+
+export const ADDENDUM_CONTENT_MAX = 2000;
+export const ADDENDA_MAX_PER_NOTE = 10;
