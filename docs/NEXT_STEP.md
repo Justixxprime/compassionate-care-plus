@@ -13,14 +13,6 @@
 
 Full explanation in `docs/PATIENT_PORTAL.md`.
 
-## What was tested this round (in the build environment, real Postgres)
-
-- `verify:access` 665, `verify:shell` 74, `verify:notes` 93, `verify:tasks` 40, `verify:notifications` 44, `verify:caregiver` 75, and the new `verify:portal` 53. `tsc --noEmit` clean, `eslint` clean, `next build` passed (`/my-care` is in the route list).
-- Pages rendered with status 200 against the built app: the patient saw My care (two upcoming visits, the care team, the care plan) and got the no-access screen on `/visits`, `/patients`, `/documents`, `/caregiver`, `/tasks`, `/care-plans` and `/referrals`. The caregiver got the no-access screen on `/my-care`. The administrator got the "not connected" screen.
-- Eleven rules were broken on purpose, one at a time, and `verify:portal` failed each time: ownership (any patient), the permission gate, drafts shown, ended team members shown, discharged shown, another organization, cancelled visits shown, past visits shown as upcoming, a staff e-mail leaking, the nurse holding `portal.read`, and the patient holding `tasks.read`.
-
-**Not tested:** clicking in a real browser, and a phone.
-
 ## Layout name-check
 
 - `src/app/layout.tsx`: has html, body and the globals.css import (unchanged).

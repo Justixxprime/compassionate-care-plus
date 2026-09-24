@@ -48,4 +48,4 @@ An account linked to no record gets a plain "not connected yet" screen, never "e
 
 ## How it is proved
 
-`npm run verify:portal` (53 checks) tries to break each rule against a real database: who is stopped at the door, an unlinked account, only my own visits, team and active plan, nothing clinical leaking (notes, tasks, drafts, e-mails, ids), discharged and other-organization links, a patient account refused on every staff screen, the menu and dashboard, and an audit log without names. See `NEXT_STEP.md` for the numbers and the rule breaks.
+`npm run verify:portal` tries to break each rule against a real database. See `NEXT_STEP.md` for the expected numbers.
