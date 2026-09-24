@@ -121,6 +121,7 @@ async function main() {
     nurse2: "demo.nurse2@cheliv.test",
     caregiver: "demo.caregiver@cheliv.test",
     patient: "demo.patient@cheliv.test",
+    family: "demo.family@cheliv.test",
   } as const;
   const users: Record<string, { id: string }> = {};
   for (const [key, email] of Object.entries(emails)) {
@@ -138,13 +139,16 @@ async function main() {
   // referrals, documents) minus the two office-management-only items
   // (staff, audit log), which only ADMIN and SUPER_ADMIN hold.
   const clinical = ["/dashboard", "/patients", "/visits", "/schedule", "/care-plans", "/tasks", "/referrals", "/documents"];
-  const everything = [...clinical, "/caregiver", "/my-care", "/staff", "/audit-log"];
+  const everything = [...clinical, "/caregiver", "/my-care", "/family", "/consents", "/staff", "/audit-log"];
   check("admin sees every menu item", sameSet(await menuOf("admin"), everything), (await menuOf("admin")).join(" "));
   check("coordinator sees dashboard, patients, visits, scheduling, referrals (no clinical content)", sameSet(await menuOf("coordinator"), ["/dashboard", "/patients", "/visits", "/schedule", "/tasks", "/referrals"]), (await menuOf("coordinator")).join(" "));
   check("supervisor sees dashboard, patients, visits, scheduling, care plans, documents (no referrals)", sameSet(await menuOf("supervisor"), ["/dashboard", "/patients", "/visits", "/schedule", "/care-plans", "/tasks", "/documents"]), (await menuOf("supervisor")).join(" "));
   check("nurse one sees the clinical menu", sameSet(await menuOf("nurse"), clinical), (await menuOf("nurse")).join(" "));
   check("caregiver sees dashboard, My day and tasks, and nothing clinical", sameSet(await menuOf("caregiver"), ["/dashboard", "/caregiver", "/tasks"]), (await menuOf("caregiver")).join(" "));
   check("patient sees dashboard and My care, and nothing else", sameSet(await menuOf("patient"), ["/dashboard", "/my-care"]), (await menuOf("patient")).join(" "));
+  check("family sees dashboard and Shared with me, and nothing else", sameSet(await menuOf("family"), ["/dashboard", "/family"]), (await menuOf("family")).join(" "));
+  check("only holders of family.read get the Shared with me link", sameSet(navHrefs(buildNavigation(new Set(["family.read"]))), ["/dashboard", "/family"]) && !(await menuOf("nurse")).includes("/family") && !(await menuOf("patient")).includes("/family"));
+  check("only holders of consents.manage get the Family access link", sameSet(navHrefs(buildNavigation(new Set(["consents.manage"]))), ["/dashboard", "/consents"]) && !(await menuOf("nurse")).includes("/consents") && !(await menuOf("coordinator")).includes("/consents"));
   check("only holders of portal.read get the My care link", sameSet(navHrefs(buildNavigation(new Set(["portal.read"]))), ["/dashboard", "/my-care"]) && !(await menuOf("nurse")).includes("/my-care") && !(await menuOf("caregiver")).includes("/my-care"));
   check("only holders of visits.checkin get the My day link", sameSet(navHrefs(buildNavigation(new Set(["visits.checkin"]))), ["/dashboard", "/caregiver"]) && !(await menuOf("nurse")).includes("/caregiver"));
   check("nurse two sees the same menu as nurse one", sameSet(await menuOf("nurse2"), await menuOf("nurse")));
@@ -172,7 +176,10 @@ async function main() {
   check("caregiver: one tile for their own visits today, nothing else", cg.todaysVisits === null && cg.referrals === null && cg.needsPrimaryNurse === null && cg.plansToApprove === null && cg.recentActivity === null && cg.tiles.length === 1 && cg.tiles[0].key === "my-visits-today" && cg.tiles[0].href === "/caregiver");
   const pt = await dash("patient");
   check("patient: one tile for their own upcoming visits, nothing else", pt.todaysVisits === null && pt.referrals === null && pt.needsPrimaryNurse === null && pt.plansToApprove === null && pt.recentActivity === null && pt.tiles.length === 1 && pt.tiles[0].key === "my-upcoming-visits" && pt.tiles[0].href === "/my-care");
-  check("nobody but a holder of portal.read gets that tile", [admin, coord, sup, nurse, cg].every((d) => !d.tiles.some((t) => t.key === "my-upcoming-visits")));
+  const fam = await dash("family");
+  check("family: one tile for the visits shared with them, nothing else", fam.todaysVisits === null && fam.referrals === null && fam.needsPrimaryNurse === null && fam.plansToApprove === null && fam.recentActivity === null && fam.tiles.length === 1 && fam.tiles[0].key === "shared-upcoming-visits" && fam.tiles[0].href === "/family");
+  check("nobody but someone a patient has shared with gets that tile", [admin, coord, sup, nurse, cg, pt].every((d) => !d.tiles.some((t) => t.key === "shared-upcoming-visits")));
+  check("nobody but a holder of portal.read gets that tile", [admin, coord, sup, nurse, cg, fam].every((d) => !d.tiles.some((t) => t.key === "my-upcoming-visits")));
   check("nobody but a holder of visits.checkin gets that tile", [coord, sup, nurse].every((d) => !d.tiles.some((t) => t.key === "my-visits-today")));
   const none = await getDashboardData(users.admin.id, new Set(), now);
   check("a person holding no permissions gets no section at all, even on an administrator's data", none.tiles.length === 0 && none.attention.length === 0 && none.todaysVisits === null && none.referrals === null && none.needsPrimaryNurse === null && none.plansToApprove === null && none.recentActivity === null);
@@ -181,10 +188,10 @@ async function main() {
   check("admin's patient tile counts every patient", adminPatientsTile?.value === patientCount, `${adminPatientsTile?.value} vs ${patientCount}`);
   const nursePatientsTile = nurse.tiles.find((t) => t.key === "patients");
   check("a nurse's patient tile counts only assigned patients", nursePatientsTile !== undefined && nursePatientsTile.value < patientCount && nursePatientsTile.value >= 1, `${nursePatientsTile?.value} vs ${patientCount}`);
-  check("every dashboard link points at a real screen", [admin, coord, sup, nurse, cg, pt].every((d) => [...d.tiles.map((t) => t.href), ...d.attention.map((a) => a.href)].every((h) => menuHrefs.includes(h))));
+  check("every dashboard link points at a real screen", [admin, coord, sup, nurse, cg, pt, fam].every((d) => [...d.tiles.map((t) => t.href), ...d.attention.map((a) => a.href)].every((h) => menuHrefs.includes(h))));
   // Reading the menu of each account against its tiles: a tile that links
   // to a screen missing from that account's own menu would be a dead end.
-  for (const [key, d] of [["admin", admin], ["coordinator", coord], ["supervisor", sup], ["nurse", nurse], ["caregiver", cg], ["patient", pt]] as const) {
+  for (const [key, d] of [["admin", admin], ["coordinator", coord], ["supervisor", sup], ["nurse", nurse], ["caregiver", cg], ["patient", pt], ["family", fam]] as const) {
     const menu = await menuOf(key);
     const dead = d.tiles.filter((t) => !menu.includes(t.href)).map((t) => t.href);
     check(`${key}: no tile leads to a screen missing from their own menu`, dead.length === 0, dead.join(", "));
@@ -239,7 +246,7 @@ async function main() {
   check("attention uses plain, correct words", attention[0].text === "2 urgent referrals are waiting for an answer." && attention[2].text === "1 visit is past its time and never checked in.");
   check("zero and no-access items never appear", buildAttention({ urgentReferrals: 0, longWaitReferrals: null, overdueVisits: 0, patientsWithoutPrimaryNurse: null, plansToApprove: null }).length === 0);
   check("every attention item links to a screen in the menu", attention.every((a) => menuHrefs.includes(a.href)));
-  check("role words: the supervisor and nurse get their own sentence, others get the plain default", roleIntro(["CLINICAL_SUPERVISOR"]).includes("approval") && roleIntro(["NURSE"]).includes("visits") && roleIntro(["CAREGIVER"]).includes("visits for today") && roleIntro(["AUTHORIZED_FAMILY"]).includes("still being built") && roleIntro(["PATIENT"]).includes("care plan"));
+  check("role words: the supervisor and nurse get their own sentence, others get the plain default", roleIntro(["CLINICAL_SUPERVISOR"]).includes("approval") && roleIntro(["NURSE"]).includes("visits") && roleIntro(["CAREGIVER"]).includes("visits for today") && roleIntro(["REFERRAL_PARTNER"]).includes("still being built") && roleIntro(["AUTHORIZED_FAMILY"]).includes("chosen to share") && roleIntro(["PATIENT"]).includes("care plan"));
   check("the most senior role describes a person with two roles", primaryRoleKey(["NURSE", "ADMIN"]) === "ADMIN" && primaryRoleKey([]) === null);
 
   console.log(`\n${passed} passed, ${failures.length} failed`);

@@ -13,7 +13,9 @@
 // (src/lib/care-plans.ts), and five synthetic documents, two of them in
 // restricted categories (src/lib/documents.ts), and six synthetic
 // referrals: three already accepted and linked to the demo patients, and
-// three about people who are not patients (src/lib/referrals.ts).
+// three about people who are not patients (src/lib/referrals.ts). Near the
+// end it also creates a demo patient account, a demo family account and the
+// one family permission that connects it to Eleanor (src/lib/family-portal.ts).
 //
 // Run with: npx prisma db seed
 // (this is wired up in package.json - see the "prisma" block)
@@ -49,6 +51,8 @@ const PERMISSIONS = [
   "visits.review",
   "visits.checkin",
   "portal.read",
+  "family.read",
+  "consents.manage",
   "documents.read",
   "documents.upload",
   "documents.delete",
@@ -96,10 +100,9 @@ async function main() {
   // --- Roles ---
   // Permission sets defined so far: SUPER_ADMIN (everything), ADMIN,
   // NURSE, CARE_COORDINATOR, CLINICAL_SUPERVISOR, CAREGIVER and PATIENT.
-  // The remaining roles (AUTHORIZED_FAMILY, REFERRAL_PARTNER)
-  // intentionally still hold no permissions yet - each one's real
-  // permission set is designed together with its own portal, not rushed
-  // as a side effect of another round.
+  // The remaining role (REFERRAL_PARTNER) intentionally still holds no
+  // permissions yet - its real permission set is designed together with
+  // its own portal, not rushed as a side effect of another round.
   //
   // This seed only ever ADDS permissions to a role. It never takes one
   // away, so running it again on an existing database is always safe.
@@ -114,6 +117,7 @@ async function main() {
       "referrals.read", "referrals.manage",
       "care_team.read", "care_team.manage",
       "tasks.read", "tasks.manage",
+      "consents.manage",
       "staff.manage", "roles.manage", "settings.manage",
       "reports.read", "audit.read", "security.read",
     ],
@@ -151,6 +155,11 @@ async function main() {
     // works for the one patient record linked to the account (see
     // src/lib/patient-portal.ts). It opens no staff screen at all.
     PATIENT: ["portal.read"],
+    // A family member sees only what a patient has chosen to share with
+    // them. family.read means exactly that: the consent decides which
+    // patient and which parts (see src/lib/family-portal.ts). It opens no
+    // staff screen at all.
+    AUTHORIZED_FAMILY: ["family.read"],
     // The clinical supervisor reviews: approves care plans (someone other
     // than the author, always) and can read visits and documents. Cannot
     // write plans, schedule, or change care teams.
@@ -925,6 +934,53 @@ async function main() {
       console.log("2 synthetic upcoming visits ready for the demo patient");
     }
   }
+
+  // --- A demo family account ---
+  // Exists so the family portal (/family) can be clicked through. The
+  // patient (Eleanor) has chosen to share her visit schedule and her care
+  // team with her daughter, and NOT her care plan, so the screen shows
+  // both a shared part and a part that says "not shared". The consent is
+  // only made when the daughter has none in force for Eleanor.
+  const familyRoleRow = roleRows.get("AUTHORIZED_FAMILY")!;
+  const demoFamilyUser = await prisma.user.upsert({
+    where: { email: "demo.family@cheliv.test" },
+    update: {},
+    create: {
+      organizationId: org.id,
+      email: "demo.family@cheliv.test",
+      passwordHash: demoPasswordHash, // same demo password, see docs/DEMO_ACCOUNTS.md
+      name: "Claire Whitfield",
+    },
+  });
+  await prisma.userRole.upsert({
+    where: { userId_roleId: { userId: demoFamilyUser.id, roleId: familyRoleRow.id } },
+    update: {},
+    create: { userId: demoFamilyUser.id, roleId: familyRoleRow.id },
+  });
+  const consentNow = new Date();
+  const eleanorConsent = await prisma.familyConsent.count({
+    where: {
+      patientId: eleanorRecord.id,
+      familyUserId: demoFamilyUser.id,
+      revokedAt: null,
+      OR: [{ expiresAt: null }, { expiresAt: { gt: consentNow } }],
+    },
+  });
+  if (eleanorConsent === 0) {
+    await prisma.familyConsent.create({
+      data: {
+        organizationId: org.id,
+        patientId: eleanorRecord.id,
+        familyUserId: demoFamilyUser.id,
+        relationship: "adult_child",
+        scopes: ["visits", "care_team"],
+        grantedById: demoAdmin.id,
+        expiresAt: null,
+      },
+    });
+    console.log("1 synthetic family permission ready for the demo family account");
+  }
+  console.log(`Demo family member ready: ${demoFamilyUser.email}`);
 
   console.log("Seed complete.");
 }

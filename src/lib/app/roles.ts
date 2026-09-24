@@ -36,6 +36,8 @@ const ROLE_INTRO: Record<string, string> = {
   NURSE: "Your visits today and the patients you look after.",
   CAREGIVER: "Your visits for today and the tasks waiting for you.",
   PATIENT: "Your next visits, the people looking after you, and your care plan.",
+  AUTHORIZED_FAMILY:
+    "The parts of a person's care that they have chosen to share with you.",
 };
 
 const DEFAULT_INTRO =

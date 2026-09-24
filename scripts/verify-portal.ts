@@ -135,7 +135,7 @@ async function main() {
     section("1. Who is stopped at the door");
     const family = await mkUser("family", "AUTHORIZED_FAMILY");
     for (const [label, who] of [
-      ["an account with no permissions", family],
+      ["a family account", family],
       ["a nurse", nurse],
       ["a supervisor", supervisor],
       ["a coordinator", coordinator],

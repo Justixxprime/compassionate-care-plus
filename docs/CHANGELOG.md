@@ -1,3 +1,32 @@
+## Milestone E5 round 3 - the family portal and consent gating
+
+Date: 24 September 2026
+
+- E5 round 2 (the patient portal) is confirmed on the owner's machine and pushed (commit af6d273).
+- Two new permissions (38 in total): `family.read` (see what patients have chosen to share with me; held by AUTHORIZED_FAMILY and SUPER_ADMIN) and `consents.manage` (record, list and withdraw consents; held by ADMIN and SUPER_ADMIN). AUTHORIZED_FAMILY now holds exactly `family.read`. See `docs/FAMILY_PORTAL.md`.
+- New table `family_consents` (`FamilyConsent`): patient, family account, relationship, shared parts (`visits`, `care_team`, `care_plan`), who recorded it, end date, who withdrew it. Written once, never edited, never deleted.
+- New screen `/family` ("Shared with me"): per patient, only the parts the consent names; a part that is not shared says so plainly. A consent that is withdrawn, run out, for a discharged patient, or from another organization shows nothing.
+- New screen `/consents` ("Family access", Office group): record a permission (the office must confirm the patient's signed permission), list permissions in force, withdraw. Rules: one consent per person and patient, at most 10 per patient, inside a transaction that locks the patient row; the family account must be a family account of this organization and not the patient's own; refusals give the same words and are audited.
+- New files: `src/lib/family-constants.ts`, `src/lib/family-portal.ts`, `src/lib/family-consents.ts`, `src/lib/family-consents-actions.ts`, `src/lib/patient-view.ts`, `src/components/app/care-view.tsx`, `src/app/(app)/family/page.tsx`, `src/app/(app)/consents/page.tsx`, `src/app/(app)/consents/consent-form.tsx`, `src/app/(app)/consents/revoke-consent-button.tsx`, `scripts/verify-family.ts` (`npm run verify:family`, 156 checks).
+- The patient portal now loads its visits, team and plan from `src/lib/patient-view.ts` (shared with the family portal) and draws them with `care-view.tsx`. Behaviour is unchanged (`verify:portal` still 53).
+- Dashboard tile "Visits coming up" for a family member someone has shared with. Menu items "Shared with me" (`family.read`) and "Family access" (`consents.manage`).
+- New audit actions: `family_consent_recorded`, `family_consent_withdrawn`.
+- Seed: the two permissions, the AUTHORIZED_FAMILY set, `consents.manage` for ADMIN, `demo.family@cheliv.test` (Claire Whitfield) and one consent from Eleanor (visit schedule and care team, not the care plan).
+- `verify:access` (668), `verify:shell` (81) and `verify:portal` (53) updated: AUTHORIZED_FAMILY is no longer the "holds nothing" account.
+- Tested in the build environment against a real Postgres: all eight verify scripts pass, tsc, eslint and next build clean, pages rendered as five accounts, nineteen rules broken on purpose and each caught.
+- Migration to run: `add_family_consents`.
+
+## Milestone E5 round 2 - the patient portal
+
+Date: 24 September 2026
+
+- New permission `portal.read` (36 in total): see MY OWN next visits, care team and active care plan. PATIENT holds exactly that (SUPER_ADMIN holds it too and sees "not connected"). See `docs/PATIENT_PORTAL.md`.
+- New screen `/my-care` ("My care"): upcoming visits, the active care team, the ACTIVE care plan with goals, up to five recent completed visits. Read only. Never notes, tasks, documents, referrals, drafts or other patients.
+- One schema change: `Patient.userId` (optional, unique). One account per patient, one patient per account. Nothing can set it from a screen yet (the seed does it for the demo).
+- Seed: `demo.patient@cheliv.test` linked to Eleanor Whitfield, plus two visits ahead for her.
+- New `scripts/verify-portal.ts` (`npm run verify:portal`, 53 checks).
+- Migration: `add_patient_account_link`.
+
 ## Milestone E5 round 1 - the caregiver portal
 
 Date: 24 September 2026

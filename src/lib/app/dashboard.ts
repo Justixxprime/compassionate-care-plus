@@ -13,6 +13,8 @@
 //
 //   visits.read                      today's visits, overdue visits
 //   visits.checkin                   the caregiver's own visits today
+//   portal.read                      the patient's own upcoming visits
+//   family.read                      visits a patient has shared with me
 //   referrals.manage (+ reach)       open referrals and how long they wait
 //   care_team.read                   patients who still need a primary nurse
 //   care_plans.approve + read        care plans waiting for approval
@@ -33,6 +35,7 @@ import { listCarePlans, type CarePlanRow } from "@/lib/care-plans";
 import { listPatientsNeedingTeam, type PatientNeedingTeam } from "@/lib/care-team";
 import { getCaregiverDay } from "@/lib/caregiver";
 import { getMyCare } from "@/lib/patient-portal";
+import { getFamilyCare } from "@/lib/family-portal";
 import { formatOrgDate } from "@/lib/time";
 import { getRecentAuditLog } from "@/lib/audit/log";
 import { loadActor } from "@/lib/auth/actor";
@@ -73,7 +76,7 @@ export async function getDashboardData(
 ): Promise<DashboardData> {
   const can = (key: string) => permissions.has(key);
 
-  const [patients, visitLists, referralLists, needsTeam, planLists, activity, myDay, myCare] =
+  const [patients, visitLists, referralLists, needsTeam, planLists, activity, myDay, myCare, shared] =
     await Promise.all([
       can("patients.read") ? getAccessiblePatients(userId) : null,
       can("visits.read") ? listVisits(userId) : null,
@@ -89,6 +92,7 @@ export async function getDashboardData(
         : null,
       can("visits.checkin") ? getCaregiverDay(userId, now) : null,
       can("portal.read") ? getMyCare(userId, now) : null,
+      can("family.read") ? getFamilyCare(userId, now) : null,
     ]);
 
   // ----- visits -----
@@ -137,6 +141,28 @@ export async function getDashboardData(
           ? "None scheduled"
           : `Next: ${formatOrgDate(myCare.upcoming[0].scheduledStart)}`,
       href: "/my-care",
+    });
+  }
+  // Only someone a patient has actually shared with gets this tile. An
+  // account with the permission and nothing shared has no tile.
+  if (shared && shared.length > 0) {
+    const sharedLists = shared.flatMap((c) => (c.visits ? [c.visits.upcoming] : []));
+    const upcomingCount = sharedLists.reduce((n, list) => n + list.length, 0);
+    const nextStart = sharedLists
+      .flat()
+      .map((v) => v.scheduledStart)
+      .sort((a, b) => a.getTime() - b.getTime())[0];
+    tiles.push({
+      key: "shared-upcoming-visits",
+      label: "Visits coming up",
+      value: upcomingCount,
+      hint:
+        sharedLists.length === 0
+          ? "Visits are not shared with you"
+          : nextStart
+            ? `Next: ${formatOrgDate(nextStart)}`
+            : "None scheduled",
+      href: "/family",
     });
   }
   if (myDay) {

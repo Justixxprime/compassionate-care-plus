@@ -36,39 +36,21 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/authorize";
 import { loadActor } from "@/lib/auth/actor";
-import { activeAssignmentFilter } from "@/lib/patients";
-import { careTeamRoleLabel } from "@/lib/care-team-constants";
+import {
+  loadActivePlan,
+  loadCareTeam,
+  loadRecentVisits,
+  loadUpcomingVisits,
+  type MyCarePlan,
+  type MyGoal,
+  type MyTeamMember,
+  type MyVisit,
+} from "@/lib/patient-view";
 
-const UPCOMING_LIMIT = 10;
-const RECENT_LIMIT = 5;
-
-export interface MyVisit {
-  id: string;
-  visitType: string;
-  status: string;
-  scheduledStart: Date;
-  scheduledEnd: Date;
-  // The staff member's name, as the patient knows them. Never an e-mail.
-  clinicianName: string;
-}
-
-export interface MyTeamMember {
-  name: string;
-  roleLabel: string;
-}
-
-export interface MyGoal {
-  id: string;
-  description: string;
-  met: boolean;
-}
-
-export interface MyCarePlan {
-  title: string;
-  summary: string;
-  approvedAt: Date | null;
-  goals: MyGoal[];
-}
+// The shapes live in src/lib/patient-view.ts (the family portal shows the
+// same four things). Re-exported so nothing that imports them from here has
+// to change.
+export type { MyCarePlan, MyGoal, MyTeamMember, MyVisit };
 
 export interface MyCare {
   firstName: string;
@@ -104,100 +86,12 @@ export async function getMyCare(
   });
   if (!patient) return null;
 
-  const visitSelect = {
-    id: true,
-    visitType: true,
-    status: true,
-    scheduledStart: true,
-    scheduledEnd: true,
-    clinician: { select: { name: true } },
-  } as const;
-  const toVisit = (v: {
-    id: string;
-    visitType: string;
-    status: string;
-    scheduledStart: Date;
-    scheduledEnd: Date;
-    clinician: { name: string };
-  }): MyVisit => ({
-    id: v.id,
-    visitType: v.visitType,
-    status: v.status,
-    scheduledStart: v.scheduledStart,
-    scheduledEnd: v.scheduledEnd,
-    clinicianName: v.clinician.name,
-  });
-
   const [upcoming, recent, team, plan] = await Promise.all([
-    prisma.visit.findMany({
-      where: {
-        patientId: patient.id,
-        organizationId: actor.organizationId,
-        OR: [
-          { status: "in_progress" },
-          { status: "scheduled", scheduledEnd: { gte: now } },
-        ],
-      },
-      select: visitSelect,
-      orderBy: { scheduledStart: "asc" },
-      take: UPCOMING_LIMIT,
-    }),
-    prisma.visit.findMany({
-      where: {
-        patientId: patient.id,
-        organizationId: actor.organizationId,
-        status: "completed",
-      },
-      select: visitSelect,
-      orderBy: { scheduledStart: "desc" },
-      take: RECENT_LIMIT,
-    }),
-    prisma.careTeamMember.findMany({
-      where: {
-        patientId: patient.id,
-        ...activeAssignmentFilter(now),
-        user: { organizationId: actor.organizationId },
-      },
-      select: { roleOnCase: true, user: { select: { name: true } } },
-      orderBy: { startsAt: "asc" },
-    }),
-    prisma.carePlan.findFirst({
-      where: {
-        patientId: patient.id,
-        organizationId: actor.organizationId,
-        status: "active",
-      },
-      select: {
-        title: true,
-        summary: true,
-        approvedAt: true,
-        goals: {
-          select: { id: true, description: true, status: true },
-          orderBy: { position: "asc" },
-        },
-      },
-    }),
+    loadUpcomingVisits(patient.id, actor.organizationId, now),
+    loadRecentVisits(patient.id, actor.organizationId),
+    loadCareTeam(patient.id, actor.organizationId, now),
+    loadActivePlan(patient.id, actor.organizationId),
   ]);
 
-  return {
-    firstName: patient.firstName,
-    upcoming: upcoming.map(toVisit),
-    recent: recent.map(toVisit),
-    team: team.map((m) => ({
-      name: m.user.name,
-      roleLabel: careTeamRoleLabel(m.roleOnCase),
-    })),
-    plan: plan
-      ? {
-          title: plan.title,
-          summary: plan.summary,
-          approvedAt: plan.approvedAt,
-          goals: plan.goals.map((g) => ({
-            id: g.id,
-            description: g.description,
-            met: g.status === "met",
-          })),
-        }
-      : null,
-  };
+  return { firstName: patient.firstName, upcoming, recent, team, plan };
 }

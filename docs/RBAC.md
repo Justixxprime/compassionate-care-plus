@@ -61,3 +61,7 @@ Tasks ask three things: permission (`tasks.read` to see and finish, `tasks.manag
 ## Update, 24 September 2026: a narrow permission for the caregiver portal
 
 One new permission, `visits.checkin` (35 in total), held by CAREGIVER and SUPER_ADMIN. It means: see my own visits for today and check in and out of them. It deliberately does not include `visits.read` (every visit on my patients) or `visits.update` (which also cancels and marks missed). Every caregiver action asks three things: permission, reach (an active care team assignment right now) and ownership (the visit is assigned to me, even for an administrator). Something missing, out of reach or a colleague's all get the same words. The CAREGIVER set is `visits.checkin` and `tasks.read`, nothing else. See `docs/CAREGIVER_PORTAL.md`.
+
+## Update, 24 September 2026: consent for the family portal
+
+Two new permissions (38 in total). `family.read` (AUTHORIZED_FAMILY, SUPER_ADMIN): see what patients have chosen to share with me. `consents.manage` (ADMIN, SUPER_ADMIN): record, list and withdraw consents. Reading asks three things: permission, consent (a row for this account and this patient, not withdrawn, not run out, active or on-hold patient, same organization) and scope (which of visits, care team and care plan the consent names; an unnamed part is never queried). Recording asks permission, reach and a stack of checks on the person and the patient (see `docs/FAMILY_PORTAL.md`). The family role holds exactly `family.read`; only the referral partner role still holds nothing.

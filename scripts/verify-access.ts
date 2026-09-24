@@ -1285,8 +1285,14 @@ async function main() {
       );
       const nursePerms = await permsOf("NURSE");
       check("a nurse holds neither care team permission", !nursePerms.includes("care_team.read") && !nursePerms.includes("care_team.manage"));
-      const stillEmpty = await Promise.all(["AUTHORIZED_FAMILY", "REFERRAL_PARTNER"].map(async (k) => (await permsOf(k)).length));
-      check("family and referral partner still hold no permissions", stillEmpty.every((n) => n === 0), stillEmpty.join(","));
+      const stillEmpty = await Promise.all(["REFERRAL_PARTNER"].map(async (k) => (await permsOf(k)).length));
+      check("the referral partner still holds no permissions", stillEmpty.every((n) => n === 0), stillEmpty.join(","));
+      const familyPerms = await permsOf("AUTHORIZED_FAMILY");
+      check("AUTHORIZED_FAMILY holds exactly the agreed set: see what patients share (family.read) and nothing else", sameSet(familyPerms, ["family.read"]), familyPerms.join(", "));
+      const familyHolders = await prisma.rolePermission.findMany({ where: { permission: { key: "family.read" }, role: { organizationId: orgId } }, include: { role: true } });
+      check("only AUTHORIZED_FAMILY and SUPER_ADMIN hold family.read", sameSet(familyHolders.map((h) => h.role.key).sort(), ["AUTHORIZED_FAMILY", "SUPER_ADMIN"]), familyHolders.map((h) => h.role.key).join(", "));
+      const consentHolders = await prisma.rolePermission.findMany({ where: { permission: { key: "consents.manage" }, role: { organizationId: orgId } }, include: { role: true } });
+      check("only ADMIN and SUPER_ADMIN hold consents.manage", sameSet(consentHolders.map((h) => h.role.key).sort(), ["ADMIN", "SUPER_ADMIN"]), consentHolders.map((h) => h.role.key).join(", "));
       const patientPerms = await permsOf("PATIENT");
       check("PATIENT holds exactly the agreed set: see own care (portal.read) and nothing else", sameSet(patientPerms, ["portal.read"]), patientPerms.join(", "));
       const portalHolders = await prisma.rolePermission.findMany({ where: { permission: { key: "portal.read" }, role: { organizationId: orgId } }, include: { role: true } });

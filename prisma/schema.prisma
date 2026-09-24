@@ -50,6 +50,7 @@ model Organization {
   documents Document[]
   referrals Referral[]
   documentAccessGrants DocumentAccessGrant[]
+  familyConsents FamilyConsent[]
   auditLogs AuditLog[]
 
   @@map("organizations")
@@ -93,6 +94,9 @@ model User {
   receivedDocumentGrants DocumentAccessGrant[] @relation("GrantGrantee")
   givenDocumentGrants    DocumentAccessGrant[] @relation("GrantGiver")
   revokedDocumentGrants  DocumentAccessGrant[] @relation("GrantRevoker")
+  receivedFamilyConsents FamilyConsent[]       @relation("ConsentFamily")
+  recordedFamilyConsents FamilyConsent[]       @relation("ConsentRecorder")
+  revokedFamilyConsents  FamilyConsent[]       @relation("ConsentRevoker")
 
   @@index([organizationId])
   @@map("users")
@@ -237,6 +241,7 @@ model Patient {
   documents     Document[]
   referrals     Referral[]
   documentAccessGrants DocumentAccessGrant[]
+  familyConsents       FamilyConsent[]
 
   @@index([organizationId])
   @@map("patients")
@@ -602,6 +607,41 @@ model DocumentAccessGrant {
   @@index([patientId])
   @@index([organizationId])
   @@map("document_access_grants")
+}
+
+// A patient's permission for ONE family member to see parts of their care
+// (the family portal, src/lib/family-portal.ts; the office screen that
+// records and withdraws it is src/lib/family-consents.ts).
+//
+// Written once, never edited: to change what is shared, the consent is
+// withdrawn (revokedAt) and a new one is recorded. Nothing is deleted, so
+// there is always a record of who could see what, and until when.
+//   scopes     which parts are shared: "visits", "care_team", "care_plan"
+//   expiresAt  null means "until withdrawn"
+//   grantedBy  the staff member who recorded the patient's permission
+model FamilyConsent {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  patientId      String    @map("patient_id")
+  familyUserId   String    @map("family_user_id")
+  relationship   String
+  scopes         String[]
+  grantedById    String    @map("granted_by_id")
+  expiresAt      DateTime? @map("expires_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  revokedAt      DateTime? @map("revoked_at")
+  revokedById    String?   @map("revoked_by_id")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  patient      Patient      @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  familyUser   User         @relation("ConsentFamily", fields: [familyUserId], references: [id], onDelete: Restrict)
+  grantedBy    User         @relation("ConsentRecorder", fields: [grantedById], references: [id], onDelete: Restrict)
+  revokedBy    User?        @relation("ConsentRevoker", fields: [revokedById], references: [id], onDelete: Restrict)
+
+  @@index([familyUserId, revokedAt])
+  @@index([patientId])
+  @@index([organizationId])
+  @@map("family_consents")
 }
 
 // The bytes of one document. One row per document, deleted with it.
