@@ -41,9 +41,9 @@ A review of everything built through Milestone D (patients, care team, visits, c
 ### Before real users (Milestone F territory)
 
 11. **Sign-in has no lockout or rate limit.** (verified: failed attempts are logged, never counted) The audit log even records the attempts, but nothing acts on them. `PHASE_0` requires progressive lockout and MFA for staff.
-12. **The seed creates known-password accounts and has no guard.** (verified: no localhost check in `prisma/seed.ts`, while `verify-access.ts` has one) If the seed were ever run against a hosted database, a super admin with a documented password would exist. Recommendation: refuse to create demo accounts unless the database is local.
-13. **`/design-system` is publicly reachable** on the deployed site. (read only: the page exists and has no sign-in check) It is only an internal style reference. Remove it from production or put it behind sign-in.
-14. **The deployed site cannot run the internal screens.** (read only: I cannot see your Vercel settings) The demo database is local, so on Vercel `/sign-in` and `/dashboard` should have nothing to talk to. Worth checking what a visitor sees there before launch.
+12. **DONE 24 September 2026: the seed now refuses unless the database is on this machine.** Was: the seed creates known-password accounts and has no guard. (verified: no localhost check in `prisma/seed.ts`, while `verify-access.ts` has one) If the seed were ever run against a hosted database, a super admin with a documented password would exist. Recommendation: refuse to create demo accounts unless the database is local.
+13. **DONE 24 September 2026: `/design-system` answers "not found" in a production build.** Was: `/design-system` is publicly reachable on the deployed site. (read only: the page exists and has no sign-in check) It is only an internal style reference. Remove it from production or put it behind sign-in.
+14. **HANDLED 24 September 2026: the live site shows a calm "portal not open here yet" screen (see `docs/DEPLOYMENT.md`).** Was: the deployed site cannot run the internal screens. (read only: I cannot see your Vercel settings) The demo database is local, so on Vercel `/sign-in` and `/dashboard` should have nothing to talk to. Worth checking what a visitor sees there before launch.
 15. **No session management screens and no MFA yet.** Planned for Milestone F.
 16. **Passwords have no rules** beyond what the sign-in form asks. Fine for demo accounts, not for real ones.
 

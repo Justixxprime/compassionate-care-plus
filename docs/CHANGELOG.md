@@ -1,3 +1,16 @@
+## Round F0 - ready to show: portal-closed screen, "Who can see my care", safety guards
+
+Date: 24 September 2026
+
+- The family portal (E5 round 3) is confirmed on the owner's machine (the four click-through checks passed) and is on GitHub.
+- **Why the live site failed.** The Vercel site has no database (the demo database lives on the owner's laptop, and `.env` is never uploaded), so `/sign-in`, which reads the sessions table, crashed with a raw "This page couldn't load". See `docs/DEPLOYMENT.md`.
+- **Fix (option 1, free):** `/sign-in` now shows a calm "The secure portal is not open here yet" screen (`src/components/app/portal-closed.tsx`) when there is no database address, or the database cannot be reached, or its tables do not exist. Any other error is still thrown and logged. It only chooses which screen to draw; it never lets anyone in. New `src/lib/app/portal-availability.ts`. A visitor who opens `/dashboard` and the rest is sent to `/sign-in` and sees the same screen.
+- **`/design-system` is a "page not found" in a production build** (still visible with `npm run dev`). Closes REVIEW_MILESTONE_D item 13.
+- **The seed refuses to run unless `DATABASE_URL` points at this machine** (it creates demo accounts with a known password). Closes item 12.
+- **"Who can see my care" panel** on `/my-care` (item e): the patient sees which family members they have shared with, how they are related, which parts, and until when. Read only (the office still records and withdraws). New `src/lib/patient-sharing.ts` (portal.read AND ownership, no patient id taken), `src/components/app/sharing-panel.tsx`. `src/lib/patient-portal.ts` now exports `PORTAL_STATUSES` (no behaviour change).
+- New `scripts/verify-sharing.ts` (`npm run verify:sharing`, 40 checks). The eight older scripts are unchanged and pass with the same numbers.
+- No migration. No new permission (38). No new dependency.
+
 ## Milestone E5 round 3 - the family portal and consent gating
 
 Date: 24 September 2026

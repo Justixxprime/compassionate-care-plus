@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,9 +12,9 @@ import {
 
 /*
   This page exists so I can SEE the design system, not just read about it.
-  It is not part of the real website - it will be deleted or moved behind
-  an internal-only route before this ever goes near a real audience.
-  Visit it at /design-system while developing.
+  It is not part of the real website: in a production build it answers
+  "page not found" (see the check at the top of the page function).
+  Visit it at /design-system while developing (npm run dev).
 */
 
 // Tailwind scans source code for literal class names at build time, so
@@ -30,6 +31,13 @@ const swatches = [
 ] as const;
 
 export default function DesignSystemPage() {
+  // An internal style reference, not part of the website. It is a normal
+  // page while I build (npm run dev) and a "page not found" on the live
+  // site, so a visitor cannot stumble onto it (REVIEW_MILESTONE_D.md item 13).
+  if (process.env.NODE_ENV === "production") {
+    notFound();
+  }
+
   return (
     <main className="mx-auto max-w-3xl space-y-12 px-6 py-16">
       <header>

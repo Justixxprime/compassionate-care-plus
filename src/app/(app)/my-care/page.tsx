@@ -3,6 +3,8 @@ import { CalendarDays, ClipboardList, Info, Users } from "lucide-react";
 import { requireUser } from "@/lib/app/access";
 import { AuthorizationError } from "@/lib/auth/authorize";
 import { getMyCare, type MyCare } from "@/lib/patient-portal";
+import { getWhoCanSeeMyCare, type SharedWith } from "@/lib/patient-sharing";
+import { SharingPanel } from "@/components/app/sharing-panel";
 import { PlanCard, TeamGrid, VisitList } from "@/components/app/care-view";
 import { PageHeader } from "@/components/app/page-header";
 import { Section } from "@/components/app/section";
@@ -16,8 +18,10 @@ export default async function MyCarePage() {
   const user = await requireUser();
 
   let care: MyCare | null;
+  let sharedWith: SharedWith[] | null;
   try {
     care = await getMyCare(user.id);
+    sharedWith = await getWhoCanSeeMyCare(user.id);
   } catch (err) {
     if (err instanceof AuthorizationError) return <NoAccess area="My care" />;
     throw err;
@@ -77,6 +81,12 @@ export default async function MyCarePage() {
       {care.recent.length > 0 ? (
         <Section title="Recent visits">
           <VisitList visits={care.recent} />
+        </Section>
+      ) : null}
+
+      {sharedWith ? (
+        <Section title="Who can see my care">
+          <SharingPanel people={sharedWith} />
         </Section>
       ) : null}
     </>

@@ -17,7 +17,8 @@
   "verify:notifications": "tsx --tsconfig tsconfig.scripts.json scripts/verify-notifications.ts",
   "verify:caregiver": "tsx --tsconfig tsconfig.scripts.json scripts/verify-caregiver.ts",
   "verify:portal": "tsx --tsconfig tsconfig.scripts.json scripts/verify-portal.ts",
-  "verify:family": "tsx --tsconfig tsconfig.scripts.json scripts/verify-family.ts"
+  "verify:family": "tsx --tsconfig tsconfig.scripts.json scripts/verify-family.ts",
+  "verify:sharing": "tsx --tsconfig tsconfig.scripts.json scripts/verify-sharing.ts"
 },
   "dependencies": {
     "@fontsource/ibm-plex-sans": "^5.3.0",

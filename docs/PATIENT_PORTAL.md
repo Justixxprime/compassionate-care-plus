@@ -49,3 +49,11 @@ An account linked to no record gets a plain "not connected yet" screen, never "e
 ## How it is proved
 
 `npm run verify:portal` tries to break each rule against a real database. See `NEXT_STEP.md` for the expected numbers.
+
+## Who can see my care (added 24 September 2026)
+
+**In plain words.** At the bottom of My care the patient sees which family members they have shared parts of their care with: the name, how they are related, which parts (visit schedule, care team, care plan) and until when. If nobody, it says so. It is a mirror of what the office recorded on the Family access screen. The patient cannot change it here: to add someone or stop sharing, they call the office, and a withdrawal takes effect at once.
+
+**The rules.** `getWhoCanSeeMyCare` (`src/lib/patient-sharing.ts`) needs `portal.read` AND ownership (the one patient record linked to this account, active or on hold) and takes no patient id. It reads only permissions still in force (not withdrawn, not run out) for that patient, in that organization. It returns four plain fields per person and nothing else: no e-mail, no ids, not who recorded it. It only reads the consents table; only `src/lib/family-consents.ts` writes it.
+
+**How it is proved.** `npm run verify:sharing` (40 checks).

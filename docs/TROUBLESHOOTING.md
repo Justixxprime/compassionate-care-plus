@@ -149,3 +149,11 @@ Only delete the ones directly under `src\app`. The ones inside `src\app\(app)` a
 ## There are now THREE layout.tsx files
 
 `src/app/layout.tsx` (root: html and body), `src/app/(public)/layout.tsx` (public header and footer), `src/app/(app)/layout.tsx` (staff shell). The check script (`scripts/check-root-layout.mjs`) verifies all three. If it complains about the (public) or (app) layout, the wrong content was pasted into it: put back the version from the last zip.
+
+## Vercel shows "This page couldn't load" on /sign-in, but localhost works
+
+**Cause.** The website on Vercel has no database. Your `DATABASE_URL` points at Postgres on `localhost`, which on Vercel means Vercel's own machine, and `.env` is never uploaded. The sign-in page reads the sessions table, so it failed. Public pages need no database, so they worked.
+
+**What you see now.** `/sign-in` shows a calm "The secure portal is not open here yet" screen. That is intended for a site with no database. To make the portal work online you need a hosted database: read `docs/DEPLOYMENT.md` first.
+
+**To confirm the cause on any future error.** Vercel, your project, Logs, search the code under "ERROR" on the screen. A line like "Can't reach database server" or "Environment variable not found: DATABASE_URL" means this.

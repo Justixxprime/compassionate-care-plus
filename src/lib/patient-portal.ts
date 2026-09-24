@@ -65,7 +65,7 @@ export interface MyCare {
 
 // A discharged patient no longer has a portal. An account with no record
 // linked has nothing to show.
-const PORTAL_STATUSES = ["active", "on_hold"];
+export const PORTAL_STATUSES = ["active", "on_hold"];
 
 export async function getMyCare(
   userId: string,

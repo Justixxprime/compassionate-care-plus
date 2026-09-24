@@ -74,6 +74,19 @@ const PERMISSIONS = [
 ] as const;
 
 async function main() {
+  // SAFETY (REVIEW_MILESTONE_D.md item 12). This script creates accounts
+  // with a known, documented password, including a super administrator. If
+  // it ever ran against a hosted database, anybody who read the docs could
+  // sign in. So it refuses unless the database is on THIS machine, the same
+  // guard the verify scripts already have.
+  if (!/@(localhost|127\.0\.0\.1)(:|\/)/.test(process.env.DATABASE_URL ?? "")) {
+    console.error(
+      "Refusing to seed: DATABASE_URL does not point at localhost. " +
+        "The seed creates demo accounts with a known password, so it only runs on your own machine.",
+    );
+    process.exit(2);
+  }
+
   console.log("Seeding database...");
 
   // --- Organization ---
