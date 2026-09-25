@@ -53,6 +53,7 @@ model Organization {
   familyConsents FamilyConsent[]
   auditLogs AuditLog[]
   careRequests CareRequest[]
+  messageThreads MessageThread[]
 
   @@map("organizations")
 }
@@ -99,6 +100,7 @@ model User {
   recordedFamilyConsents FamilyConsent[]       @relation("ConsentRecorder")
   revokedFamilyConsents  FamilyConsent[]       @relation("ConsentRevoker")
   contactedCareRequests  CareRequest[]         @relation("CareRequestContactedBy")
+  sentMessages           Message[]             @relation("MessageSender")
 
   @@index([organizationId])
   @@map("users")
@@ -244,6 +246,7 @@ model Patient {
   referrals     Referral[]
   documentAccessGrants DocumentAccessGrant[]
   familyConsents       FamilyConsent[]
+  messageThread        MessageThread?
 
   @@index([organizationId])
   @@map("patients")
@@ -804,4 +807,37 @@ model CareRequest {
   @@index([organizationId, status])
   @@index([createdAt])
   @@map("care_requests")
+}
+
+// One secure conversation per patient. Only the patient attached to this
+// record and staff who currently reach this patient may open it. Family
+// members are intentionally excluded until messages have their own consent
+// scope, instead of inheriting access accidentally.
+model MessageThread {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  patientId      String    @unique @map("patient_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  patient      Patient      @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  messages     Message[]
+
+  @@index([organizationId])
+  @@map("message_threads")
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  threadId  String   @map("thread_id")
+  senderId  String   @map("sender_id")
+  body      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  thread MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender User          @relation("MessageSender", fields: [senderId], references: [id], onDelete: Restrict)
+
+  @@index([threadId, createdAt])
+  @@map("messages")
 }
