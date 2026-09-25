@@ -82,6 +82,7 @@ async function main() {
     section("1. Submitting (no session - anyone on the internet)");
     const first = await mk({ fullName: "Alice Example" });
     check("a plausible submission is accepted", first.ok, err(first));
+    if (!first.ok) throw new Error(err(first));
     check("and saved to the database", first.ok && (await prisma.careRequest.findUnique({ where: { id: first.value.id } })) !== null);
     check("empty name refused", !(await mk({ fullName: "  " })).ok);
     check("name over the limit refused", !(await mk({ fullName: "a".repeat(NAME_MAX + 1) })).ok);
@@ -93,6 +94,7 @@ async function main() {
     check("message over the limit refused", !(await mk({ message: "a".repeat(MESSAGE_MAX + 1) })).ok);
     const withMessage = await mk({ fullName: "Bob Example", message: "Please call after 5pm." });
     check("a message within the limit is kept", withMessage.ok && (await prisma.careRequest.findUnique({ where: { id: withMessage.value.id } }))?.message === "Please call after 5pm.");
+    if (!withMessage.ok) throw new Error(err(withMessage));
 
     section("2. The honeypot");
     const before = await prisma.careRequest.count({ where: { organizationId: orgId } });
