@@ -7,10 +7,11 @@
 // there is for patients, visits, care plans and documents. One
 // permission, one organization-wide list.
 //
-// This is a READ-ONLY directory for now: who exists, what roles they
-// hold, how many active patients they are on the team for. Creating a
-// staff account is real user provisioning (an email, a password, a
-// role) and is deliberately not part of this round - see NEXT_STEP.md.
+// This file itself stays READ-ONLY: who exists, what roles they hold,
+// how many active patients they are on the team for. Creating an
+// account - staff, family, or linking a patient - is real user
+// provisioning and lives in its own file, src/lib/accounts.ts, shown on
+// this same /staff page. See docs/ACCOUNTS.md.
 
 import "server-only";
 import { prisma } from "@/lib/prisma";

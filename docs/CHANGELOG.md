@@ -1,3 +1,15 @@
+## Round G0 - real accounts: staff, family and linking a patient
+
+Date: 25 September 2026
+
+- Round F0 is confirmed: the "Who can see my care" click-through (record, withdraw, record again) passed, and after the push and Vercel's redeploy `compassionate-care-plus.vercel.app/sign-in` shows the calm screen and `/design-system` is not found.
+- **A real "create account" flow (NEXT_STEP.md item a).** One form on `/staff`: a staff account with a chosen role, a family (AUTHORIZED_FAMILY) account, or linking an existing patient record (one with no account yet) to a new sign-in. No feature depends on the seed script's demo accounts any more.
+- No new permission: creating any of the three still requires `staff.manage`, same as the read-only staff directory. New `src/lib/accounts.ts`, `src/lib/account-constants.ts`, `src/lib/accounts-actions.ts`, `src/app/(app)/staff/create-account-form.tsx`. `src/app/(app)/staff/page.tsx` now shows the form above the directory.
+- SUPER_ADMIN and REFERRAL_PARTNER cannot be assigned from this form. The office sets the first password directly and tells the person - there is still no e-mail service configured (see the Request care decision below).
+- Linking a patient locks the patient's row inside a transaction, the same shape `createConsent` already uses, so two submissions for the same person cannot both win. A made-up patient id and an already-linked patient get the same words.
+- New `scripts/verify-accounts.ts` (`npm run verify:accounts`, 46 checks). The nine older scripts are unchanged and pass with the same numbers (`verify:access` 668, `verify:shell` 81, `verify:notes` 93, `verify:tasks` 40, `verify:notifications` 44, `verify:caregiver` 75, `verify:portal` 53, `verify:family` 156, `verify:sharing` 40).
+- No migration. No new dependency. See `docs/ACCOUNTS.md`.
+
 ## Round F0 - ready to show: portal-closed screen, "Who can see my care", safety guards
 
 Date: 24 September 2026
