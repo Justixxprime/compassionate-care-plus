@@ -53,6 +53,7 @@ import {
 export type { MyCarePlan, MyGoal, MyTeamMember, MyVisit };
 
 export interface MyCare {
+  patientId: string;
   firstName: string;
   // Scheduled visits that have not ended, and a visit happening now.
   // Soonest first. Cancelled and missed visits are left out.
@@ -93,5 +94,5 @@ export async function getMyCare(
     loadActivePlan(patient.id, actor.organizationId),
   ]);
 
-  return { firstName: patient.firstName, upcoming, recent, team, plan };
+  return { patientId: patient.id, firstName: patient.firstName, upcoming, recent, team, plan };
 }
