@@ -14,6 +14,7 @@ import "server-only";
 import { requirePermission } from "@/lib/auth/authorize";
 import { loadActor } from "@/lib/auth/actor";
 import {
+  countAuditLog,
   getRecentAuditLog,
   type AuditLogEntry,
   type AuditLogFilters,
@@ -21,13 +22,39 @@ import {
 
 export type { AuditLogEntry, AuditLogFilters };
 
+const PAGE_SIZE = 200;
+
+export interface AuditLogPage {
+  entries: AuditLogEntry[];
+  page: number;
+  pageCount: number;
+  total: number;
+}
+
+// page is 1-based, same as every other page number in this project's
+// URLs. A page past the end just comes back empty rather than erroring -
+// the same "same words either way" instinct the rest of this project
+// uses for a made-up id, applied here to a made-up page number.
 export async function listAuditLog(
   userId: string,
   filters: AuditLogFilters = {},
-): Promise<AuditLogEntry[]> {
+  page = 1,
+): Promise<AuditLogPage> {
   await requirePermission(userId, "audit.read");
   const actor = await loadActor(userId);
-  return getRecentAuditLog(actor.organizationId, 200, filters);
+  const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+
+  const [entries, total] = await Promise.all([
+    getRecentAuditLog(actor.organizationId, PAGE_SIZE, filters, (safePage - 1) * PAGE_SIZE),
+    countAuditLog(actor.organizationId, filters),
+  ]);
+
+  return {
+    entries,
+    page: safePage,
+    pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+    total,
+  };
 }
 
 // The fixed vocabulary of actions written anywhere in the app, for the
@@ -66,6 +93,9 @@ export const AUDIT_ACTIONS: { key: string; label: string }[] = [
   { key: "patient_created", label: "Patient created" },
   { key: "care_team_assigned", label: "Care team member assigned" },
   { key: "care_team_ended", label: "Care team assignment ended" },
+  { key: "care_request_received", label: "Care request received" },
+  { key: "care_request_contacted", label: "Care request marked contacted" },
+  { key: "care_request_closed", label: "Care request closed" },
 ];
 
 export function auditActionLabel(action: string): string {

@@ -75,7 +75,7 @@ const columns: Column<AuditLogEntry>[] = [
 export default async function AuditLogPage({
   searchParams,
 }: {
-  searchParams: Promise<{ action?: string; outcome?: string; actor?: string }>;
+  searchParams: Promise<{ action?: string; outcome?: string; actor?: string; page?: string }>;
 }) {
   const user = await requireUser();
   const params = await searchParams;
@@ -86,16 +86,30 @@ export default async function AuditLogPage({
       : undefined;
   const action = params.action && params.action !== "" ? params.action : undefined;
   const actor = params.actor && params.actor.trim() !== "" ? params.actor.trim() : undefined;
+  const requestedPage = Number.parseInt(params.page ?? "1", 10);
 
-  let entries: AuditLogEntry[];
+  let result: Awaited<ReturnType<typeof listAuditLog>>;
   try {
-    entries = await listAuditLog(user.id, { action, outcome, actor });
+    result = await listAuditLog(user.id, { action, outcome, actor }, requestedPage);
   } catch (err) {
     if (err instanceof AuthorizationError) return <NoAccess area="Audit log" />;
     throw err;
   }
+  const { entries, page, pageCount, total } = result;
 
   const filtersActive = Boolean(action || outcome || actor);
+
+  // Same query string, different page - so Older/Newer never drop a
+  // filter the office already set.
+  function pageHref(target: number): string {
+    const qs = new URLSearchParams();
+    if (action) qs.set("action", action);
+    if (outcome) qs.set("outcome", outcome);
+    if (actor) qs.set("actor", actor);
+    if (target > 1) qs.set("page", String(target));
+    const query = qs.toString();
+    return query ? `/audit-log?${query}` : "/audit-log";
+  }
 
   return (
     <>
@@ -155,7 +169,34 @@ export default async function AuditLogPage({
         </form>
       </Section>
 
-      <Section title="Entries" description={`Showing the most recent ${entries.length} matching ${entries.length === 1 ? "entry" : "entries"}, up to 200.`}>
+      <Section
+        title="Entries"
+        description={`Showing ${entries.length} of ${total} matching ${total === 1 ? "entry" : "entries"} - page ${page} of ${pageCount}.`}
+        actions={
+          <div className="flex gap-2">
+            <a
+              href={pageHref(page - 1)}
+              aria-disabled={page <= 1}
+              className={cn(
+                buttonVariants({ size: "sm", variant: "secondary" }),
+                page <= 1 && "pointer-events-none opacity-40",
+              )}
+            >
+              Newer
+            </a>
+            <a
+              href={pageHref(page + 1)}
+              aria-disabled={page >= pageCount}
+              className={cn(
+                buttonVariants({ size: "sm", variant: "secondary" }),
+                page >= pageCount && "pointer-events-none opacity-40",
+              )}
+            >
+              Older
+            </a>
+          </div>
+        }
+      >
         <DataTable
           caption="Audit log entries"
           rows={entries}

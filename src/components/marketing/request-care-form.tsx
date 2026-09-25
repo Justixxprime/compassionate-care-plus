@@ -1,56 +1,50 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { services } from "@/lib/services-data";
+import { submitCareRequestAction } from "@/lib/care-requests-actions";
+import {
+  CONTACT_TIME_OPTIONS,
+  PREFERRED_CONTACT_OPTIONS,
+  RELATIONSHIP_OPTIONS,
+} from "@/lib/care-request-constants";
 
 /*
   RequestCareForm
   ================
-  A real, working form UI: client-side validation, a proper success state,
-  no sensitive medical information collected (per
-  PHASE_0_ARCHITECTURE.md section 19 - relationship, contact preference
-  and general service interest only, nothing clinical).
+  Round G1: this is now real. Submitting calls submitCareRequestAction
+  (src/lib/care-requests-actions.ts), which saves the request and
+  notifies the office - see docs/CARE_REQUESTS.md for exactly what
+  "notifies the office" means today (an in-app alert, not yet a real
+  e-mail landing in an inbox - that is an honest, documented gap, not
+  a hidden one).
 
-  IMPORTANT HONESTY NOTE: there is no backend yet. Milestone C (database,
-  auth, API) hasn't been built, so this form cannot actually deliver
-  anywhere real right now - it validates and shows a genuine success
-  state, but the "submission" is not sent or stored anywhere. That gets
-  wired to a real email or database destination once the backend spine
-  exists. I am not pretending otherwise - see the code comment at the
-  bottom of handleSubmit.
+  The hidden field named "companyWebsite" is a honeypot, not a real
+  field: it stays empty and out of the tab order for a real visitor,
+  and its label says so for anyone using a screen reader. A script
+  that fills in every field it finds usually fills this one too.
 */
-
-const relationships = [
-  "Myself",
-  "Family member",
-  "Friend or caregiver",
-  "Healthcare professional / referral",
-  "Other",
-] as const;
-
-const contactTimes = ["Morning", "Afternoon", "Evening", "Anytime"] as const;
 
 export function RequestCareForm() {
   const [submitted, setSubmitted] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  const formRef = useRef<HTMLFormElement>(null);
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setSubmitting(true);
-
-    // No backend exists yet (Milestone C builds it). This form validates
-    // for real and shows a real success state, but nothing is actually
-    // sent or saved anywhere at this point - see docs/PUBLIC_WEBSITE.md.
-    // The wiring here (an API route call, or an email service) is a
-    // one-function change once that backend exists; the form itself
-    // doesn't need to be rebuilt.
-    window.setTimeout(() => {
-      setSubmitting(false);
+  function handleSubmit(formData: FormData) {
+    setError(null);
+    startTransition(async () => {
+      const result = await submitCareRequestAction(formData);
+      if (!result.ok) {
+        setError(result.error ?? "Something went wrong. Please try again.");
+        return;
+      }
+      formRef.current?.reset();
       setSubmitted(true);
-    }, 500);
+    });
   }
 
   if (submitted) {
@@ -70,7 +64,21 @@ export function RequestCareForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+    <form ref={formRef} action={handleSubmit} className="space-y-6" noValidate>
+      <div
+        aria-hidden="true"
+        className="absolute left-[-9999px] top-auto h-px w-px overflow-hidden"
+      >
+        <Label htmlFor="companyWebsite">Leave this field empty</Label>
+        <input id="companyWebsite" name="companyWebsite" type="text" tabIndex={-1} autoComplete="off" />
+      </div>
+
+      {error ? (
+        <p role="alert" className="rounded-md bg-danger-bg px-4 py-3 text-body text-danger">
+          {error}
+        </p>
+      ) : null}
+
       <div className="grid gap-6 sm:grid-cols-2">
         <div>
           <Label htmlFor="fullName">Full name</Label>
@@ -88,7 +96,7 @@ export function RequestCareForm() {
             <option value="" disabled>
               Select one
             </option>
-            {relationships.map((r) => (
+            {RELATIONSHIP_OPTIONS.map((r) => (
               <option key={r} value={r}>
                 {r}
               </option>
@@ -100,23 +108,11 @@ export function RequestCareForm() {
       <div className="grid gap-6 sm:grid-cols-2">
         <div>
           <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            name="email"
-            type="email"
-            required
-            autoComplete="email"
-          />
+          <Input id="email" name="email" type="email" required autoComplete="email" />
         </div>
         <div>
           <Label htmlFor="phone">Phone</Label>
-          <Input
-            id="phone"
-            name="phone"
-            type="tel"
-            required
-            autoComplete="tel"
-          />
+          <Input id="phone" name="phone" type="tel" required autoComplete="tel" />
         </div>
       </div>
 
@@ -125,11 +121,8 @@ export function RequestCareForm() {
           Preferred contact method
         </legend>
         <div className="mt-2 flex gap-6">
-          {(["Phone", "Email"] as const).map((method) => (
-            <label
-              key={method}
-              className="flex items-center gap-2 text-body text-ink"
-            >
+          {PREFERRED_CONTACT_OPTIONS.map((method) => (
+            <label key={method} className="flex items-center gap-2 text-body text-ink">
               <input
                 type="radio"
                 name="preferredContact"
@@ -168,7 +161,7 @@ export function RequestCareForm() {
             defaultValue="Anytime"
             className="h-11 w-full rounded-md border border-border-strong bg-white px-3 text-body text-ink focus-visible:outline-none"
           >
-            {contactTimes.map((t) => (
+            {CONTACT_TIME_OPTIONS.map((t) => (
               <option key={t} value={t}>
                 {t}
               </option>
@@ -194,8 +187,8 @@ export function RequestCareForm() {
         </p>
       </div>
 
-      <Button type="submit" size="lg" disabled={submitting}>
-        {submitting ? "Sending…" : "Send request"}
+      <Button type="submit" size="lg" disabled={pending}>
+        {pending ? "Sending…" : "Send request"}
       </Button>
     </form>
   );

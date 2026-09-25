@@ -83,6 +83,7 @@ export async function getRecentAuditLog(
   organizationId: string,
   limit = 20,
   filters: AuditLogFilters = {},
+  skip = 0,
 ): Promise<AuditLogEntry[]> {
   return prisma.auditLog.findMany({
     where: {
@@ -100,5 +101,31 @@ export async function getRecentAuditLog(
     },
     orderBy: { occurredAt: "desc" },
     take: Math.min(limit, LIST_LIMIT),
+    skip,
+  });
+}
+
+// How many entries match these filters, for this organization. Used
+// only to draw "page 3 of 9" and to disable a Next button that would
+// otherwise land on an empty page - never used to decide what is
+// shown, which stays getRecentAuditLog's job alone.
+export async function countAuditLog(
+  organizationId: string,
+  filters: AuditLogFilters = {},
+): Promise<number> {
+  return prisma.auditLog.count({
+    where: {
+      organizationId,
+      ...(filters.action ? { action: filters.action } : {}),
+      ...(filters.outcome ? { outcome: filters.outcome } : {}),
+      ...(filters.actor
+        ? {
+            actorEmail: {
+              contains: filters.actor,
+              mode: "insensitive" as const,
+            },
+          }
+        : {}),
+    },
   });
 }

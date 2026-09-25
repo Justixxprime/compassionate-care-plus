@@ -71,6 +71,7 @@ const PERMISSIONS = [
   "reports.read",
   "audit.read",
   "security.read",
+  "care_requests.manage",
 ] as const;
 
 async function main() {
@@ -133,6 +134,7 @@ async function main() {
       "consents.manage",
       "staff.manage", "roles.manage", "settings.manage",
       "reports.read", "audit.read", "security.read",
+      "care_requests.manage",
     ],
     NURSE: [
       "patients.read",

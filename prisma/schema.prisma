@@ -52,6 +52,7 @@ model Organization {
   documentAccessGrants DocumentAccessGrant[]
   familyConsents FamilyConsent[]
   auditLogs AuditLog[]
+  careRequests CareRequest[]
 
   @@map("organizations")
 }
@@ -97,6 +98,7 @@ model User {
   receivedFamilyConsents FamilyConsent[]       @relation("ConsentFamily")
   recordedFamilyConsents FamilyConsent[]       @relation("ConsentRecorder")
   revokedFamilyConsents  FamilyConsent[]       @relation("ConsentRevoker")
+  contactedCareRequests  CareRequest[]         @relation("CareRequestContactedBy")
 
   @@index([organizationId])
   @@map("users")
@@ -752,4 +754,54 @@ model Task {
   @@index([assigneeId])
   @@index([patientId])
   @@map("tasks")
+}
+
+// ---------- Care requests ----------
+// One row per submission of the public "/request-care" form (Round G1).
+// This is the ONLY table in the whole schema a signed-out stranger can
+// ever create a row in, which is why it asks for almost nothing:
+// PHASE_0_ARCHITECTURE.md section 19 already ruled out collecting
+// anything clinical here, and there is no session to attach the row to,
+// so organizationId is filled in from the single organization that
+// exists today (see src/lib/care-requests.ts for exactly how, and the
+// comment there about what a second organization would need instead).
+//
+// notifyEmail is NOT where the request goes automatically - there is no
+// e-mail service wired up yet (Prisma pinned, no new dependency without
+// asking first, see docs/CARE_REQUESTS.md). It is the office address
+// this request was MEANT to reach at the moment it was submitted, kept
+// for the record so that if the address ever changes, old rows still
+// show what was true when they were written. What actually happens
+// today: the row is saved (so a request is never silently lost the way
+// it was before this round) and every ADMIN/SUPER_ADMIN gets an
+// in-app notification (the bell, src/lib/notifications.ts).
+//
+// Never hard-deleted, same as every other request/referral-shaped table
+// here. new -> contacted -> closed. The audit log records that a
+// request came in and that it was marked contacted or closed, never its
+// message or contact details.
+model CareRequest {
+  id               String    @id @default(uuid())
+  organizationId   String    @map("organization_id")
+  fullName         String    @map("full_name")
+  relationship     String
+  email            String
+  phone            String
+  preferredContact String    @map("preferred_contact") // "Phone" | "Email"
+  serviceInterest  String?   @map("service_interest")
+  bestTime         String    @map("best_time")
+  message          String?
+  notifyEmail      String    @map("notify_email") // office address at time of submission - see comment above
+  status           String    @default("new") // new | contacted | closed
+  contactedById    String?   @map("contacted_by_id")
+  contactedAt      DateTime? @map("contacted_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  contactedBy  User?        @relation("CareRequestContactedBy", fields: [contactedById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status])
+  @@index([createdAt])
+  @@map("care_requests")
 }

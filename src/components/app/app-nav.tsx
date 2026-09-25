@@ -14,6 +14,7 @@ import {
   History,
   Inbox,
   LayoutDashboard,
+  Mail,
   Menu,
   ShieldCheck,
   UserCog,
@@ -81,6 +82,7 @@ const ICONS: Record<NavIconKey, LucideIcon> = {
   referrals: Inbox,
   documents: FileText,
   staff: UserCog,
+  careRequests: Mail,
   auditLog: History,
 };
 

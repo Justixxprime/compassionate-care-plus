@@ -1,3 +1,16 @@
+## Round G1 - Request care, saved and in-app notified; audit log pagination
+
+Date: 25 September 2026
+
+- Round G0 is confirmed: the "Create an account" form on `/staff` works (screenshot: kind of account, Patient selected, Walter Brennan offered).
+- **Request care is real (NEXT_STEP.md item b, decided).** `/request-care` used to fake success and throw the answer away. Now every submission is saved (new `care_requests` table) and every Admin/Super Admin is notified in-app the moment it comes in. `justixxchiobi@gmail.com` is wired in as the configured office address (`CARE_REQUEST_NOTIFY_EMAIL`), stored on each request.
+- **No real e-mail sending yet, and that's deliberate.** Real SMTP needs a new dependency (Nodemailer) or a third-party API - both need a decision under this project's "no new dependency without asking" rule. Full honest account, and the two ways forward, in `docs/CARE_REQUESTS.md`.
+- New permission `care_requests.manage` (ADMIN, SUPER_ADMIN) - 39 total. New `/care-requests` admin screen: list, Mark contacted, Close. New notification kind `care_request_received`.
+- A hidden honeypot field (`companyWebsite`) on the public form: filled in, the submission looks like success but nothing is written. Documented as a lightweight, honest filter, not a real defense.
+- **Audit log pagination.** It used to hard-cut at 200 rows with no way to see older entries. `src/lib/audit/log.ts` gained `skip` and `countAuditLog`; `src/lib/audit-log.ts`'s `listAuditLog` now returns a page (entries, page, pageCount, total); `/audit-log` has Newer/Older buttons that keep whatever filters are set. Two new audit actions in the filter dropdown for care requests, plus `care_request_contacted`/`care_request_closed`.
+- New `src/lib/care-request-constants.ts`, `src/lib/care-requests.ts`, `src/lib/care-requests-actions.ts`, `src/app/(app)/care-requests/`. `src/components/marketing/request-care-form.tsx` rewritten to call the real Server Action instead of a fake timeout.
+- New `scripts/verify-care-requests.ts` (`npm run verify:care-requests`, 31 checks). One migration this round: `add_care_requests`. No new dependency.
+
 ## Round G0 - real accounts: staff, family and linking a patient
 
 Date: 25 September 2026

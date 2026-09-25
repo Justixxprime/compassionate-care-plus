@@ -17,6 +17,7 @@ export const NOTIFICATION_KINDS = [
   "task_cancelled",
   "note_reviewed",
   "addendum_reviewed",
+  "care_request_received",
 ] as const;
 
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
@@ -31,6 +32,7 @@ const WORDS: Record<NotificationKind, string> = {
   task_cancelled: "A task given to you was cancelled.",
   note_reviewed: "Your visit note was reviewed.",
   addendum_reviewed: "Your addendum to a visit note was reviewed.",
+  care_request_received: "Someone asked to request care on the public site.",
 };
 
 // The plain sentence and the link for one notification. An unknown kind
@@ -46,7 +48,9 @@ export function describeNotification(
   const href =
     kind === "note_reviewed" || kind === "addendum_reviewed"
       ? `/visits/${encodeURIComponent(resourceId)}`
-      : "/tasks";
+      : kind === "care_request_received"
+        ? "/care-requests"
+        : "/tasks";
   return { text: WORDS[kind], href };
 }
 

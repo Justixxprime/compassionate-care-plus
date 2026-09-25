@@ -27,6 +27,7 @@ export type NavIconKey =
   | "referrals"
   | "documents"
   | "staff"
+  | "careRequests"
   | "auditLog";
 
 export interface NavItem {
@@ -69,6 +70,7 @@ export const NAV_DEFINITION: readonly NavGroup[] = [
       { href: "/documents", label: "Documents", icon: "documents", requires: "documents.read" },
       { href: "/consents", label: "Family access", icon: "consents", requires: "consents.manage" },
       { href: "/staff", label: "Staff", icon: "staff", requires: "staff.manage" },
+      { href: "/care-requests", label: "Care requests", icon: "careRequests", requires: "care_requests.manage" },
       { href: "/audit-log", label: "Audit log", icon: "auditLog", requires: "audit.read" },
     ],
   },

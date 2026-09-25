@@ -1,21 +1,33 @@
 # NEXT_STEP.md
 
 **Last updated:** 25 September 2026
-**Just finished:** Round F0 is confirmed (the "Who can see my care" round-trip and the live site's calm screen both checked out). This round, "G0", is the first item from last round's list: a real "create account" flow.
+**Just finished:** Round G0 is confirmed (the real "Create an account" flow on `/staff` - screenshot showed it working). This round, "G1", closes the Request care gap and adds audit log pagination.
 
 ## In plain words
 
-1. **`/staff` now has a "Create an account" form above the directory.** It makes three kinds of account:
-   - **Staff** - pick a role (Administrator, Clinical Supervisor, Nurse, Care Coordinator, Caregiver), and it is created with exactly that role. Super Admin is deliberately not offered here - that one is still created by hand.
-   - **Family member** - creates an AUTHORIZED_FAMILY account. This does **not** share anyone's care by itself - you still go to Family access afterwards to record which patient and which parts.
-   - **Patient (link an existing patient record)** - pick a patient who has no sign-in yet, and it gives them one.
-2. **You set the first password yourself, right in the form**, and tell the person directly. There is still no e-mail service wired up, so nothing is sent automatically - that is the separate Request care decision below.
-3. **No feature depends on the seed script's demo accounts any more.** You can make a real nurse, a real family member, or give a real patient a sign-in, all from the screen.
-4. No migration, no new permission (still 38), no new dependency.
-
-## One thing to know before your uncle sees this
-
-Same as last round: the **Request care** form still says "Request received" but sends and saves nothing. Still needs your decision (save to a hosted database, or e-mail an office address) - tell me which and I will build it next round.
+1. **`/request-care` on the public site is now real.** It used to fake a
+   "Request received" message and throw the answer away. Now it actually
+   saves the request (new `care_requests` table - see
+   `docs/CARE_REQUESTS.md`) and notifies every Admin/Super Admin in-app
+   (the bell) the moment it comes in.
+2. **`justixxchiobi@gmail.com` is wired in as the office address**, via
+   `CARE_REQUEST_NOTIFY_EMAIL`, stored on every request as a record of
+   where it was meant to go.
+3. **Honest gap, on purpose:** no real e-mail is sent yet. That needs
+   either a new dependency (Nodemailer) or a third-party e-mail API,
+   and this project's rule is "no new dependency without asking" - so
+   this round stops at "never lost, and the office is alerted
+   instantly," which needs neither. Full explanation in
+   `docs/CARE_REQUESTS.md`, including the two options for real sending
+   whenever you want to pick one.
+4. **New `/care-requests` screen** (Office section) lists every
+   request, newest first, with Mark contacted / Close buttons.
+   `care_requests.manage`, Admin and Super Admin only.
+5. **Audit log now paginates.** It used to hard-cut at 200 rows with no
+   way to see anything older. Now it shows 200 at a time with Newer /
+   Older buttons that keep your filters.
+6. One migration this round (`care_requests` table), one new permission
+   (`care_requests.manage` - 39 total now), no new dependency.
 
 ## Layout name-check
 
@@ -32,6 +44,8 @@ None.
 ```powershell
 cd C:\Users\LENOVO\OneDrive\Desktop\compassionate-care-plus
 npm install
+npx prisma migrate dev --name add_care_requests
+npx prisma db seed
 npm run verify:access
 npm run verify:shell
 npm run verify:notes
@@ -42,21 +56,41 @@ npm run verify:portal
 npm run verify:family
 npm run verify:sharing
 npm run verify:accounts
+npm run verify:care-requests
 npm run dev
 # when everything works:
 git add .
-git commit -m "G0: real staff, family and patient-link account creation on /staff"
+git commit -m "G1: real Request care (saved + in-app notified), audit log pagination"
 git push
 ```
 
-Expected numbers: verify:access 668, verify:shell 81, verify:notes 93, verify:tasks 40, verify:notifications 44, verify:caregiver 75, verify:portal 53, verify:family 156, verify:sharing 40, verify:accounts 46. There is no migration this round, so `npx prisma db seed` and `npx prisma migrate dev` are not needed unless you want fresh demo data.
+Expected numbers: verify:access 668, verify:shell 81, verify:notes 93,
+verify:tasks 40, verify:notifications 44, verify:caregiver 75,
+verify:portal 53, verify:family 156, verify:sharing 40, verify:accounts
+46, new verify:care-requests 31. Say y at the migration prompt, one at a
+time, same as always.
 
 ## What I need from you (once, after the commands above work)
 
-1. Sign in as `demo.admin@cheliv.test`, open Staff. Create a staff account: role Nurse, any name, any e-mail ending in `@cheliv.test` (so it stays inside the demo pattern), a password of at least 10 characters. It should appear in the directory below with exactly the Nurse role.
-2. On the same screen, switch the "Kind of account" dropdown to "Patient (link an existing patient record)". Priya Raman should be offered (she has no account yet in the seed). Create it, then sign out and sign in as that new account with the password you set: it should land on `/my-care` and show Priya's own information only.
-3. Try creating a second account with the same e-mail as one you just made: it should be refused with a plain "already exists" message.
+1. Open `/request-care` on the public site (signed out), fill it in with
+   a made-up name and a real-shaped email/phone, and submit. You should
+   see "Request received."
+2. Sign in as `demo.admin@cheliv.test`: the bell should show a new
+   notification. Click it - it should take you to `/care-requests` and
+   your test request should be there.
+3. On `/care-requests`, click "Mark contacted" on your test request,
+   then "Close." Both should work with no error.
+4. Open `/audit-log`, scroll to the bottom: you should see Older/Newer
+   buttons instead of the list just stopping at 200.
 
 ## Next
 
-Your choice (fastest path to something impressive for your uncle): (b) the Request care decision (save to a hosted database, or e-mail an office address); (c) what an aide may write (a short visit note) and read about a patient - already partly true (visits.document), so this is really about widening who reviews and what the caregiver portal itself surfaces; (d) patient messages, or patient-visible and family-visible documents (each needs its own permission and consent scope design); (e) audit log pagination past 200 rows, the repo being public while `PROJECT_HANDOFF.md` names the owner, and whether supervisors should be kept away from restricted documents. Full list in `docs/REVIEW_MILESTONE_D.md`.
+Your choice: (c) what an aide may write (a short visit note) and read
+about a patient - already partly true (`visits.document`), so this is
+really about widening who reviews and what the caregiver portal itself
+surfaces; (d) patient messages, or patient-visible and family-visible
+documents (each needs its own permission and consent scope design);
+(e) the repo being public while `PROJECT_HANDOFF.md` names the owner;
+whether supervisors should be kept away from restricted documents; and
+whenever you're ready, the real-email decision from
+`docs/CARE_REQUESTS.md`. Full list in `docs/REVIEW_MILESTONE_D.md`.
