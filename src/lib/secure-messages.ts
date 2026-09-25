@@ -25,6 +25,22 @@ export async function getSecureMessages(userId: string, patientId: string) {
   return { patientName: thread ? `${thread.patient.firstName} ${thread.patient.lastName}` : "", messages: thread?.messages.map((m) => ({ id: m.id, body: m.body, senderName: m.sender.name, mine: m.senderId === userId, createdAt: m.createdAt })) ?? [] };
 }
 
+// The staff inbox contains only patients the current account can reach.
+// A patient account never uses this list: it receives its one linked record
+// from getMyCare(), so changing a browser value cannot reveal another person.
+export async function listSecureMessagePatients(userId: string) {
+  await requirePermission(userId, "messages.read");
+  const actor = await loadActor(userId);
+  const scope = await getPatientScope(userId);
+  return prisma.patient.findMany({
+    where: scope.kind === "organization"
+      ? { organizationId: actor.organizationId, status: { in: ["active", "on_hold"] } }
+      : { organizationId: actor.organizationId, id: { in: scope.patientIds }, status: { in: ["active", "on_hold"] } },
+    select: { id: true, firstName: true, lastName: true, messageThread: { select: { messages: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } } } } },
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+  }).then(rows => rows.map(p => ({ id: p.id, name: `${p.firstName} ${p.lastName}`, lastMessageAt: p.messageThread?.messages[0]?.createdAt ?? null })));
+}
+
 export async function sendSecureMessage(userId: string, patientId: string, raw: string): Promise<Result<{ id: string }>> {
   await requirePermission(userId, "messages.send");
   const access = await accessiblePatient(userId, patientId);
