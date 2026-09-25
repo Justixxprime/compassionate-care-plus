@@ -2,7 +2,8 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/authorize";
 import { auditDenied, loadActor } from "@/lib/auth/actor";
-import { getPatientScope, scopeAllowsPatient } from "@/lib/patients";
+import { activeAssignmentFilter, getPatientScope, scopeAllowsPatient } from "@/lib/patients";
+import { notifyUser } from "@/lib/notifications";
 
 const NOT_FOUND = "That conversation could not be found.";
 export const MESSAGE_MAX = 2000;
@@ -50,5 +51,14 @@ export async function sendSecureMessage(userId: string, patientId: string, raw: 
   const thread = await prisma.messageThread.upsert({ where: { patientId }, update: {}, create: { patientId, organizationId: access.actor.organizationId } });
   const message = await prisma.message.create({ data: { threadId: thread.id, senderId: userId, body } });
   await prisma.messageThread.update({ where: { id: thread.id }, data: {} });
+  // The bell says only that a secure message is waiting. It never carries
+  // a patient name or the message itself, and the Messages page checks
+  // access all over again when the recipient opens it.
+  const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { userId: true } });
+  const isPatientSender = patient?.userId === userId;
+  const recipients = isPatientSender
+    ? await prisma.careTeamMember.findMany({ where: { patientId, ...activeAssignmentFilter() }, select: { userId: true } })
+    : patient?.userId ? [{ userId: patient.userId }] : [];
+  await Promise.all(recipients.filter(r => r.userId !== userId).map(r => notifyUser({ organizationId: access.actor.organizationId, userId: r.userId, kind: "message_received", resourceType: "message_thread", resourceId: patientId })));
   return { ok: true, value: { id: message.id } };
 }
