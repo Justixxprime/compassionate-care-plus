@@ -169,7 +169,7 @@ async function main() {
     // team, active care plan. portal.read means exactly that, and only
     // works for the one patient record linked to the account (see
     // src/lib/patient-portal.ts). It opens no staff screen at all.
-    PATIENT: ["portal.read"],
+    PATIENT: ["portal.read", "messages.read", "messages.send"],
     // A family member sees only what a patient has chosen to share with
     // them. family.read means exactly that: the consent decides which
     // patient and which parts (see src/lib/family-portal.ts). It opens no
