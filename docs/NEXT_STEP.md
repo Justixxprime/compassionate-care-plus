@@ -1,7 +1,22 @@
 # NEXT_STEP.md
 
-**Last updated:** 25 September 2026
-**Just finished:** Round G0 is confirmed (the real "Create an account" flow on `/staff` - screenshot showed it working). This round, "G1", closes the Request care gap and adds audit log pagination.
+**Last updated:** 26 September 2026
+**Just finished:** Secure messaging is hardened and confirmed, and the patient-only
+`/my-documents` portal is confirmed on the owner's machine.
+
+## What is now complete
+
+1. **Secure messaging:** patients and staff who currently reach an active or
+   on-hold patient can use one private conversation. Read markers, unread
+   inbox counts, and generic notifications work. A discharged record closes
+   the conversation immediately. Caregivers without message permission do not
+   receive unusable message notifications.
+2. **My documents:** a patient can now see and download only documents on
+   their own active or on-hold record at `/my-documents`. Downloads are
+   private, no-cache, and audited. Family document access is still not built.
+3. **Request care and accounts:** the public request form saves its request
+   and tells office administrators in-app; the office can create staff,
+   family, and linked patient accounts.
 
 ## In plain words
 
@@ -44,7 +59,6 @@ None.
 ```powershell
 cd C:\Users\LENOVO\OneDrive\Desktop\compassionate-care-plus
 npm install
-npx prisma migrate dev --name add_care_requests
 npx prisma db seed
 npm run verify:access
 npm run verify:shell
@@ -57,12 +71,16 @@ npm run verify:family
 npm run verify:sharing
 npm run verify:accounts
 npm run verify:care-requests
+npm run verify:messages
 npm run dev
 # when everything works:
 git add .
 git commit -m "G1: real Request care (saved + in-app notified), audit log pagination"
 git push
 ```
+
+There is no new database migration for secure messaging or My documents. Run
+`npx prisma db seed` so your local database receives `portal.documents.read`.
 
 Expected numbers: verify:access 668, verify:shell 81, verify:notes 93,
 verify:tasks 40, verify:notifications 44, verify:caregiver 75,
@@ -83,14 +101,26 @@ time, same as always.
 4. Open `/audit-log`, scroll to the bottom: you should see Older/Newer
    buttons instead of the list just stopping at 200.
 
-## Next
+## What remains from the master plan
 
-Your choice: (c) what an aide may write (a short visit note) and read
-about a patient - already partly true (`visits.document`), so this is
-really about widening who reviews and what the caregiver portal itself
-surfaces; (d) patient messages, or patient-visible and family-visible
-documents (each needs its own permission and consent scope design);
-(e) the repo being public while `PROJECT_HANDOFF.md` names the owner;
-whether supervisors should be kept away from restricted documents; and
-whenever you're ready, the real-email decision from
-`docs/CARE_REQUESTS.md`. Full list in `docs/REVIEW_MILESTONE_D.md`.
+### Still useful for the demo
+
+1. **Referral partner portal.** The `REFERRAL_PARTNER` role is deliberately
+   empty. It still needs a small, separate design for submitting referrals and
+   seeing only that partner's own status updates.
+2. **Family documents.** This needs a new consent scope and a clear rule for
+   which documents a patient is willing to share. It is intentionally not
+   inferred from the existing visits, care-team, or care-plan consent.
+3. **Caregiver documentation choice.** The caregiver portal can check in,
+   check out, and complete tasks. Decide later whether aides may write a
+   limited visit entry, and who must review it.
+
+### Before real patient information or public launch
+
+1. Make the repository private or remove personal handoff details.
+2. Choose encrypted file storage and virus scanning before real documents.
+3. Add sign-in rate limiting, session management, password-reset flow, and
+   MFA for staff.
+4. Choose a real e-mail service if the office wants e-mail delivery.
+5. Turn off the public-site `noindex` setting only when the organization is
+   ready for search engines and has approved public content.
