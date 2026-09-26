@@ -86,6 +86,10 @@ cd C:\Users\LENOVO\OneDrive\Desktop\compassionate-care-plus
 node .\node_modules\next\dist\bin\next dev
 ```
 
+Vercel runs `prisma migrate deploy` before each production build. This is how
+the committed, reviewed migrations reach the hosted Neon database without
+asking a laptop on a restricted network to connect directly to PostgreSQL.
+
 The document storage/scan migration is already applied to the local database.
 Use the command above only if the local app stops. `npm` itself currently has
 a Windows Node installation problem on this computer, so this direct command
