@@ -53,4 +53,6 @@ A made-up patient id and a patient who already has an account get the exact same
 
 - No "must change password" flag yet (needs a migration; noted above).
 - No way to edit a name, e-mail, or deactivate an account once created - only the seed's demo accounts could be changed before, and now new ones can be made but not yet changed. A reasonable next slice.
-- No self-service password reset - the office still has to hand over the first password directly.
+- Self-service password recovery uses a generic response and one-time hashed
+  links. E-mail delivery is disabled until the verified Resend sender is set;
+  see `docs/PASSWORD_RECOVERY.md`.

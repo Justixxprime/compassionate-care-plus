@@ -35,6 +35,11 @@ document storage with a scanner-only release gate are running locally.
    patients, or consented family users. The R2 path uses opaque private object
    keys; it never creates public file links. Only a separately authenticated
    internal scanner callback can release a pending file.
+9. **Account recovery:** the public reset flow is live. It uses a generic
+   response, hashed one-time tokens that expire in 20 minutes, a three-request
+   limit per 15 minutes, and revokes every active session after a successful
+   password change. Delivery is intentionally off until a verified sender is
+   configured.
 
 For the full R2 safety boundary, see `docs/R2_DOCUMENT_STORAGE.md`.
 
@@ -123,7 +128,8 @@ starts the project without relying on the broken global npm launcher.
    intentionally not a scanner by itself.
 3. Create a hosted Neon PostgreSQL database for Vercel; use its pooled URL for
    the app and direct URL for Prisma migrations.
-4. Choose a verified e-mail provider so password recovery can be delivered
-   safely, then configure staff MFA (authenticator-app TOTP is recommended).
+4. Configure the verified Resend sender described in
+   `docs/PASSWORD_RECOVERY.md`, then test a recovery link end-to-end.
+5. Configure staff MFA (authenticator-app TOTP is recommended).
 5. Turn off the public-site `noindex` setting only when the organization is
    ready for search engines and has approved public content.

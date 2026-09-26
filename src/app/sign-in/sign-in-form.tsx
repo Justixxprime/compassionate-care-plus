@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { signInAction, type SignInState } from "@/lib/auth/actions";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -34,9 +35,14 @@ export function SignInForm() {
       </div>
 
       <div>
-        <label htmlFor="password" className="text-label font-semibold text-ink">
-          Password
-        </label>
+        <div className="flex items-center justify-between gap-3">
+          <label htmlFor="password" className="text-label font-semibold text-ink">
+            Password
+          </label>
+          <Link href="/forgot-password" className="text-body-sm font-medium text-pine underline underline-offset-2">
+            Forgot password?
+          </Link>
+        </div>
         <input
           id="password"
           name="password"

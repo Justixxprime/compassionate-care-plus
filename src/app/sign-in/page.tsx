@@ -11,7 +11,11 @@ import { SignInForm } from "./sign-in-form";
 // every request, never be built once ahead of time.
 export const dynamic = "force-dynamic";
 
-export default async function SignInPage() {
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ passwordReset?: string }>;
+}) {
   // A website with no database attached (for example the public demo site)
   // shows a calm screen instead of a raw server error. This changes which
   // screen is drawn, never who is let in.
@@ -36,12 +40,19 @@ export default async function SignInPage() {
     redirect("/dashboard");
   }
 
+  const { passwordReset } = await searchParams;
+
   return (
     <div className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6">
       <p className="font-display text-h1 text-ink">Sign in</p>
       <p className="mt-3 text-body text-slate">
         Portal access for staff, patients and families.
       </p>
+      {passwordReset === "1" ? (
+        <p role="status" className="mt-5 rounded-md bg-success-bg px-3 py-2 text-body-sm text-ink">
+          Password changed. Please sign in with your new password.
+        </p>
+      ) : null}
       <SignInForm />
     </div>
   );

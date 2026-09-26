@@ -26,6 +26,8 @@ So: `NEXT_PUBLIC_` is for things that are not secret. A database password with `
 | `NEXT_PUBLIC_APP_URL` | The address the app runs at. Used for links and redirects. | `http://localhost:3000` in development | No | Yes |
 | `NEXT_PUBLIC_DEMO_MODE` | When `true`, the app uses synthetic data and shows a "Demonstration data" indicator. Stays `true` for all of development. | Set by me | No | Yes |
 | `CARE_REQUEST_NOTIFY_EMAIL` | The office address a submitted "Request care" form is meant to reach. Not a live mailbox yet - see `docs/CARE_REQUESTS.md`. Falls back to a placeholder address if unset. | Set by me | No | No |
+| `RESEND_API_KEY` | Allows transactional password-recovery e-mail. | Resend or Vercel Marketplace integration | **Yes** | No |
+| `RESEND_FROM_EMAIL` | Verified sender shown on recovery e-mail. | A verified organization-owned domain | No | No |
 
 ## Variables coming in later phases
 
@@ -37,6 +39,7 @@ Listed early so I am not surprised.
 | `AUTH_SECRET` | Authentication | **Yes** | Signs session cookies. Generated with `openssl rand -base64 32`. A different value in every environment. |
 | `EMAIL_SERVER_HOST` | Notifications | No | Points at a local mail catcher during development, so no email leaves my machine. |
 | `S3_BUCKET` / `AWS_*` | Cloud | **Yes** | Only exists in production, only in AWS Secrets Manager. |
+| `DOCUMENT_SCANNER_TOKEN` | Document scanning | **Yes** | Authorizes only the internal scan-result callback. Never set it until a genuine scanner is connected. |
 
 ## If I ever commit a secret by accident
 
