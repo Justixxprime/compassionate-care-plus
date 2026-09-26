@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { createSession, destroySession, getCurrentUser } from "@/lib/auth/session";
 import { writeAuditLog } from "@/lib/audit/log";
+import { clearFailedSignIns, recordFailedSignIn, signInLockStatus } from "@/lib/auth/login-rate-limit";
 
 export interface SignInState {
   error?: string;
@@ -39,6 +40,15 @@ export async function signInAction(
     user?.passwordHash ?? DUMMY_HASH,
   );
 
+  // Compare before reporting the lock state, so a known and unknown address
+  // take the same password-work path. A lock applies to the input address,
+  // never a disclosed account record.
+  const lock = await signInLockStatus(email);
+  if (lock.locked) {
+    await writeAuditLog({ actorEmail: email, action: "sign_in_rate_limited", outcome: "denied" });
+    return { error: "Too many sign-in attempts. Try again in a few minutes." };
+  }
+
   if (!user || !passwordMatches) {
     // Logged against the email that was TRIED, not a real account -
     // there is no user row to attach this to when the email doesn't
@@ -50,9 +60,11 @@ export async function signInAction(
       action: "sign_in_failed",
       outcome: "denied",
     });
+    await recordFailedSignIn(email);
     return { error: "That email and password do not match." };
   }
 
+  await clearFailedSignIns(email);
   await createSession(user.id);
   await writeAuditLog({
     organizationId: user.organizationId,

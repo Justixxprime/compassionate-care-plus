@@ -1,8 +1,9 @@
 # NEXT_STEP.md
 
 **Last updated:** 26 September 2026
-**Just finished:** Referral Partner, consented family document sharing, and
-limited caregiver visit updates are built and ready for the local migration.
+**Just finished:** Referral Partner, consented family document sharing,
+limited caregiver visit updates, and sign-in rate limiting are ready for the
+local migration.
 
 ## What is now complete
 
@@ -24,6 +25,9 @@ limited caregiver visit updates are built and ready for the local migration.
    for only their own in-progress or completed visit, then submit it. It is
    locked on submission and a different authorized staff reviewer can mark it
    reviewed from that visit's staff page. It never becomes a clinical note.
+6. **Sign-in rate limiting:** five failed password attempts for one e-mail
+   address within 15 minutes pause further attempts for 15 minutes. The
+   limiter stores only a one-way address hash; it never stores a password.
 
 ## In plain words
 
@@ -66,7 +70,7 @@ None.
 ```powershell
 cd C:\Users\LENOVO\OneDrive\Desktop\compassionate-care-plus
 npm install
-npx prisma migrate dev --name add_caregiver_visit_updates
+npx prisma migrate dev --name add_caregiver_visit_updates_and_sign_in_rate_limit
 npx prisma db seed
 npm run verify:access
 npm run verify:shell
@@ -87,9 +91,9 @@ git commit -m "G1: real Request care (saved + in-app notified), audit log pagina
 git push
 ```
 
-This round has one migration: `caregiver_visit_updates`. Run the migration and
-then `npx prisma db seed` so the caregiver role receives
-`visits.caregiver_document`.
+This round has one migration: `caregiver_visit_updates` and
+`sign_in_failures`. Run it and then `npx prisma db seed` so the caregiver role
+receives `visits.caregiver_document`.
 
 Expected numbers: verify:access 668, verify:shell 81, verify:notes 93,
 verify:tasks 40, verify:notifications 44, verify:caregiver 75,
@@ -118,13 +122,15 @@ time, same as always.
    `demo.caregiver@cheliv.test`, open an active/completed assigned visit in
    My day, save a short draft, submit it, then sign in as an administrator to
    mark it reviewed from the visit page.
+2. **Sign-in rate-limit verification:** try a wrong password five times for a
+   demo account, then confirm the sixth attempt says to wait. Use the correct
+   password after 15 minutes; a successful sign-in clears old failures.
 
 ### Before real patient information or public launch
 
 1. Make the repository private or remove personal handoff details.
 2. Choose encrypted file storage and virus scanning before real documents.
-3. Add sign-in rate limiting, session management, password-reset flow, and
-   MFA for staff.
+3. Add account recovery, stronger session controls, and MFA for staff.
 4. Choose a real e-mail service if the office wants e-mail delivery.
 5. Turn off the public-site `noindex` setting only when the organization is
    ready for search engines and has approved public content.

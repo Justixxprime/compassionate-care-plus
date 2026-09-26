@@ -217,6 +217,18 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+// A short-lived sign-in safety record. identifierHash is a SHA-256 hash of
+// the normalized e-mail address, never the address itself. It is used only
+// to count recent failed attempts; application rules live in auth/login-rate-limit.ts.
+model SignInFailure {
+  id             String   @id @default(uuid())
+  identifierHash String   @map("identifier_hash")
+  occurredAt     DateTime @default(now()) @map("occurred_at")
+
+  @@index([identifierHash, occurredAt])
+  @@map("sign_in_failures")
+}
+
 // ---------- Patients & care team ----------
 // The first slice of Milestone D's clinical schema - deliberately just
 // this much, not the full model from PHASE_0_ARCHITECTURE.md section 7

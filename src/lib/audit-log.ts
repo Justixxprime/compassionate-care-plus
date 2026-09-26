@@ -65,6 +65,7 @@ export async function listAuditLog(
 export const AUDIT_ACTIONS: { key: string; label: string }[] = [
   { key: "sign_in", label: "Signed in" },
   { key: "sign_in_failed", label: "Sign-in failed" },
+  { key: "sign_in_rate_limited", label: "Sign-in rate limited" },
   { key: "sign_out", label: "Signed out" },
   { key: "permission_denied", label: "Permission denied" },
   { key: "access_denied", label: "Access denied" },
