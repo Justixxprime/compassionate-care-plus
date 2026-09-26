@@ -31,7 +31,7 @@ export function FirstAdminForm() {
       </div>
       <div>
         <label htmlFor="setupToken" className="text-label font-semibold text-ink">Private setup code</label>
-        <input id="setupToken" name="setupToken" type="password" required autoComplete="off" className={inputStyles} />
+        <input id="setupToken" name="setupToken" type="password" required minLength={32} autoComplete="off" className={inputStyles} />
         <p className="mt-1.5 text-body-sm text-slate">This is the secret you saved in Vercel. It is not your password.</p>
       </div>
       {!state.ok && state.error ? <p role="alert" className="rounded-md bg-danger-bg px-3 py-2 text-body-sm text-danger">{state.error}</p> : null}

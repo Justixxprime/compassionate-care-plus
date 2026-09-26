@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bell, LogOut } from "lucide-react";
+import { Bell, LogOut, ShieldCheck } from "lucide-react";
 import { signOutAction } from "@/lib/auth/actions";
 import { LogoMark } from "@/components/marketing/logo-mark";
 import { MobileMenu, SidebarNav } from "@/components/app/app-nav";
@@ -101,6 +101,13 @@ function AccountPanel({
           <p className="truncate text-caption text-slate">{roleLabel}</p>
         </div>
       </div>
+      <Link
+        href="/security/mfa"
+        className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-border-strong bg-white px-3 text-body-sm font-medium text-ink transition-colors hover:bg-sage"
+      >
+        <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+        Sign-in security
+      </Link>
       <form action={signOutAction} className="mt-4">
         <button
           type="submit"

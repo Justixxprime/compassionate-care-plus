@@ -4,7 +4,8 @@
 import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { createSession, destroySession, getCurrentUser } from "@/lib/auth/session";
+import { createMfaChallenge, createSession, destroySession, getCurrentUser } from "@/lib/auth/session";
+import { hasActiveMfa } from "@/lib/auth/mfa";
 import { writeAuditLog } from "@/lib/audit/log";
 import { clearFailedSignIns, recordFailedSignIn, signInLockStatus } from "@/lib/auth/login-rate-limit";
 
@@ -33,7 +34,10 @@ export async function signInAction(
     return { error: "Enter both an email and a password." };
   }
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findUnique({
+    where: { email },
+    include: { userRoles: { include: { role: { select: { key: true } } } } },
+  });
 
   const passwordMatches = await bcrypt.compare(
     password,
@@ -65,6 +69,24 @@ export async function signInAction(
   }
 
   await clearFailedSignIns(email);
+
+  // Patients, authorized family members, and referral partners are not put
+  // into the staff MFA flow. For staff who opted in, a correct password gets
+  // a short-lived checkpoint cookie, never an authenticated session.
+  const roleKeys = user.userRoles.map((assignment) => assignment.role.key);
+  const isStaff = roleKeys.some((key) => !["PATIENT", "AUTHORIZED_FAMILY", "REFERRAL_PARTNER"].includes(key));
+  if (isStaff && await hasActiveMfa(user.id)) {
+    await createMfaChallenge(user.id);
+    await writeAuditLog({
+      organizationId: user.organizationId,
+      actorUserId: user.id,
+      actorEmail: user.email,
+      action: "mfa_challenge_started",
+      outcome: "allowed",
+    });
+    redirect("/mfa-challenge");
+  }
+
   await createSession(user.id);
   await writeAuditLog({
     organizationId: user.organizationId,

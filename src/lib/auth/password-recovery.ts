@@ -163,6 +163,9 @@ export async function resetPassword(
     // Password replacement is an account-compromise response: every device
     // must authenticate again, including the browser that requested the link.
     await tx.session.deleteMany({ where: { userId: reset.userId } });
+    // A password-verified MFA checkpoint is not a session, but it must not
+    // survive a password reset either.
+    await tx.mfaChallenge.deleteMany({ where: { userId: reset.userId } });
     await tx.passwordResetToken.deleteMany({ where: { userId: reset.userId, id: { not: reset.id } } });
     return true;
   });

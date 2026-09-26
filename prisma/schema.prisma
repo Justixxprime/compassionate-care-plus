@@ -107,6 +107,8 @@ model User {
   messageReadStates             MessageReadState[]
   passwordResetTokens           PasswordResetToken[]
   passwordResetRequests         PasswordResetRequest[]
+  mfaFactor                     MfaFactor?
+  mfaChallenges                 MfaChallenge[]
 
   @@index([organizationId])
   @@map("users")
@@ -261,6 +263,38 @@ model PasswordResetRequest {
 
   @@index([identifierHash, occurredAt])
   @@map("password_reset_requests")
+}
+
+// One authenticator-app factor per staff account. Its TOTP secret is encrypted
+// before storage; recovery codes are one-way hashes and are shown only once.
+model MfaFactor {
+  id                 String   @id @default(uuid())
+  userId             String   @unique @map("user_id")
+  encryptedSecret    String   @map("encrypted_secret")
+  status             String   @default("pending") // pending | active
+  recoveryCodeHashes String[] @map("recovery_code_hashes")
+  verifiedAt         DateTime? @map("verified_at")
+  lastUsedAt         DateTime? @map("last_used_at")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("mfa_factors")
+}
+
+// A password-verified but not-yet-complete staff sign-in. The browser gets
+// only its random id in an httpOnly cookie; it expires in ten minutes.
+model MfaChallenge {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("mfa_challenges")
 }
 
 // ---------- Patients & care team ----------

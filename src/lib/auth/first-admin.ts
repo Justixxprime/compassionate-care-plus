@@ -44,7 +44,9 @@ function hasValidSetupToken(supplied: string): boolean {
 }
 
 export async function firstAdminSetupAvailable(): Promise<boolean> {
-  if (!(process.env.INITIAL_ADMIN_SETUP_TOKEN ?? "").trim()) return false;
+  // Do not show a usable-looking form for an incomplete Vercel value. The
+  // submit path has always rejected these; this makes the screen honest too.
+  if ((process.env.INITIAL_ADMIN_SETUP_TOKEN ?? "").trim().length < 32) return false;
   return (await prisma.user.count()) === 0;
 }
 

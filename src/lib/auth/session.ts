@@ -18,6 +18,7 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 
 const SESSION_COOKIE = "ccp_session";
+const MFA_CHALLENGE_COOKIE = "ccp_mfa_challenge";
 const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
 const MAX_ACTIVE_SESSIONS = 5;
 
@@ -90,4 +91,38 @@ export async function destroySession() {
   }
 
   cookieStore.delete(SESSION_COOKIE);
+}
+
+// This is deliberately not a signed-in session. It exists only after a
+// correct password, lasts ten minutes, and is exchanged for a normal session
+// only after a valid authenticator or recovery code.
+export async function createMfaChallenge(userId: string) {
+  const now = new Date();
+  const challenge = await prisma.$transaction(async (tx) => {
+    await tx.mfaChallenge.deleteMany({ where: { OR: [{ userId }, { expiresAt: { lt: now } }] } });
+    return tx.mfaChallenge.create({ data: { userId, expiresAt: new Date(now.getTime() + 10 * 60 * 1000) } });
+  });
+  const cookieStore = await cookies();
+  cookieStore.set(MFA_CHALLENGE_COOKIE, challenge.id, {
+    httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict", path: "/", expires: challenge.expiresAt,
+  });
+}
+
+export async function consumeMfaChallengeUser() {
+  const cookieStore = await cookies();
+  const challengeId = cookieStore.get(MFA_CHALLENGE_COOKIE)?.value;
+  if (!challengeId) return null;
+  const now = new Date();
+  const challenge = await prisma.mfaChallenge.findFirst({
+    where: { id: challengeId, expiresAt: { gt: now } },
+    include: { user: { include: { userRoles: { include: { role: true } } } } },
+  });
+  return challenge?.user ?? null;
+}
+
+export async function destroyMfaChallenge() {
+  const cookieStore = await cookies();
+  const challengeId = cookieStore.get(MFA_CHALLENGE_COOKIE)?.value;
+  if (challengeId) await prisma.mfaChallenge.delete({ where: { id: challengeId } }).catch(() => {});
+  cookieStore.delete(MFA_CHALLENGE_COOKIE);
 }
