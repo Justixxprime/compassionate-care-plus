@@ -53,7 +53,7 @@ export function describeNotification(
       : kind === "care_request_received"
         ? "/care-requests"
         : kind === "message_received"
-          ? "/messages"
+          ? `/messages/${encodeURIComponent(resourceId)}`
         : "/tasks";
   return { text: WORDS[kind], href };
 }

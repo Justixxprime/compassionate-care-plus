@@ -101,6 +101,7 @@ model User {
   revokedFamilyConsents  FamilyConsent[]       @relation("ConsentRevoker")
   contactedCareRequests  CareRequest[]         @relation("CareRequestContactedBy")
   sentMessages           Message[]             @relation("MessageSender")
+  messageReadStates      MessageReadState[]
 
   @@index([organizationId])
   @@map("users")
@@ -823,6 +824,7 @@ model MessageThread {
   organization Organization @relation(fields: [organizationId], references: [id])
   patient      Patient      @relation(fields: [patientId], references: [id], onDelete: Restrict)
   messages     Message[]
+  readStates   MessageReadState[]
 
   @@index([organizationId])
   @@map("message_threads")
@@ -840,4 +842,19 @@ model Message {
 
   @@index([threadId, createdAt])
   @@map("messages")
+}
+
+// One marker per reader and conversation. It holds only the time the
+// conversation was last opened, never a copy of any message content.
+model MessageReadState {
+  threadId    String   @map("thread_id")
+  userId      String   @map("user_id")
+  lastReadAt  DateTime @map("last_read_at")
+
+  thread MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([threadId, userId])
+  @@index([userId, lastReadAt])
+  @@map("message_read_states")
 }

@@ -9,56 +9,77 @@ const NOT_FOUND = "That conversation could not be found.";
 export const MESSAGE_MAX = 2000;
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 
-async function accessiblePatient(userId: string, patientId: string) {
+async function getAccessiblePatient(userId: string, patientId: string) {
   const actor = await loadActor(userId);
-  const own = await prisma.patient.findFirst({ where: { id: patientId, userId, organizationId: actor.organizationId, status: { in: ["active", "on_hold"] } }, select: { id: true } });
-  if (own) return { actor, patientId };
+  const ownPatient = await prisma.patient.findFirst({ where: { id: patientId, userId, organizationId: actor.organizationId, status: { in: ["active", "on_hold"] } }, select: { id: true } });
+  if (ownPatient) return { actor, patientId };
   const scope = await getPatientScope(userId);
-  if (!(await scopeAllowsPatient(scope, patientId))) { await auditDenied(actor, "message_thread", patientId); return null; }
+  if (!(await scopeAllowsPatient(scope, patientId))) {
+    await auditDenied(actor, "message_thread", patientId);
+    return null;
+  }
   return { actor, patientId };
+}
+
+async function markThreadRead(threadId: string, userId: string) {
+  await prisma.messageReadState.upsert({
+    where: { threadId_userId: { threadId, userId } },
+    update: { lastReadAt: new Date() },
+    create: { threadId, userId, lastReadAt: new Date() },
+  });
 }
 
 export async function getSecureMessages(userId: string, patientId: string) {
   await requirePermission(userId, "messages.read");
-  const access = await accessiblePatient(userId, patientId);
+  const access = await getAccessiblePatient(userId, patientId);
   if (!access) return null;
-  const thread = await prisma.messageThread.findFirst({ where: { patientId, organizationId: access.actor.organizationId }, include: { messages: { include: { sender: { select: { name: true } } }, orderBy: { createdAt: "asc" }, take: 200 }, patient: { select: { firstName: true, lastName: true } } } });
-  return { patientName: thread ? `${thread.patient.firstName} ${thread.patient.lastName}` : "", messages: thread?.messages.map((m) => ({ id: m.id, body: m.body, senderName: m.sender.name, mine: m.senderId === userId, createdAt: m.createdAt })) ?? [] };
+  const patient = await prisma.patient.findFirst({
+    where: { id: patientId, organizationId: access.actor.organizationId },
+    select: { firstName: true, lastName: true },
+  });
+  if (!patient) return null;
+  const thread = await prisma.messageThread.findFirst({
+    where: { patientId, organizationId: access.actor.organizationId },
+    include: { messages: { include: { sender: { select: { name: true } } }, orderBy: { createdAt: "asc" }, take: 200 } },
+  });
+  if (!thread) return { patientName: `${patient.firstName} ${patient.lastName}`, messages: [] };
+  await markThreadRead(thread.id, userId);
+  return { patientName: `${patient.firstName} ${patient.lastName}`, messages: thread.messages.map((message) => ({ id: message.id, body: message.body, senderName: message.sender.name, mine: message.senderId === userId, createdAt: message.createdAt })) };
 }
 
-// The staff inbox contains only patients the current account can reach.
-// A patient account never uses this list: it receives its one linked record
-// from getMyCare(), so changing a browser value cannot reveal another person.
 export async function listSecureMessagePatients(userId: string) {
   await requirePermission(userId, "messages.read");
   const actor = await loadActor(userId);
   const scope = await getPatientScope(userId);
-  return prisma.patient.findMany({
-    where: scope.kind === "organization"
-      ? { organizationId: actor.organizationId, status: { in: ["active", "on_hold"] } }
-      : { organizationId: actor.organizationId, id: { in: scope.patientIds }, status: { in: ["active", "on_hold"] } },
-    select: { id: true, firstName: true, lastName: true, messageThread: { select: { messages: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } } } } },
+  const patients = await prisma.patient.findMany({
+    where: scope.kind === "organization" ? { organizationId: actor.organizationId, status: { in: ["active", "on_hold"] } } : { organizationId: actor.organizationId, id: { in: scope.patientIds }, status: { in: ["active", "on_hold"] } },
+    select: { id: true, firstName: true, lastName: true, messageThread: { select: { id: true } } },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-  }).then(rows => rows.map(p => ({ id: p.id, name: `${p.firstName} ${p.lastName}`, lastMessageAt: p.messageThread?.messages[0]?.createdAt ?? null })));
+  });
+  return Promise.all(patients.map(async (patient) => {
+    if (!patient.messageThread) return { id: patient.id, name: `${patient.firstName} ${patient.lastName}`, lastMessageAt: null, unreadCount: 0 };
+    const state = await prisma.messageReadState.findUnique({ where: { threadId_userId: { threadId: patient.messageThread.id, userId } }, select: { lastReadAt: true } });
+    const [latest, unreadCount] = await Promise.all([
+      prisma.message.findFirst({ where: { threadId: patient.messageThread.id }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
+      prisma.message.count({ where: { threadId: patient.messageThread.id, senderId: { not: userId }, ...(state ? { createdAt: { gt: state.lastReadAt } } : {}) } }),
+    ]);
+    return { id: patient.id, name: `${patient.firstName} ${patient.lastName}`, lastMessageAt: latest?.createdAt ?? null, unreadCount };
+  }));
 }
 
 export async function sendSecureMessage(userId: string, patientId: string, raw: string): Promise<Result<{ id: string }>> {
   await requirePermission(userId, "messages.send");
-  const access = await accessiblePatient(userId, patientId);
+  const access = await getAccessiblePatient(userId, patientId);
   if (!access) return { ok: false, error: NOT_FOUND };
   const body = raw.trim();
   if (!body || body.length > MESSAGE_MAX) return { ok: false, error: `Write a message of up to ${MESSAGE_MAX} characters.` };
   const thread = await prisma.messageThread.upsert({ where: { patientId }, update: {}, create: { patientId, organizationId: access.actor.organizationId } });
   const message = await prisma.message.create({ data: { threadId: thread.id, senderId: userId, body } });
-  await prisma.messageThread.update({ where: { id: thread.id }, data: {} });
-  // The bell says only that a secure message is waiting. It never carries
-  // a patient name or the message itself, and the Messages page checks
-  // access all over again when the recipient opens it.
+  await markThreadRead(thread.id, userId);
   const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { userId: true } });
-  const isPatientSender = patient?.userId === userId;
-  const recipients = isPatientSender
+  const recipients = patient?.userId === userId
     ? await prisma.careTeamMember.findMany({ where: { patientId, ...activeAssignmentFilter() }, select: { userId: true } })
     : patient?.userId ? [{ userId: patient.userId }] : [];
-  await Promise.all(recipients.filter(r => r.userId !== userId).map(r => notifyUser({ organizationId: access.actor.organizationId, userId: r.userId, kind: "message_received", resourceType: "message_thread", resourceId: patientId })));
+  await Promise.all(recipients.filter((recipient) => recipient.userId !== userId).map((recipient) => notifyUser({ organizationId: access.actor.organizationId, userId: recipient.userId, kind: "message_received", resourceType: "message_thread", resourceId: patientId })));
   return { ok: true, value: { id: message.id } };
 }

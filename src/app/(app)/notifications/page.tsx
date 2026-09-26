@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Bell } from "lucide-react";
 import { requireUser } from "@/lib/app/access";
 import { listNotifications } from "@/lib/notifications";
@@ -8,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/app/page-header";
 import { Section } from "@/components/app/section";
 import { EmptyState } from "@/components/app/empty-state";
-import { MarkAllReadButton, MarkReadButton } from "./notification-buttons";
+import { MarkAllReadButton, MarkReadButton, NotificationLink } from "./notification-buttons";
 
 export const metadata: Metadata = { title: "Notifications" };
 
@@ -47,9 +46,9 @@ export default async function NotificationsPage() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     {n.read ? null : <Badge tone="warning">New</Badge>}
-                    <Link href={n.href} className="font-medium text-ink hover:underline">
+                    <NotificationLink notificationId={n.id} href={n.href}>
                       {n.text}
-                    </Link>
+                    </NotificationLink>
                   </div>
                   <p className="mt-1 text-caption text-slate tabular-nums">
                     {formatOrgDate(n.createdAt)}, {formatOrgTime(n.createdAt)}

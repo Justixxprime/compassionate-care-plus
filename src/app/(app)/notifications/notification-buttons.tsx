@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   markAllNotificationsReadAction,
   markNotificationReadAction,
@@ -35,6 +36,29 @@ export function MarkReadButton({ notificationId }: { notificationId: string }) {
       ) : null}
     </div>
   );
+}
+
+// Opening a notification is the normal way to acknowledge it. The server
+// action still confirms ownership, then navigation goes to a page that
+// independently checks its own permission and relationship rules.
+export function NotificationLink({
+  notificationId,
+  href,
+  children,
+}: {
+  notificationId: string;
+  href: string;
+  children: React.ReactNode;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  function open() {
+    startTransition(async () => {
+      const result = await markNotificationReadAction(notificationId);
+      if (result.ok) router.push(href);
+    });
+  }
+  return <button type="button" disabled={pending} onClick={open} className="font-medium text-ink hover:underline disabled:opacity-60">{children}</button>;
 }
 
 export function MarkAllReadButton() {

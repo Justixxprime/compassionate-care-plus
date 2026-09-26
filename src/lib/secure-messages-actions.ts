@@ -9,7 +9,11 @@ export async function sendSecureMessageAction(formData: FormData) {
   if (!user) return { ok: false, error: "Your session has expired. Sign in again." };
   try {
     const result = await sendSecureMessage(user.id, String(formData.get("patientId") ?? ""), String(formData.get("body") ?? ""));
-    if (result.ok) revalidatePath("/messages");
+    if (result.ok) {
+      const patientId = String(formData.get("patientId") ?? "");
+      revalidatePath("/messages");
+      revalidatePath(`/messages/${patientId}`);
+    }
     return result.ok ? { ok: true } : result;
   } catch (error) {
     if (error instanceof AuthorizationError) return { ok: false, error: "You do not have permission to do that." };
