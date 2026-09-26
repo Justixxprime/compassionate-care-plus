@@ -109,7 +109,7 @@ async function main() {
   try {
     section("0. The agreed permission set and the seeded demo patient");
     const perms = await getUserPermissions(demoPatientUser.id);
-    check("the demo patient account holds exactly portal.read", sameSet(perms, ["portal.read"]), perms.join(", "));
+    check("the demo patient account holds exactly its own-care and own-documents permissions", sameSet(perms, ["portal.read", "portal.documents.read", "messages.read", "messages.send"]), perms.join(", "));
     const linked = await prisma.patient.findFirst({ where: { userId: demoPatientUser.id } });
     check("the demo patient account is linked to Eleanor's record, and only hers", linked?.id === eleanor.id);
     const eleanorNow = await getMyCare(demoPatientUser.id);
@@ -266,7 +266,7 @@ async function main() {
 
     section("9. The menu and the dashboard");
     const myPerms = new Set(await getUserPermissions(ptUser.id));
-    check("the menu holds the dashboard and My care, nothing else", sameSet(navHrefs(buildNavigation(myPerms)), ["/dashboard", "/my-care"]));
+    check("the menu holds the dashboard, My care and My documents, nothing else", sameSet(navHrefs(buildNavigation(myPerms)), ["/dashboard", "/my-care", "/my-documents"]));
     const dash = await getDashboardData(ptUser.id, myPerms, NOW);
     check("the dashboard has one tile: my upcoming visits, counting three", dash.tiles.length === 1 && dash.tiles[0].key === "my-upcoming-visits" && dash.tiles[0].value === 3 && dash.tiles[0].href === "/my-care");
     check("no other section exists", dash.todaysVisits === null && dash.referrals === null && dash.needsPrimaryNurse === null && dash.plansToApprove === null && dash.recentActivity === null && dash.attention.length === 0);

@@ -145,7 +145,7 @@ async function main() {
   check("supervisor sees dashboard, patients, visits, scheduling, care plans, documents (no referrals)", sameSet(await menuOf("supervisor"), ["/dashboard", "/patients", "/visits", "/schedule", "/care-plans", "/tasks", "/documents"]), (await menuOf("supervisor")).join(" "));
   check("nurse one sees the clinical menu", sameSet(await menuOf("nurse"), clinical), (await menuOf("nurse")).join(" "));
   check("caregiver sees dashboard, My day and tasks, and nothing clinical", sameSet(await menuOf("caregiver"), ["/dashboard", "/caregiver", "/tasks"]), (await menuOf("caregiver")).join(" "));
-  check("patient sees dashboard and My care, and nothing else", sameSet(await menuOf("patient"), ["/dashboard", "/my-care"]), (await menuOf("patient")).join(" "));
+  check("patient sees dashboard, My care and My documents, and nothing else", sameSet(await menuOf("patient"), ["/dashboard", "/my-care", "/my-documents"]), (await menuOf("patient")).join(" "));
   check("family sees dashboard and Shared with me, and nothing else", sameSet(await menuOf("family"), ["/dashboard", "/family"]), (await menuOf("family")).join(" "));
   check("only holders of family.read get the Shared with me link", sameSet(navHrefs(buildNavigation(new Set(["family.read"]))), ["/dashboard", "/family"]) && !(await menuOf("nurse")).includes("/family") && !(await menuOf("patient")).includes("/family"));
   check("only holders of consents.manage get the Family access link", sameSet(navHrefs(buildNavigation(new Set(["consents.manage"]))), ["/dashboard", "/consents"]) && !(await menuOf("nurse")).includes("/consents") && !(await menuOf("coordinator")).includes("/consents"));

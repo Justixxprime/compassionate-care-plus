@@ -1294,7 +1294,7 @@ async function main() {
       const consentHolders = await prisma.rolePermission.findMany({ where: { permission: { key: "consents.manage" }, role: { organizationId: orgId } }, include: { role: true } });
       check("only ADMIN and SUPER_ADMIN hold consents.manage", sameSet(consentHolders.map((h) => h.role.key).sort(), ["ADMIN", "SUPER_ADMIN"]), consentHolders.map((h) => h.role.key).join(", "));
       const patientPerms = await permsOf("PATIENT");
-      check("PATIENT holds exactly the agreed set: see own care (portal.read) and nothing else", sameSet(patientPerms, ["portal.read"]), patientPerms.join(", "));
+      check("PATIENT holds exactly the agreed set: own care, documents and messages", sameSet(patientPerms, ["portal.read", "portal.documents.read", "messages.read", "messages.send"]), patientPerms.join(", "));
       const portalHolders = await prisma.rolePermission.findMany({ where: { permission: { key: "portal.read" }, role: { organizationId: orgId } }, include: { role: true } });
       check("only PATIENT and SUPER_ADMIN hold portal.read", sameSet(portalHolders.map((h) => h.role.key).sort(), ["PATIENT", "SUPER_ADMIN"]), portalHolders.map((h) => h.role.key).join(", "));
       const caregiverPerms = await permsOf("CAREGIVER");
