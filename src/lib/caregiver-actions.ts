@@ -12,6 +12,10 @@ import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth/session";
 import { AuthorizationError } from "@/lib/auth/authorize";
 import { caregiverVisitAction } from "@/lib/caregiver";
+import {
+  saveCaregiverVisitUpdate,
+  submitCaregiverVisitUpdate,
+} from "@/lib/caregiver-visit-updates";
 
 export interface CaregiverActionResult {
   ok: boolean;
@@ -39,4 +43,32 @@ export async function caregiverVisitActionAction(
     }
     throw err;
   }
+}
+
+async function runUpdate(
+  visitId: string,
+  work: (userId: string) => Promise<{ ok: boolean; error?: string }>,
+): Promise<CaregiverActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "Your session has expired. Sign in again." };
+  try {
+    const result = await work(user.id);
+    if (!result.ok) return { ok: false, error: result.error };
+    revalidatePath("/caregiver");
+    revalidatePath(`/visits/${visitId}`);
+    return { ok: true };
+  } catch (err) {
+    if (err instanceof AuthorizationError) return { ok: false, error: "You do not have permission to do that." };
+    throw err;
+  }
+}
+
+export async function saveCaregiverVisitUpdateAction(formData: FormData): Promise<CaregiverActionResult> {
+  const visitId = String(formData.get("visitId") ?? "");
+  const content = String(formData.get("content") ?? "");
+  return runUpdate(visitId, (userId) => saveCaregiverVisitUpdate(userId, visitId, content));
+}
+
+export async function submitCaregiverVisitUpdateAction(visitId: string): Promise<CaregiverActionResult> {
+  return runUpdate(visitId, (userId) => submitCaregiverVisitUpdate(userId, visitId));
 }

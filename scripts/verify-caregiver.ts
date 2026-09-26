@@ -119,7 +119,7 @@ async function main() {
   try {
     section("0. The seeded demo caregiver and the agreed permission set");
     const perms = await getUserPermissions(demoCaregiver.id);
-    check("the demo caregiver holds exactly visits.checkin and tasks.read", sameSet(perms, ["visits.checkin", "tasks.read"]), perms.join(", "));
+    check("the demo caregiver holds only check-in, its limited visit update, and tasks", sameSet(perms, ["visits.checkin", "visits.caregiver_document", "tasks.read"]), perms.join(", "));
     const demoTeam = await prisma.careTeamMember.findFirst({ where: { userId: demoCaregiver.id, patientId: eleanor.id, roleOnCase: "caregiver", endsAt: null } });
     check("the demo caregiver is on Eleanor's team in the caregiver place, and only hers", demoTeam !== null && (await prisma.careTeamMember.count({ where: { userId: demoCaregiver.id, endsAt: null } })) === 1);
 

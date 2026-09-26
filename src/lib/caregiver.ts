@@ -12,6 +12,7 @@
 //                    seeing anybody else's visits, scheduling, cancelling,
 //                    marking a visit missed, reading a patient chart, or
 //                    writing a note.
+//   visits.caregiver_document a separate, limited factual visit update.
 //   tasks.read       already existed. The checklist is the ordinary task
 //                    list, so finishing a task uses the ordinary task rules
 //                    (src/lib/tasks.ts), unchanged.
@@ -72,6 +73,8 @@ export interface CaregiverVisit {
   // caregiverVisitAction re-checks everything on every tap.
   canCheckIn: boolean;
   canCheckOut: boolean;
+  caregiverUpdate: { content: string; status: string } | null;
+  canWriteCaregiverUpdate: boolean;
 }
 
 export interface CaregiverDay {
@@ -114,7 +117,10 @@ export async function getCaregiverDay(
         },
       ],
     },
-    include: { patient: { select: { firstName: true, lastName: true } } },
+    include: {
+      patient: { select: { firstName: true, lastName: true } },
+      caregiverVisitUpdate: { select: { content: true, status: true } },
+    },
     orderBy: { scheduledStart: "asc" },
     take: LIST_LIMIT,
   });
@@ -139,6 +145,8 @@ export async function getCaregiverDay(
       overdue: v.status === "scheduled" && v.scheduledEnd < now,
       canCheckIn: v.status === "scheduled" && isToday && !anotherOpen,
       canCheckOut: v.status === "in_progress",
+      caregiverUpdate: v.caregiverVisitUpdate,
+      canWriteCaregiverUpdate: ["in_progress", "completed"].includes(v.status),
     };
   };
 

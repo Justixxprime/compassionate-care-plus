@@ -50,6 +50,7 @@ const PERMISSIONS = [
   "visits.document",
   "visits.review",
   "visits.checkin",
+  "visits.caregiver_document",
   "portal.read",
   "portal.documents.read",
   "partner.referrals.create",
@@ -166,8 +167,9 @@ async function main() {
     // visits for today, checks in and out, and finishes tasks given to
     // them. visits.checkin means exactly that and nothing more (see
     // src/lib/caregiver.ts). No patient list, no chart, no scheduling, no
-    // notes: each of those is a later, separate decision.
-    CAREGIVER: ["visits.checkin", "tasks.read"],
+    // Clinical notes stay unavailable. A separate, short factual update is
+    // allowed only for the caregiver's own active or completed visit.
+    CAREGIVER: ["visits.checkin", "visits.caregiver_document", "tasks.read"],
     // The patient sees THEIR OWN care and nothing else: next visits, care
     // team, active care plan. portal.read means exactly that, and only
     // works for the one patient record linked to the account (see

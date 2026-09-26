@@ -15,7 +15,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { Section } from "@/components/app/section";
 import { EmptyState } from "@/components/app/empty-state";
 import { NoAccess } from "@/components/app/no-access";
-import { TaskDoneButton, VisitButton } from "./caregiver-controls";
+import { CaregiverVisitUpdateForm, TaskDoneButton, VisitButton } from "./caregiver-controls";
 
 export const metadata: Metadata = { title: "My day" };
 
@@ -27,7 +27,7 @@ const STATUS_TONE: Record<VisitStatus, NonNullable<BadgeProps["tone"]>> = {
   missed: "danger",
 };
 
-function VisitCard({ visit }: { visit: CaregiverVisit }) {
+function VisitCard({ visit, canDocument }: { visit: CaregiverVisit; canDocument: boolean }) {
   const status = visit.status as VisitStatus;
   return (
     <li className="rounded-md border border-border bg-white p-4">
@@ -62,6 +62,18 @@ function VisitCard({ visit }: { visit: CaregiverVisit }) {
       {visit.canCheckOut ? (
         <div className="mt-4">
           <VisitButton visitId={visit.id} action="check_out" label="Check out" />
+        </div>
+      ) : null}
+      {canDocument && (visit.canWriteCaregiverUpdate || visit.caregiverUpdate) ? (
+        <div className="mt-4 border-t border-border pt-4">
+          <p className="text-body-sm font-semibold text-ink">
+            Visit update{visit.caregiverUpdate?.status ? ` - ${visit.caregiverUpdate.status}` : ""}
+          </p>
+          <CaregiverVisitUpdateForm
+            visitId={visit.id}
+            initialContent={visit.caregiverUpdate?.content ?? ""}
+            status={visit.caregiverUpdate?.status ?? null}
+          />
         </div>
       ) : null}
     </li>
@@ -121,7 +133,7 @@ export default async function CaregiverPage() {
         >
           <ul className="flex flex-col gap-3">
             {day.carriedOver.map((v) => (
-              <VisitCard key={v.id} visit={v} />
+              <VisitCard key={v.id} visit={v} canDocument={permissions.has("visits.caregiver_document")} />
             ))}
           </ul>
         </Section>
@@ -135,7 +147,7 @@ export default async function CaregiverPage() {
         ) : (
           <ul className="flex flex-col gap-3">
             {day.today.map((v) => (
-              <VisitCard key={v.id} visit={v} />
+              <VisitCard key={v.id} visit={v} canDocument={permissions.has("visits.caregiver_document")} />
             ))}
           </ul>
         )}

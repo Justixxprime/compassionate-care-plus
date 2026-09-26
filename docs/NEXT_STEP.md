@@ -1,8 +1,8 @@
 # NEXT_STEP.md
 
 **Last updated:** 26 September 2026
-**Just finished:** Secure messaging is hardened and confirmed, and the patient-only
-`/my-documents` portal is confirmed on the owner's machine.
+**Just finished:** Referral Partner, consented family document sharing, and
+limited caregiver visit updates are built and ready for the local migration.
 
 ## What is now complete
 
@@ -20,6 +20,10 @@
 4. **Referral Partner portal:** the referral-partner role can submit a
    hospital or physician-office referral and see only the status of referrals
    that account submitted. It cannot access patient records or office notes.
+5. **Caregiver visit updates:** a caregiver can save one short factual update
+   for only their own in-progress or completed visit, then submit it. It is
+   locked on submission and a different authorized staff reviewer can mark it
+   reviewed from that visit's staff page. It never becomes a clinical note.
 
 ## In plain words
 
@@ -62,6 +66,7 @@ None.
 ```powershell
 cd C:\Users\LENOVO\OneDrive\Desktop\compassionate-care-plus
 npm install
+npx prisma migrate dev --name add_caregiver_visit_updates
 npx prisma db seed
 npm run verify:access
 npm run verify:shell
@@ -82,8 +87,9 @@ git commit -m "G1: real Request care (saved + in-app notified), audit log pagina
 git push
 ```
 
-There is no new database migration for secure messaging or My documents. Run
-`npx prisma db seed` so your local database receives `portal.documents.read`.
+This round has one migration: `caregiver_visit_updates`. Run the migration and
+then `npx prisma db seed` so the caregiver role receives
+`visits.caregiver_document`.
 
 Expected numbers: verify:access 668, verify:shell 81, verify:notes 93,
 verify:tasks 40, verify:notifications 44, verify:caregiver 75,
@@ -108,11 +114,10 @@ time, same as always.
 
 ### Still useful for the demo
 
-1. **Family documents:** built as a separate `Documents` consent scope. It
-   shares only care documents and never insurance or identification.
-2. **Caregiver documentation choice.** The caregiver portal can check in,
-   check out, and complete tasks. Decide later whether aides may write a
-   limited visit entry, and who must review it.
+1. **Caregiver update verification:** after migrating, check in as
+   `demo.caregiver@cheliv.test`, open an active/completed assigned visit in
+   My day, save a short draft, submit it, then sign in as an administrator to
+   mark it reviewed from the visit page.
 
 ### Before real patient information or public launch
 

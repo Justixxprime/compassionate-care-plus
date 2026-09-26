@@ -44,6 +44,7 @@ model Organization {
   visits    Visit[]
   visitNotes VisitNote[]
   visitNoteAddenda VisitNoteAddendum[]
+  caregiverVisitUpdates CaregiverVisitUpdate[]
   notifications Notification[]
   tasks Task[]
   carePlans CarePlan[]
@@ -86,6 +87,8 @@ model User {
   reviewedVisitNotes  VisitNote[]      @relation("VisitNoteReviewer")
   authoredAddenda     VisitNoteAddendum[] @relation("AddendumAuthor")
   reviewedAddenda     VisitNoteAddendum[] @relation("AddendumReviewer")
+  authoredCaregiverVisitUpdates CaregiverVisitUpdate[] @relation("CaregiverVisitUpdateAuthor")
+  reviewedCaregiverVisitUpdates CaregiverVisitUpdate[] @relation("CaregiverVisitUpdateReviewer")
   notifications       Notification[]
   authoredCarePlans   CarePlan[]       @relation("CarePlanAuthor")
   approvedCarePlans   CarePlan[]       @relation("CarePlanApprover")
@@ -317,6 +320,7 @@ model Visit {
   clinician    User         @relation("VisitClinician", fields: [clinicianId], references: [id], onDelete: Restrict)
   scheduledBy  User         @relation("VisitScheduler", fields: [scheduledById], references: [id], onDelete: Restrict)
   visitNote    VisitNote?
+  caregiverVisitUpdate CaregiverVisitUpdate?
 
   @@index([organizationId, scheduledStart])
   @@index([patientId])
@@ -377,6 +381,35 @@ model VisitNote {
 
   @@index([organizationId])
   @@map("visit_notes")
+}
+
+// ---------- Caregiver visit updates ----------
+//
+// A short factual entry from the assigned caregiver. This is deliberately
+// separate from a VisitNote: it is not clinical documentation and does not
+// grant an aide access to the clinical-note workflow. One update per visit;
+// draft -> submitted -> reviewed, with the submitted words locked forever.
+model CaregiverVisitUpdate {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  visitId        String    @unique @map("visit_id")
+  authorId       String    @map("author_id")
+  reviewedById   String?   @map("reviewed_by_id")
+  content        String
+  status         String    @default("draft") // draft | submitted | reviewed
+  submittedAt    DateTime? @map("submitted_at")
+  reviewedAt     DateTime? @map("reviewed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  visit        Visit        @relation(fields: [visitId], references: [id], onDelete: Restrict)
+  author       User         @relation("CaregiverVisitUpdateAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  reviewedBy   User?        @relation("CaregiverVisitUpdateReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status])
+  @@index([authorId, status])
+  @@map("caregiver_visit_updates")
 }
 
 // ---------- Visit note addenda ----------

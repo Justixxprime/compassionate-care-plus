@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/app/access";
 import { AuthorizationError } from "@/lib/auth/authorize";
 import { listVisits, type VisitRow } from "@/lib/visits";
 import { getVisitNote } from "@/lib/visit-notes";
+import { getCaregiverVisitUpdate } from "@/lib/caregiver-visit-updates";
 import {
   VISIT_STATUS_LABELS,
   actionsAvailableFor,
@@ -18,6 +19,7 @@ import { Section } from "@/components/app/section";
 import { NoAccess } from "@/components/app/no-access";
 import { VisitActions } from "../visit-actions";
 import { VisitNotePanel } from "./visit-note-panel";
+import { CaregiverUpdatePanel } from "./caregiver-update-panel";
 
 export const metadata: Metadata = { title: "Visit" };
 
@@ -62,6 +64,8 @@ export default async function VisitDetailPage({
 
   const noteResult = await loadOptional(() => getVisitNote(user.id, visitId));
   const noteData = noteResult && noteResult.ok ? noteResult.value : null;
+  const caregiverUpdateResult = await loadOptional(() => getCaregiverVisitUpdate(user.id, visitId));
+  const caregiverUpdateData = caregiverUpdateResult && caregiverUpdateResult.ok ? caregiverUpdateResult.value : null;
 
   return (
     <>
@@ -105,6 +109,17 @@ export default async function VisitDetailPage({
           <p className="text-body-sm text-slate">
             Your account does not have access to visit documentation.
           </p>
+        )}
+      </Section>
+
+      <Section
+        title="Caregiver visit update"
+        description="A short factual update from the assigned caregiver. It is separate from the clinical visit note. Submitted updates are locked and require a different staff reviewer."
+      >
+        {caregiverUpdateData ? (
+          <CaregiverUpdatePanel visitId={visit.id} update={caregiverUpdateData.update} />
+        ) : (
+          <p className="text-body-sm text-slate">Your account does not have access to caregiver updates.</p>
         )}
       </Section>
     </>

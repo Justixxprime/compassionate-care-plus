@@ -1298,7 +1298,7 @@ async function main() {
       const portalHolders = await prisma.rolePermission.findMany({ where: { permission: { key: "portal.read" }, role: { organizationId: orgId } }, include: { role: true } });
       check("only PATIENT and SUPER_ADMIN hold portal.read", sameSet(portalHolders.map((h) => h.role.key).sort(), ["PATIENT", "SUPER_ADMIN"]), portalHolders.map((h) => h.role.key).join(", "));
       const caregiverPerms = await permsOf("CAREGIVER");
-      check("CAREGIVER holds exactly the agreed set: check in and out of own visits, and read tasks", sameSet(caregiverPerms, ["visits.checkin", "tasks.read"]), caregiverPerms.join(", "));
+      check("CAREGIVER holds exactly the agreed set: check in/out, limited own-visit update, and tasks", sameSet(caregiverPerms, ["visits.checkin", "visits.caregiver_document", "tasks.read"]), caregiverPerms.join(", "));
       const checkinHolders = await prisma.rolePermission.findMany({ where: { permission: { key: "visits.checkin" }, role: { organizationId: orgId } }, include: { role: true } });
       check("only CAREGIVER and SUPER_ADMIN hold visits.checkin", sameSet(checkinHolders.map((h) => h.role.key).sort(), ["CAREGIVER", "SUPER_ADMIN"]), checkinHolders.map((h) => h.role.key).join(", "));
       const demoOffice = await Promise.all(
