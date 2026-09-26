@@ -48,6 +48,7 @@ import {
   type MyVisit,
 } from "@/lib/patient-view";
 import { isConsentScope, relationshipLabel } from "@/lib/family-constants";
+import { UNRESTRICTED_CATEGORY_KEYS, categoryLabel } from "@/lib/document-constants";
 
 // A discharged patient shows nothing. On hold still does.
 const FAMILY_STATUSES = ["active", "on_hold"];
@@ -65,6 +66,7 @@ export interface SharedCare {
   visits: { upcoming: MyVisit[]; recent: MyVisit[] } | null;
   team: MyTeamMember[] | null;
   plan: { plan: MyCarePlan | null } | null;
+  documents: { id: string; title: string; categoryLabel: string; createdAt: Date }[] | null;
 }
 
 export async function getFamilyCare(
@@ -106,11 +108,12 @@ export async function getFamilyCare(
     const patientId = c.patient.id;
     const orgId = actor.organizationId;
 
-    const [upcoming, recent, team, plan] = await Promise.all([
+    const [upcoming, recent, team, plan, documents] = await Promise.all([
       scopes.has("visits") ? loadUpcomingVisits(patientId, orgId, now) : null,
       scopes.has("visits") ? loadRecentVisits(patientId, orgId) : null,
       scopes.has("care_team") ? loadCareTeam(patientId, orgId, now) : null,
       scopes.has("care_plan") ? loadActivePlan(patientId, orgId) : null,
+      scopes.has("documents") ? prisma.document.findMany({ where: { organizationId: orgId, patientId, status: "active", category: { in: UNRESTRICTED_CATEGORY_KEYS } }, select: { id: true, title: true, category: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 50 }) : null,
     ]);
 
     out.push({
@@ -121,6 +124,7 @@ export async function getFamilyCare(
       visits: upcoming && recent ? { upcoming, recent } : null,
       team,
       plan: scopes.has("care_plan") ? { plan } : null,
+      documents: documents?.map((document) => ({ id: document.id, title: document.title, categoryLabel: categoryLabel(document.category), createdAt: document.createdAt })) ?? null,
     });
   }
   return out;

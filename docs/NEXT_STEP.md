@@ -108,9 +108,8 @@ time, same as always.
 
 ### Still useful for the demo
 
-1. **Family documents.** This needs a new consent scope and a clear rule for
-   which documents a patient is willing to share. It is intentionally not
-   inferred from the existing visits, care-team, or care-plan consent.
+1. **Family documents:** built as a separate `Documents` consent scope. It
+   shares only care documents and never insurance or identification.
 2. **Caregiver documentation choice.** The caregiver portal can check in,
    check out, and complete tasks. Decide later whether aides may write a
    limited visit entry, and who must review it.

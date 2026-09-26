@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { CalendarDays, ClipboardList, EyeOff, HeartHandshake, Users } from "lucide-react";
+import { CalendarDays, ClipboardList, EyeOff, FileText, HeartHandshake, Users } from "lucide-react";
 import { requireUser } from "@/lib/app/access";
 import { AuthorizationError } from "@/lib/auth/authorize";
 import { getFamilyCare, type SharedCare } from "@/lib/family-portal";
@@ -91,6 +91,10 @@ function PatientBlock({ care }: { care: SharedCare }) {
             It appears here once the nurse has written it and it has been approved.
           </EmptyState>
         )}
+      </Part>
+
+      <Part title="Documents">
+        {care.documents === null ? <NotShared name={name} what="documents" /> : care.documents.length ? <div className="divide-y rounded-md border border-border bg-white">{care.documents.map((document) => <a key={document.id} href={`/family-documents/${document.id}/download`} className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-sage"><span><span className="block font-medium text-ink">{document.title}</span><span className="text-caption text-slate">{document.categoryLabel} · Added {formatOrgDate(document.createdAt)}</span></span><span className="text-caption font-medium text-pine">Download</span></a>)}</div> : <EmptyState icon={FileText} title="No shared documents yet">Shared care documents appear here when the office adds them.</EmptyState>}
       </Part>
     </Section>
   );

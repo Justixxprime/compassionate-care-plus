@@ -1,0 +1,5 @@
+import { getCurrentUser } from "@/lib/auth/session";
+import { AuthorizationError } from "@/lib/auth/authorize";
+import { getFamilyDocumentForDownload } from "@/lib/family-documents";
+const NO_STORE = { "Cache-Control": "private, no-store" };
+export async function GET(_request: Request, ctx: RouteContext<"/family-documents/[id]/download">) { const user = await getCurrentUser(); if (!user) return new Response("Sign in required.", { status: 401, headers: NO_STORE }); const { id } = await ctx.params; try { const result = await getFamilyDocumentForDownload(user.id, id); if (!result.ok) return new Response(result.error, { status: 404, headers: NO_STORE }); const { fileName, contentType, bytes } = result.value; return new Response(new Uint8Array(bytes), { headers: { ...NO_STORE, "Content-Type": contentType, "Content-Disposition": `attachment; filename="${fileName.replace(/[^A-Za-z0-9._ -]/g, "_")}"`, "X-Content-Type-Options": "nosniff" } }); } catch (error) { if (error instanceof AuthorizationError) return new Response("You do not have permission to do that.", { status: 403, headers: NO_STORE }); throw error; } }

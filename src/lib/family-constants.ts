@@ -26,6 +26,11 @@ export const CONSENT_SCOPES = [
     label: "Care plan",
     help: "The approved care plan and its goals.",
   },
+  {
+    key: "documents",
+    label: "Documents",
+    help: "Shared care documents only. Insurance cards and identification are never shared here.",
+  },
 ] as const;
 
 export type ConsentScopeKey = (typeof CONSENT_SCOPES)[number]["key"];
