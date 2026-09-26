@@ -88,6 +88,7 @@ import {
   isRestrictedCategory,
   safeFileName,
 } from "@/lib/document-constants";
+import { getDemoDocument } from "@/lib/r2-document-storage";
 
 const NOT_FOUND = "That document could not be found.";
 const NO_PATIENT_ACCESS = "You do not have access to that patient.";
@@ -152,6 +153,9 @@ async function loadVisibleDocument(
       patientId: true,
       category: true,
       status: true,
+      scanStatus: true,
+      storageKind: true,
+      storageKey: true,
       fileName: true,
       contentType: true,
     },
@@ -161,6 +165,7 @@ async function loadVisibleDocument(
     doc !== null &&
     doc.organizationId === actor.organizationId &&
     doc.status === "active" &&
+    doc.scanStatus === "clean" &&
     (await scopeAllowsPatient(scope, doc.patientId)) &&
     mayViewDocument(access, doc);
 
@@ -221,6 +226,7 @@ export async function listDocuments(userId: string): Promise<DocumentRow[]> {
     where: {
       organizationId: scope.organizationId,
       status: "active",
+      scanStatus: "clean",
       ...(scope.kind === "organization" ? {} : { patientId: { in: scope.patientIds } }),
       ...visibility,
     },
@@ -370,7 +376,7 @@ export async function uploadDocument(
 
   const sha256 = createHash("sha256").update(input.bytes).digest("hex");
   const duplicate = await prisma.document.findFirst({
-    where: { patientId: input.patientId, sha256, status: "active" },
+    where: { patientId: input.patientId, sha256, status: "active", scanStatus: "clean" },
     select: { id: true },
   });
   if (duplicate) {
@@ -408,6 +414,22 @@ export interface DownloadableDocument {
   bytes: Uint8Array;
 }
 
+// Only call this after the caller completed every access check. R2 object
+// keys are opaque and private; this function never produces a public URL.
+export async function readDocumentBytes(doc: {
+  id: string;
+  storageKind: string;
+  storageKey: string | null;
+}): Promise<Uint8Array | null> {
+  if (doc.storageKind === "r2") {
+    return doc.storageKey ? getDemoDocument(doc.storageKey) : null;
+  }
+  const file = await prisma.documentFile.findUnique({
+    where: { documentId: doc.id }, select: { data: true },
+  });
+  return file?.data ?? null;
+}
+
 export async function getDocumentForDownload(
   userId: string,
   documentId: string,
@@ -421,12 +443,8 @@ export async function getDocumentForDownload(
   const doc = await loadVisibleDocument(actor, scope, access, documentId);
   if (!doc) return { ok: false, error: NOT_FOUND };
 
-  // The bytes are fetched on purpose, only now, after every check.
-  const file = await prisma.documentFile.findUnique({
-    where: { documentId: doc.id },
-    select: { data: true },
-  });
-  if (!file) return { ok: false, error: NOT_FOUND };
+  const bytes = await readDocumentBytes(doc);
+  if (!bytes) return { ok: false, error: NOT_FOUND };
 
   await auditAllowed(actor, "document_downloaded", "document", doc.id);
   return {
@@ -434,7 +452,7 @@ export async function getDocumentForDownload(
     value: {
       fileName: doc.fileName,
       contentType: doc.contentType,
-      bytes: file.data,
+      bytes,
     },
   };
 }

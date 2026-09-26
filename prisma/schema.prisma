@@ -38,23 +38,23 @@ model Organization {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  users    User[]
-  roles    Role[]
-  patients  Patient[]
-  visits    Visit[]
-  visitNotes VisitNote[]
-  visitNoteAddenda VisitNoteAddendum[]
+  users                 User[]
+  roles                 Role[]
+  patients              Patient[]
+  visits                Visit[]
+  visitNotes            VisitNote[]
+  visitNoteAddenda      VisitNoteAddendum[]
   caregiverVisitUpdates CaregiverVisitUpdate[]
-  notifications Notification[]
-  tasks Task[]
-  carePlans CarePlan[]
-  documents Document[]
-  referrals Referral[]
-  documentAccessGrants DocumentAccessGrant[]
-  familyConsents FamilyConsent[]
-  auditLogs AuditLog[]
-  careRequests CareRequest[]
-  messageThreads MessageThread[]
+  notifications         Notification[]
+  tasks                 Task[]
+  carePlans             CarePlan[]
+  documents             Document[]
+  referrals             Referral[]
+  documentAccessGrants  DocumentAccessGrant[]
+  familyConsents        FamilyConsent[]
+  auditLogs             AuditLog[]
+  careRequests          CareRequest[]
+  messageThreads        MessageThread[]
 
   @@map("organizations")
 }
@@ -64,47 +64,47 @@ model Organization {
 // family members alike. passwordHash is never the plain password - see
 // src/server/auth/README.md once that exists for how hashing works.
 model User {
-  id            String    @id @default(uuid())
-  organizationId String   @map("organization_id")
-  email         String    @unique
-  passwordHash  String    @map("password_hash")
-  name          String
+  id              String    @id @default(uuid())
+  organizationId  String    @map("organization_id")
+  email           String    @unique
+  passwordHash    String    @map("password_hash")
+  name            String
   emailVerifiedAt DateTime? @map("email_verified_at")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  userRoles    UserRole[]
-  sessions     Session[]
-  careTeamMemberships CareTeamMember[]
-  patientRecord       Patient?         @relation("PatientAccount")
-  assignedVisits      Visit[]          @relation("VisitClinician")
-  scheduledVisits     Visit[]          @relation("VisitScheduler")
-  assignedTasks       Task[]           @relation("TaskAssignee")
-  createdTasks        Task[]           @relation("TaskCreator")
-  completedTasks      Task[]           @relation("TaskCompleter")
-  authoredVisitNotes  VisitNote[]      @relation("VisitNoteAuthor")
-  reviewedVisitNotes  VisitNote[]      @relation("VisitNoteReviewer")
-  authoredAddenda     VisitNoteAddendum[] @relation("AddendumAuthor")
-  reviewedAddenda     VisitNoteAddendum[] @relation("AddendumReviewer")
+  organization                  Organization           @relation(fields: [organizationId], references: [id])
+  userRoles                     UserRole[]
+  sessions                      Session[]
+  careTeamMemberships           CareTeamMember[]
+  patientRecord                 Patient?               @relation("PatientAccount")
+  assignedVisits                Visit[]                @relation("VisitClinician")
+  scheduledVisits               Visit[]                @relation("VisitScheduler")
+  assignedTasks                 Task[]                 @relation("TaskAssignee")
+  createdTasks                  Task[]                 @relation("TaskCreator")
+  completedTasks                Task[]                 @relation("TaskCompleter")
+  authoredVisitNotes            VisitNote[]            @relation("VisitNoteAuthor")
+  reviewedVisitNotes            VisitNote[]            @relation("VisitNoteReviewer")
+  authoredAddenda               VisitNoteAddendum[]    @relation("AddendumAuthor")
+  reviewedAddenda               VisitNoteAddendum[]    @relation("AddendumReviewer")
   authoredCaregiverVisitUpdates CaregiverVisitUpdate[] @relation("CaregiverVisitUpdateAuthor")
   reviewedCaregiverVisitUpdates CaregiverVisitUpdate[] @relation("CaregiverVisitUpdateReviewer")
-  notifications       Notification[]
-  authoredCarePlans   CarePlan[]       @relation("CarePlanAuthor")
-  approvedCarePlans   CarePlan[]       @relation("CarePlanApprover")
-  uploadedDocuments   Document[]       @relation("DocumentUploader")
-  archivedDocuments   Document[]       @relation("DocumentArchiver")
-  createdReferrals    Referral[]       @relation("ReferralCreator")
-  decidedReferrals    Referral[]       @relation("ReferralDecider")
-  receivedDocumentGrants DocumentAccessGrant[] @relation("GrantGrantee")
-  givenDocumentGrants    DocumentAccessGrant[] @relation("GrantGiver")
-  revokedDocumentGrants  DocumentAccessGrant[] @relation("GrantRevoker")
-  receivedFamilyConsents FamilyConsent[]       @relation("ConsentFamily")
-  recordedFamilyConsents FamilyConsent[]       @relation("ConsentRecorder")
-  revokedFamilyConsents  FamilyConsent[]       @relation("ConsentRevoker")
-  contactedCareRequests  CareRequest[]         @relation("CareRequestContactedBy")
-  sentMessages           Message[]             @relation("MessageSender")
-  messageReadStates      MessageReadState[]
+  notifications                 Notification[]
+  authoredCarePlans             CarePlan[]             @relation("CarePlanAuthor")
+  approvedCarePlans             CarePlan[]             @relation("CarePlanApprover")
+  uploadedDocuments             Document[]             @relation("DocumentUploader")
+  archivedDocuments             Document[]             @relation("DocumentArchiver")
+  createdReferrals              Referral[]             @relation("ReferralCreator")
+  decidedReferrals              Referral[]             @relation("ReferralDecider")
+  receivedDocumentGrants        DocumentAccessGrant[]  @relation("GrantGrantee")
+  givenDocumentGrants           DocumentAccessGrant[]  @relation("GrantGiver")
+  revokedDocumentGrants         DocumentAccessGrant[]  @relation("GrantRevoker")
+  receivedFamilyConsents        FamilyConsent[]        @relation("ConsentFamily")
+  recordedFamilyConsents        FamilyConsent[]        @relation("ConsentRecorder")
+  revokedFamilyConsents         FamilyConsent[]        @relation("ConsentRevoker")
+  contactedCareRequests         CareRequest[]          @relation("CareRequestContactedBy")
+  sentMessages                  Message[]              @relation("MessageSender")
+  messageReadStates             MessageReadState[]
 
   @@index([organizationId])
   @@map("users")
@@ -201,13 +201,13 @@ model AuditLog {
   // written going forward carries the actor's organization, and the
   // audit log page only ever shows one organization's own rows.
   organizationId String?  @map("organization_id")
-  actorUserId  String?  @map("actor_user_id")
-  actorEmail   String?  @map("actor_email") // set on failed sign-in, where there is no real user row yet
-  action       String // e.g. "sign_in", "sign_in_failed", "sign_out", "permission_denied"
-  resourceType String?  @map("resource_type") // e.g. "session", "permission"
-  resourceId   String?  @map("resource_id")
-  outcome      String // "allowed" | "denied"
-  occurredAt   DateTime @default(now()) @map("occurred_at")
+  actorUserId    String?  @map("actor_user_id")
+  actorEmail     String?  @map("actor_email") // set on failed sign-in, where there is no real user row yet
+  action         String // e.g. "sign_in", "sign_in_failed", "sign_out", "permission_denied"
+  resourceType   String?  @map("resource_type") // e.g. "session", "permission"
+  resourceId     String?  @map("resource_id")
+  outcome        String // "allowed" | "denied"
+  occurredAt     DateTime @default(now()) @map("occurred_at")
 
   organization Organization? @relation(fields: [organizationId], references: [id])
 
@@ -252,14 +252,14 @@ model Patient {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  organization  Organization     @relation(fields: [organizationId], references: [id])
-  account       User?            @relation("PatientAccount", fields: [userId], references: [id], onDelete: SetNull)
-  careTeam      CareTeamMember[]
-  visits        Visit[]
-  tasks         Task[]
-  carePlans     CarePlan[]
-  documents     Document[]
-  referrals     Referral[]
+  organization         Organization          @relation(fields: [organizationId], references: [id])
+  account              User?                 @relation("PatientAccount", fields: [userId], references: [id], onDelete: SetNull)
+  careTeam             CareTeamMember[]
+  visits               Visit[]
+  tasks                Task[]
+  carePlans            CarePlan[]
+  documents            Document[]
+  referrals            Referral[]
   documentAccessGrants DocumentAccessGrant[]
   familyConsents       FamilyConsent[]
   messageThread        MessageThread?
@@ -327,11 +327,11 @@ model Visit {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  patient      Patient      @relation(fields: [patientId], references: [id], onDelete: Restrict)
-  clinician    User         @relation("VisitClinician", fields: [clinicianId], references: [id], onDelete: Restrict)
-  scheduledBy  User         @relation("VisitScheduler", fields: [scheduledById], references: [id], onDelete: Restrict)
-  visitNote    VisitNote?
+  organization         Organization          @relation(fields: [organizationId], references: [id])
+  patient              Patient               @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  clinician            User                  @relation("VisitClinician", fields: [clinicianId], references: [id], onDelete: Restrict)
+  scheduledBy          User                  @relation("VisitScheduler", fields: [scheduledById], references: [id], onDelete: Restrict)
+  visitNote            VisitNote?
   caregiverVisitUpdate CaregiverVisitUpdate?
 
   @@index([organizationId, scheduledStart])
@@ -385,10 +385,10 @@ model VisitNote {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  visit        Visit        @relation(fields: [visitId], references: [id], onDelete: Restrict)
-  author       User         @relation("VisitNoteAuthor", fields: [authorId], references: [id], onDelete: Restrict)
-  reviewedBy   User?        @relation("VisitNoteReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  visit        Visit               @relation(fields: [visitId], references: [id], onDelete: Restrict)
+  author       User                @relation("VisitNoteAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  reviewedBy   User?               @relation("VisitNoteReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
   addenda      VisitNoteAddendum[]
 
   @@index([organizationId])
@@ -438,7 +438,7 @@ model VisitNoteAddendum {
   noteId         String    @map("note_id")
   authorId       String    @map("author_id")
   reviewedById   String?   @map("reviewed_by_id")
-  kind           String    // correction | additional_information | late_entry
+  kind           String // correction | additional_information | late_entry
   content        String
   status         String    @default("submitted") // submitted | reviewed
   reviewedAt     DateTime? @map("reviewed_at")
@@ -520,10 +520,10 @@ model CarePlan {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  organization Organization  @relation(fields: [organizationId], references: [id])
-  patient      Patient       @relation(fields: [patientId], references: [id], onDelete: Restrict)
-  author       User          @relation("CarePlanAuthor", fields: [authorId], references: [id], onDelete: Restrict)
-  approvedBy   User?         @relation("CarePlanApprover", fields: [approvedById], references: [id], onDelete: Restrict)
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  patient      Patient        @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  author       User           @relation("CarePlanAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  approvedBy   User?          @relation("CarePlanApprover", fields: [approvedById], references: [id], onDelete: Restrict)
   goals        CarePlanGoal[]
 
   @@index([organizationId, status])
@@ -600,15 +600,18 @@ model Document {
   sizeBytes      Int       @map("size_bytes")
   sha256         String // fingerprint of the bytes: integrity, and stops the same file being filed twice
   status         String    @default("active") // active | archived
+  scanStatus     String    @default("clean") @map("scan_status") // pending_scan | clean | rejected | quarantined
+  storageKind    String    @default("database") @map("storage_kind") // database | r2
+  storageKey     String?   @unique @map("storage_key") // opaque private R2 key; never a public URL
   archivedAt     DateTime? @map("archived_at")
   archivedById   String?   @map("archived_by_id")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  organization Organization  @relation(fields: [organizationId], references: [id])
-  patient      Patient       @relation(fields: [patientId], references: [id], onDelete: Restrict)
-  uploadedBy   User          @relation("DocumentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
-  archivedBy   User?         @relation("DocumentArchiver", fields: [archivedById], references: [id], onDelete: Restrict)
+  organization Organization          @relation(fields: [organizationId], references: [id])
+  patient      Patient               @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  uploadedBy   User                  @relation("DocumentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+  archivedBy   User?                 @relation("DocumentArchiver", fields: [archivedById], references: [id], onDelete: Restrict)
   file         DocumentFile?
   accessGrants DocumentAccessGrant[]
 
@@ -860,14 +863,14 @@ model CareRequest {
 // members are intentionally excluded until messages have their own consent
 // scope, instead of inheriting access accidentally.
 model MessageThread {
-  id             String    @id @default(uuid())
-  organizationId String    @map("organization_id")
-  patientId      String    @unique @map("patient_id")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  patientId      String   @unique @map("patient_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  patient      Patient      @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  organization Organization       @relation(fields: [organizationId], references: [id])
+  patient      Patient            @relation(fields: [patientId], references: [id], onDelete: Restrict)
   messages     Message[]
   readStates   MessageReadState[]
 
@@ -892,9 +895,9 @@ model Message {
 // One marker per reader and conversation. It holds only the time the
 // conversation was last opened, never a copy of any message content.
 model MessageReadState {
-  threadId    String   @map("thread_id")
-  userId      String   @map("user_id")
-  lastReadAt  DateTime @map("last_read_at")
+  threadId   String   @map("thread_id")
+  userId     String   @map("user_id")
+  lastReadAt DateTime @map("last_read_at")
 
   thread MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
   user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)

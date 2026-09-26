@@ -2,8 +2,8 @@
 
 **Last updated:** 26 September 2026
 **Just finished:** Referral Partner, consented family document sharing,
-limited caregiver visit updates, and sign-in rate limiting are ready for the
-local migration.
+limited caregiver visit updates, sign-in safeguards, and private R2-ready
+document storage with a scanner-only release gate are running locally.
 
 ## What is now complete
 
@@ -30,6 +30,13 @@ local migration.
    limiter stores only a one-way address hash; it never stores a password.
 7. **Session controls:** sessions expire after seven days; expired sessions are
    removed on sign-in, and each account is limited to five current sessions.
+8. **Document scan gate:** every document now has a storage kind and scan
+   state. Only `clean` documents can be listed or downloaded by staff,
+   patients, or consented family users. The R2 path uses opaque private object
+   keys; it never creates public file links. Only a separately authenticated
+   internal scanner callback can release a pending file.
+
+For the full R2 safety boundary, see `docs/R2_DOCUMENT_STORAGE.md`.
 
 ## In plain words
 
@@ -67,41 +74,17 @@ local migration.
 
 None.
 
-## Exact next commands
+## Exact next command
 
 ```powershell
 cd C:\Users\LENOVO\OneDrive\Desktop\compassionate-care-plus
-npm install
-npx prisma migrate dev --name add_caregiver_visit_updates_and_sign_in_rate_limit
-npx prisma db seed
-npm run verify:access
-npm run verify:shell
-npm run verify:notes
-npm run verify:tasks
-npm run verify:notifications
-npm run verify:caregiver
-npm run verify:portal
-npm run verify:family
-npm run verify:sharing
-npm run verify:accounts
-npm run verify:care-requests
-npm run verify:messages
-npm run dev
-# when everything works:
-git add .
-git commit -m "G1: real Request care (saved + in-app notified), audit log pagination"
-git push
+node .\node_modules\next\dist\bin\next dev
 ```
 
-This round has one migration: `caregiver_visit_updates` and
-`sign_in_failures`. Run it and then `npx prisma db seed` so the caregiver role
-receives `visits.caregiver_document`.
-
-Expected numbers: verify:access 668, verify:shell 81, verify:notes 93,
-verify:tasks 40, verify:notifications 44, verify:caregiver 75,
-verify:portal 53, verify:family 156, verify:sharing 40, verify:accounts
-46, new verify:care-requests 31. Say y at the migration prompt, one at a
-time, same as always.
+The document storage/scan migration is already applied to the local database.
+Use the command above only if the local app stops. `npm` itself currently has
+a Windows Node installation problem on this computer, so this direct command
+starts the project without relying on the broken global npm launcher.
 
 ## What I need from you (once, after the commands above work)
 
@@ -127,14 +110,20 @@ time, same as always.
 2. **Sign-in rate-limit verification:** try a wrong password five times for a
    demo account, then confirm the sixth attempt says to wait. Use the correct
    password after 15 minutes; a successful sign-in clears old failures.
+3. **R2 verification:** R2 is configured for synthetic demo files only. A
+   record marked pending, rejected, or quarantined must be invisible to every
+   portal and download route until a real scanning workflow marks it clean.
+   Keep `DOCUMENT_SCANNER_TOKEN` unset until that workflow is ready.
 
 ### Before real patient information or public launch
 
 1. Make the repository private or remove personal handoff details.
-2. Choose encrypted file storage and virus scanning before real documents.
-3. Choose a verified e-mail provider so password recovery can be delivered
+2. Select and connect a genuine malware-scanning/quarantine service before
+   enabling R2 uploads; the protected callback boundary is ready, but it is
+   intentionally not a scanner by itself.
+3. Create a hosted Neon PostgreSQL database for Vercel; use its pooled URL for
+   the app and direct URL for Prisma migrations.
+4. Choose a verified e-mail provider so password recovery can be delivered
    safely, then configure staff MFA (authenticator-app TOTP is recommended).
-4. Choose encrypted object storage plus a malware-scanning provider before
-   real documents; database file bytes remain demo-only.
 5. Turn off the public-site `noindex` setting only when the organization is
    ready for search engines and has approved public content.
