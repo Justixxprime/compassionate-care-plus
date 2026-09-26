@@ -1,3 +1,20 @@
+## Secure messaging hardening - active-care closure, usable notices, verification
+
+Date: 26 September 2026
+
+- Secure conversations now close immediately for a discharged patient, even
+  for administrative staff who otherwise have organization-wide reach.
+- Message notifications now go only to recipients with `messages.read`.
+  A caregiver can remain on the care team without receiving a link they are
+  not allowed to open.
+- Every send writes a content-free `secure_message_sent` audit event. Denials
+  remain content-free and use the existing vague not-found response.
+- Staff conversation pages now have the same timestamps and empty state as the
+  patient view. The staff inbox also explains an empty active-patient list.
+- New `npm run verify:messages` script checks permission, active reach,
+  patient ownership, read markers, notice privacy, and discharge closure. No
+  schema change or dependency was added.
+
 ## Round G1 - Request care, saved and in-app notified; audit log pagination
 
 Date: 25 September 2026

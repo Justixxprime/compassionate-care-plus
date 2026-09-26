@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/authorize";
-import { auditDenied, loadActor } from "@/lib/auth/actor";
+import { auditAllowed, auditDenied, loadActor } from "@/lib/auth/actor";
 import { activeAssignmentFilter, getPatientScope, scopeAllowsPatient } from "@/lib/patients";
 import { notifyUser } from "@/lib/notifications";
 
@@ -11,14 +11,67 @@ type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 
 async function getAccessiblePatient(userId: string, patientId: string) {
   const actor = await loadActor(userId);
-  const ownPatient = await prisma.patient.findFirst({ where: { id: patientId, userId, organizationId: actor.organizationId, status: { in: ["active", "on_hold"] } }, select: { id: true } });
-  if (ownPatient) return { actor, patientId };
+  // A conversation closes with the patient's active care record. Checking
+  // this before staff reach is important because administrative reach covers
+  // every organization patient, including discharged records.
+  const patient = await prisma.patient.findFirst({
+    where: {
+      id: patientId,
+      organizationId: actor.organizationId,
+      status: { in: ["active", "on_hold"] },
+    },
+    select: { id: true, userId: true },
+  });
+  if (!patient) {
+    await auditDenied(actor, "message_thread", patientId);
+    return null;
+  }
+  if (patient.userId === userId) return { actor, patientId };
   const scope = await getPatientScope(userId);
   if (!(await scopeAllowsPatient(scope, patientId))) {
     await auditDenied(actor, "message_thread", patientId);
     return null;
   }
   return { actor, patientId };
+}
+
+// A notice is useful only when its recipient can open the conversation.
+// Caregivers can be on a case but deliberately do not hold messages.read,
+// so they are excluded here rather than receiving a dead-end bell link.
+const messageReadPermission = {
+  userRoles: {
+    some: {
+      role: {
+        rolePermissions: { some: { permission: { key: "messages.read" } } },
+      },
+    },
+  },
+} as const;
+
+async function listMessageRecipients(
+  organizationId: string,
+  patientId: string,
+  patientUserId: string | null,
+  senderId: string,
+) {
+  if (patientUserId === senderId) {
+    return prisma.careTeamMember.findMany({
+      where: {
+        patientId,
+        ...activeAssignmentFilter(),
+        userId: { not: senderId },
+        user: { organizationId, ...messageReadPermission },
+      },
+      select: { userId: true },
+    });
+  }
+
+  if (!patientUserId || patientUserId === senderId) return [];
+  const patientUser = await prisma.user.findFirst({
+    where: { id: patientUserId, organizationId, ...messageReadPermission },
+    select: { id: true },
+  });
+  return patientUser ? [{ userId: patientUser.id }] : [];
 }
 
 async function markThreadRead(threadId: string, userId: string) {
@@ -77,9 +130,15 @@ export async function sendSecureMessage(userId: string, patientId: string, raw: 
   const message = await prisma.message.create({ data: { threadId: thread.id, senderId: userId, body } });
   await markThreadRead(thread.id, userId);
   const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { userId: true } });
-  const recipients = patient?.userId === userId
-    ? await prisma.careTeamMember.findMany({ where: { patientId, ...activeAssignmentFilter() }, select: { userId: true } })
-    : patient?.userId ? [{ userId: patient.userId }] : [];
-  await Promise.all(recipients.filter((recipient) => recipient.userId !== userId).map((recipient) => notifyUser({ organizationId: access.actor.organizationId, userId: recipient.userId, kind: "message_received", resourceType: "message_thread", resourceId: patientId })));
+  const recipients = await listMessageRecipients(
+    access.actor.organizationId,
+    patientId,
+    patient?.userId ?? null,
+    userId,
+  );
+  await Promise.all(recipients.map((recipient) => notifyUser({ organizationId: access.actor.organizationId, userId: recipient.userId, kind: "message_received", resourceType: "message_thread", resourceId: patientId })));
+  // The audit trail proves a message was sent without retaining its text,
+  // patient name, or a thread URL.
+  await auditAllowed(access.actor, "secure_message_sent", "message", message.id);
   return { ok: true, value: { id: message.id } };
 }

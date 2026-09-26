@@ -19,6 +19,7 @@ page where you can see the details, if you have access.
 | A task is cancelled by someone else | The person responsible | "A task given to you was cancelled." |
 | A visit note is reviewed | The note's author | "Your visit note was reviewed." |
 | An addendum is reviewed | The addendum's author | "Your addendum to a visit note was reviewed." |
+| A secure message arrives | A patient or message-enabled care-team member | "You have a new secure message." |
 
 You are never told about something you did yourself.
 
@@ -42,6 +43,9 @@ You are never told about something you did yourself.
    no menu item (the menu stays permission-driven); the bell is the way in.
 7. **Long lists are cut.** The newest 50 are listed. The bell counts all
    unread ones.
+8. **Useful delivery only.** A secure-message notification is sent only to a
+   person who currently has `messages.read` and can open that conversation.
+   It never contains the patient name or message text.
 
 ## Files
 

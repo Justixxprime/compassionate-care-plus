@@ -16,20 +16,102 @@ export const metadata: Metadata = { title: "Messages" };
 
 export default async function MessagesPage() {
   const user = await requireUser();
+  const isPatient = user.userRoles.some((role) => role.role.key === "PATIENT");
+  let staffPatients: Awaited<ReturnType<typeof listSecureMessagePatients>> | null = null;
+  let patientThread: Awaited<ReturnType<typeof getSecureMessages>> | null = null;
+  let patientId: string | null = null;
+  let denied = false;
+
   try {
-    const isPatient = user.userRoles.some((role) => role.role.key === "PATIENT");
     const care = isPatient ? await getMyCare(user.id) : null;
-
     if (!care) {
-      const patients = await listSecureMessagePatients(user.id);
-      return <><PageHeader title="Messages" description="Open a conversation only for a patient you currently care for." /><Section title="Patient conversations"><div className="divide-y rounded-md border border-border bg-white">{patients.map((patient) => <Link key={patient.id} href={`/messages/${patient.id}`} className="flex items-center justify-between gap-4 px-4 py-4 hover:bg-sage"><span><span className="block font-medium text-ink">{patient.name}</span><span className="text-caption text-slate">{patient.lastMessageAt ? `Last message ${formatOrgDate(patient.lastMessageAt)}` : "No messages yet"}</span></span>{patient.unreadCount > 0 ? <span className="rounded-full bg-marigold px-2 py-0.5 text-caption font-semibold text-ink">{patient.unreadCount} new</span> : null}</Link>)}</div></Section></>;
+      staffPatients = await listSecureMessagePatients(user.id);
+    } else {
+      patientId = care.patientId;
+      patientThread = await getSecureMessages(user.id, care.patientId);
     }
-
-    const thread = await getSecureMessages(user.id, care.patientId);
-    if (!thread) return <NoAccess area="Messages" />;
-    return <><PageHeader title="Messages" description="A private conversation with your care team. Do not use messages for an emergency. Call 911 for immediate help." /><Section title="Your conversation"><div className="space-y-3">{thread.messages.length > 0 ? thread.messages.map((message) => <article key={message.id} className={message.mine ? "ml-auto max-w-xl rounded-md bg-pine px-4 py-3 text-white" : "max-w-xl rounded-md border border-border bg-white px-4 py-3"}><p className="text-body">{message.body}</p><p className={message.mine ? "mt-2 text-caption text-white/70" : "mt-2 text-caption text-slate"}>{message.mine ? "You" : message.senderName} · {formatOrgDate(message.createdAt)}, {formatOrgTime(message.createdAt)}</p></article>) : <EmptyState icon={MessageCircle} title="No messages yet">Send a message and your care team will see it here.</EmptyState>}</div></Section><Section title="Write to your care team"><MessageComposer patientId={care.patientId} /></Section></>;
   } catch (error) {
-    if (error instanceof AuthorizationError) return <NoAccess area="Messages" />;
-    throw error;
+    if (error instanceof AuthorizationError) denied = true;
+    else throw error;
   }
+
+  if (denied || (patientId && !patientThread)) return <NoAccess area="Messages" />;
+
+  if (staffPatients) {
+    return (
+      <>
+        <PageHeader
+          title="Messages"
+          description="Open a conversation only for a patient you currently care for."
+        />
+        <Section title="Patient conversations">
+          {staffPatients.length ? (
+            <div className="divide-y rounded-md border border-border bg-white">
+              {staffPatients.map((patient) => (
+                <Link
+                  key={patient.id}
+                  href={`/messages/${patient.id}`}
+                  className="flex items-center justify-between gap-4 px-4 py-4 hover:bg-sage"
+                >
+                  <span>
+                    <span className="block font-medium text-ink">{patient.name}</span>
+                    <span className="text-caption text-slate">
+                      {patient.lastMessageAt
+                        ? `Last message ${formatOrgDate(patient.lastMessageAt)}`
+                        : "No messages yet"}
+                    </span>
+                  </span>
+                  {patient.unreadCount > 0 ? (
+                    <span className="rounded-full bg-marigold px-2 py-0.5 text-caption font-semibold text-ink">
+                      {patient.unreadCount} new
+                    </span>
+                  ) : null}
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <EmptyState icon={MessageCircle} title="No patient conversations available">
+              You will see a conversation here when you are assigned to an active patient.
+            </EmptyState>
+          )}
+        </Section>
+      </>
+    );
+  }
+
+  if (!patientThread || !patientId) return <NoAccess area="Messages" />;
+  return (
+    <>
+      <PageHeader
+        title="Messages"
+        description="A private conversation with your care team. Do not use messages for an emergency. Call 911 for immediate help."
+      />
+      <Section title="Your conversation">
+        <div className="space-y-3">
+          {patientThread.messages.length > 0 ? (
+            patientThread.messages.map((message) => (
+              <article
+                key={message.id}
+                className={message.mine
+                  ? "ml-auto max-w-xl rounded-md bg-pine px-4 py-3 text-white"
+                  : "max-w-xl rounded-md border border-border bg-white px-4 py-3"}
+              >
+                <p className="text-body">{message.body}</p>
+                <p className={message.mine ? "mt-2 text-caption text-white/70" : "mt-2 text-caption text-slate"}>
+                  {message.mine ? "You" : message.senderName} · {formatOrgDate(message.createdAt)}, {formatOrgTime(message.createdAt)}
+                </p>
+              </article>
+            ))
+          ) : (
+            <EmptyState icon={MessageCircle} title="No messages yet">
+              Send a message and your care team will see it here.
+            </EmptyState>
+          )}
+        </div>
+      </Section>
+      <Section title="Write to your care team">
+        <MessageComposer patientId={patientId} />
+      </Section>
+    </>
+  );
 }

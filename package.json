@@ -20,7 +20,8 @@
   "verify:family": "tsx --tsconfig tsconfig.scripts.json scripts/verify-family.ts",
   "verify:sharing": "tsx --tsconfig tsconfig.scripts.json scripts/verify-sharing.ts",
   "verify:accounts": "tsx --tsconfig tsconfig.scripts.json scripts/verify-accounts.ts",
-  "verify:care-requests": "tsx --tsconfig tsconfig.scripts.json scripts/verify-care-requests.ts"
+  "verify:care-requests": "tsx --tsconfig tsconfig.scripts.json scripts/verify-care-requests.ts",
+  "verify:messages": "tsx --tsconfig tsconfig.scripts.json scripts/verify-secure-messages.ts"
 },
   "dependencies": {
     "@fontsource/ibm-plex-sans": "^5.3.0",
