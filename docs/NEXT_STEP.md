@@ -40,6 +40,9 @@ document storage with a scanner-only release gate are running locally.
    limit per 15 minutes, and revokes every active session after a successful
    password change. Delivery is intentionally off until a verified sender is
    configured.
+10. **First hosted administrator:** a one-time, token-protected screen can
+    create the first administrator in an empty Neon database. It creates the
+    organization, roles, and permissions but no demo users or patient data.
 
 For the full R2 safety boundary, see `docs/R2_DOCUMENT_STORAGE.md`.
 
@@ -136,8 +139,10 @@ starts the project without relying on the broken global npm launcher.
    intentionally not a scanner by itself.
 3. Create a hosted Neon PostgreSQL database for Vercel; use its pooled URL for
    the app and direct URL for Prisma migrations.
-4. Configure the verified Resend sender described in
+4. Follow `docs/FIRST_ADMIN_SETUP.md` to create the first private online
+   administrator account, then remove the one-time setup token from Vercel.
+5. Configure the verified Resend sender described in
    `docs/PASSWORD_RECOVERY.md`, then test a recovery link end-to-end.
-5. Configure staff MFA (authenticator-app TOTP is recommended).
+6. Configure staff MFA (authenticator-app TOTP is recommended).
 5. Turn off the public-site `noindex` setting only when the organization is
    ready for search engines and has approved public content.
