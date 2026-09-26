@@ -28,6 +28,8 @@ local migration.
 6. **Sign-in rate limiting:** five failed password attempts for one e-mail
    address within 15 minutes pause further attempts for 15 minutes. The
    limiter stores only a one-way address hash; it never stores a password.
+7. **Session controls:** sessions expire after seven days; expired sessions are
+   removed on sign-in, and each account is limited to five current sessions.
 
 ## In plain words
 
@@ -130,7 +132,9 @@ time, same as always.
 
 1. Make the repository private or remove personal handoff details.
 2. Choose encrypted file storage and virus scanning before real documents.
-3. Add account recovery, stronger session controls, and MFA for staff.
-4. Choose a real e-mail service if the office wants e-mail delivery.
+3. Choose a verified e-mail provider so password recovery can be delivered
+   safely, then configure staff MFA (authenticator-app TOTP is recommended).
+4. Choose encrypted object storage plus a malware-scanning provider before
+   real documents; database file bytes remain demo-only.
 5. Turn off the public-site `noindex` setting only when the organization is
    ready for search engines and has approved public content.

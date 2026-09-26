@@ -19,13 +19,23 @@ import { prisma } from "@/lib/prisma";
 
 const SESSION_COOKIE = "ccp_session";
 const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
+const MAX_ACTIVE_SESSIONS = 5;
 
 export async function createSession(userId: string) {
-  const session = await prisma.session.create({
-    data: {
-      userId,
-      expiresAt: new Date(Date.now() + SESSION_DURATION_MS),
-    },
+  const now = new Date();
+  const session = await prisma.$transaction(async (tx) => {
+    // An account cannot quietly accumulate unlimited valid sessions. Remove
+    // expired rows first, then retire the oldest active ones before adding a
+    // new session. The cookie holds only the new session id.
+    await tx.session.deleteMany({ where: { userId, expiresAt: { lt: now } } });
+    const active = await tx.session.findMany({
+      where: { userId, expiresAt: { gte: now } },
+      orderBy: { expiresAt: "asc" },
+      select: { id: true },
+    });
+    const retire = active.slice(0, Math.max(0, active.length - (MAX_ACTIVE_SESSIONS - 1)));
+    if (retire.length) await tx.session.deleteMany({ where: { id: { in: retire.map((s) => s.id) } } });
+    return tx.session.create({ data: { userId, expiresAt: new Date(now.getTime() + SESSION_DURATION_MS) } });
   });
 
   const cookieStore = await cookies();
@@ -37,6 +47,8 @@ export async function createSession(userId: string) {
     expires: session.expiresAt,
   });
 }
+
+export { MAX_ACTIVE_SESSIONS };
 
 // Returns the signed-in user (with their roles attached), or null if
 // nobody is signed in - including the case where the cookie points at a
