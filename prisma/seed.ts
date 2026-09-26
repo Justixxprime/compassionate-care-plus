@@ -52,6 +52,8 @@ const PERMISSIONS = [
   "visits.checkin",
   "portal.read",
   "portal.documents.read",
+  "partner.referrals.create",
+  "partner.referrals.read",
   "family.read",
   "consents.manage",
   "documents.read",
@@ -176,6 +178,7 @@ async function main() {
     // patient and which parts (see src/lib/family-portal.ts). It opens no
     // staff screen at all.
     AUTHORIZED_FAMILY: ["family.read"],
+    REFERRAL_PARTNER: ["partner.referrals.create", "partner.referrals.read"],
     // The clinical supervisor reviews: approves care plans (someone other
     // than the author, always) and can read visits and documents. Cannot
     // write plans, schedule, or change care teams.

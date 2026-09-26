@@ -53,9 +53,11 @@ const textareaStyles =
 export function ReferralFields({
   idPrefix,
   defaults,
+  includeOfficeNotes = true,
 }: {
   idPrefix: string;
   defaults: ReferralFieldDefaults;
+  includeOfficeNotes?: boolean;
 }) {
   const id = (name: string) => `${idPrefix}-${name}`;
 
@@ -194,7 +196,7 @@ export function ReferralFields({
             />
           </div>
         </div>
-        <div className="mt-5">
+        {includeOfficeNotes ? <div className="mt-5">
           <Label htmlFor={id("notes")}>Office notes</Label>
           <textarea
             id={id("notes")}
@@ -204,7 +206,7 @@ export function ReferralFields({
             defaultValue={defaults.officeNotes}
             className={textareaStyles}
           />
-        </div>
+        </div> : null}
       </fieldset>
     </div>
   );

@@ -17,6 +17,9 @@
 3. **Request care and accounts:** the public request form saves its request
    and tells office administrators in-app; the office can create staff,
    family, and linked patient accounts.
+4. **Referral Partner portal:** the referral-partner role can submit a
+   hospital or physician-office referral and see only the status of referrals
+   that account submitted. It cannot access patient records or office notes.
 
 ## In plain words
 
@@ -105,13 +108,10 @@ time, same as always.
 
 ### Still useful for the demo
 
-1. **Referral partner portal.** The `REFERRAL_PARTNER` role is deliberately
-   empty. It still needs a small, separate design for submitting referrals and
-   seeing only that partner's own status updates.
-2. **Family documents.** This needs a new consent scope and a clear rule for
+1. **Family documents.** This needs a new consent scope and a clear rule for
    which documents a patient is willing to share. It is intentionally not
    inferred from the existing visits, care-team, or care-plan consent.
-3. **Caregiver documentation choice.** The caregiver portal can check in,
+2. **Caregiver documentation choice.** The caregiver portal can check in,
    check out, and complete tasks. Decide later whether aides may write a
    limited visit entry, and who must review it.
 

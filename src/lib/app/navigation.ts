@@ -59,6 +59,7 @@ export const NAV_DEFINITION: readonly NavGroup[] = [
       { href: "/my-documents", label: "My documents", icon: "documents", requires: "portal.documents.read" },
       { href: "/family", label: "Shared with me", icon: "family", requires: "family.read" },
       { href: "/messages", label: "Messages", icon: "messages", requires: "messages.read" },
+      { href: "/partner-referrals", label: "My referrals", icon: "referrals", requires: "partner.referrals.read" },
       { href: "/caregiver", label: "My day", icon: "today", requires: "visits.checkin" },
       { href: "/patients", label: "Patients", icon: "patients", requires: "patients.read" },
       { href: "/visits", label: "Visits", icon: "visits", requires: "visits.read" },

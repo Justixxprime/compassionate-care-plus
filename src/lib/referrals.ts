@@ -130,7 +130,7 @@ interface CleanDetails {
   officeNotes: string | null;
 }
 
-function validateDetails(input: ReferralDetailsInput): Result<CleanDetails> {
+export function validateReferralDetails(input: ReferralDetailsInput): Result<CleanDetails> {
   const firstName = cleanText(input.firstName);
   const lastName = cleanText(input.lastName);
   if (firstName.length === 0) {
@@ -548,7 +548,7 @@ export async function createReferral(
     return { ok: false, error: CANNOT_RECORD };
   }
 
-  const checked = validateDetails(input);
+  const checked = validateReferralDetails(input);
   if (!checked.ok) return checked;
   const d = checked.value;
 
@@ -597,7 +597,7 @@ export async function updateReferral(
     };
   }
 
-  const checked = validateDetails(input);
+  const checked = validateReferralDetails(input);
   if (!checked.ok) return checked;
   const d = checked.value;
 
