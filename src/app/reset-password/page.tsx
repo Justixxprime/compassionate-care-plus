@@ -1,4 +1,6 @@
 import { ResetPasswordForm } from "./reset-password-form";
+import { PortalClosed } from "@/components/app/portal-closed";
+import { portalDatabaseConfigured } from "@/lib/app/portal-availability";
 
 export const dynamic = "force-dynamic";
 
@@ -7,6 +9,10 @@ export default async function ResetPasswordPage({
 }: {
   searchParams: Promise<{ token?: string }>;
 }) {
+  // A reset token is useful only with the secure portal's database. Do not
+  // render a password form on the public-only Vercel deployment.
+  if (!portalDatabaseConfigured()) return <PortalClosed />;
+
   const { token = "" } = await searchParams;
   return (
     <div className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6">

@@ -120,6 +120,10 @@ starts the project without relying on the broken global npm launcher.
    portal and download route until a real scanning workflow marks it clean.
    Keep `DOCUMENT_SCANNER_TOKEN` unset until that workflow is ready.
 
+4. **Vercel recovery screen:** before adding a hosted database, the recovery
+   pages deliberately show the same calm secure-portal message as sign-in.
+   They do not show a broken form or expose a server error.
+
 ### Before real patient information or public launch
 
 1. Make the repository private or remove personal handoff details.
