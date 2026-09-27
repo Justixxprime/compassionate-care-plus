@@ -4,6 +4,8 @@ import { requireUser } from "@/lib/app/access";
 import { InstallChelivApp } from "@/components/app/install-cheliv-app";
 import { SuperAdminTransferForm } from "./super-admin-transfer-form";
 import { getSuperAdminRecipients } from "@/lib/account-settings";
+import Link from "next/link";
+import { MonitorSmartphone, ShieldCheck } from "lucide-react";
 
 export const metadata = { title: "My account" };
 
@@ -19,6 +21,10 @@ export default async function AccountPage() {
         <span className="font-semibold">Your access:</span> {roles}
       </div>
       <AccountSettingsForm name={user.name} email={user.email} />
+      <div className="mt-6 flex max-w-3xl flex-wrap gap-3">
+        <Link href="/security/mfa" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-border-strong bg-white px-4 text-body-sm font-medium text-ink transition-colors hover:bg-sage"><ShieldCheck className="h-4 w-4" aria-hidden="true" />Sign-in security</Link>
+        <Link href="/security/sessions" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-border-strong bg-white px-4 text-body-sm font-medium text-ink transition-colors hover:bg-sage"><MonitorSmartphone className="h-4 w-4" aria-hidden="true" />Active sessions</Link>
+      </div>
       {isSuperAdmin ? <div className="mt-6"><SuperAdminTransferForm recipients={recipients} /></div> : null}
       <div className="mt-6 max-w-3xl rounded-md border border-border bg-white p-5 sm:p-6">
         <h2 className="font-display text-h3 text-ink">Install Cheliv</h2>

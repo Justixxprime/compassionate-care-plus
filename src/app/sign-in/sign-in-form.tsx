@@ -69,6 +69,12 @@ export function SignInForm() {
       >
         {isPending ? "Signing in..." : "Sign in"}
       </button>
+      <Link
+        href="/"
+        className="flex min-h-11 w-full items-center justify-center rounded-md border border-border-strong bg-white px-4 text-body-sm font-medium text-pine transition-colors hover:bg-sage"
+      >
+        Back to the main website
+      </Link>
     </form>
   );
 }

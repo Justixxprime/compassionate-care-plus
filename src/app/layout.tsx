@@ -11,6 +11,10 @@ export const metadata: Metadata = {
   applicationName: "Cheliv",
   appleWebApp: { capable: true, title: "Cheliv", statusBarStyle: "default" },
   formatDetection: { telephone: false },
+  icons: {
+    icon: [{ url: "/icon", type: "image/png", sizes: "512x512" }],
+    apple: [{ url: "/apple-icon", type: "image/png", sizes: "512x512" }],
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

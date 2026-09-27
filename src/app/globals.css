@@ -78,6 +78,40 @@ body {
   font-family: var(--font-sans);
 }
 
+/* A restrained editorial finish for the public site. The light grain keeps
+   large cinematic sections from feeling flat without adding an image request
+   or leaking any private application data. Reduced-motion users get the same
+   design without the ambient movement. */
+.public-atmosphere {
+  position: relative;
+  isolation: isolate;
+}
+
+.public-atmosphere::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  content: "";
+  opacity: 0.18;
+  background-image: radial-gradient(rgba(28, 74, 60, 0.16) 0.7px, transparent 0.7px);
+  background-size: 7px 7px;
+  mask-image: linear-gradient(to bottom, black, transparent 88%);
+}
+
+.public-glow {
+  animation: public-glow 9s ease-in-out infinite alternate;
+}
+
+@keyframes public-glow {
+  from { transform: translate3d(-1%, 0, 0) scale(1); opacity: 0.72; }
+  to { transform: translate3d(1%, 1%, 0) scale(1.04); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-glow { animation: none; }
+}
+
 /* Consistent, visible keyboard focus everywhere. This is not optional -
    it is one of the first things a keyboard or screen-reader user hits. */
 :focus-visible {

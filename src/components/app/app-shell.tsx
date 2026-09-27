@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bell, LogOut, ShieldCheck, MonitorSmartphone, UserRound } from "lucide-react";
+import { Bell, LogOut, UserRound } from "lucide-react";
 import { signOutAction } from "@/lib/auth/actions";
 import { LogoMark } from "@/components/marketing/logo-mark";
 import { MobileMenu, SidebarNav } from "@/components/app/app-nav";
@@ -101,37 +101,25 @@ function AccountPanel({
           <p className="truncate text-caption text-slate">{roleLabel}</p>
         </div>
       </div>
-      <Link
-        href="/account"
-        className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-border-strong bg-white px-3 text-body-sm font-medium text-ink transition-colors hover:bg-sage"
-      >
-        <UserRound className="h-4 w-4" aria-hidden="true" />
-        My account
-      </Link>
-      <Link
-        href="/security/mfa"
-        className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-border-strong bg-white px-3 text-body-sm font-medium text-ink transition-colors hover:bg-sage"
-      >
-        <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-        Sign-in security
-      </Link>
-      <Link
-        href="/security/sessions"
-        className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-border-strong bg-white px-3 text-body-sm font-medium text-ink transition-colors hover:bg-sage"
-      >
-        <MonitorSmartphone className="h-4 w-4" aria-hidden="true" />
-        Active sessions
-      </Link>
-      <form action={signOutAction} className="mt-4">
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Link
+          href="/account"
+          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border-strong bg-white px-2 text-caption font-medium text-ink transition-colors hover:bg-sage"
+        >
+          <UserRound className="h-4 w-4" aria-hidden="true" />
+          Account
+        </Link>
+        <form action={signOutAction}>
         <button
           type="submit"
-          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-border-strong bg-white px-3 text-body-sm font-medium text-ink transition-colors hover:bg-sage"
+          className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md border border-border-strong bg-white px-2 text-caption font-medium text-ink transition-colors hover:bg-sage"
         >
           <LogOut className="h-4 w-4" aria-hidden="true" />
           Sign out
         </button>
-      </form>
-      <p className="mt-4 text-caption text-slate">
+        </form>
+      </div>
+      <p className="mt-3 text-caption text-slate">
         Demonstration data. Every patient here is made up.
       </p>
     </div>
@@ -161,15 +149,15 @@ export function AppShell({
       </a>
 
       {/* Wide screens: a fixed sidebar. */}
-      <aside className="hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-72 lg:flex-none lg:flex-col lg:border-r lg:border-border lg:bg-white">
+      <aside className="hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-80 lg:flex-none lg:flex-col lg:border-r lg:border-border lg:bg-white">
         <div className="flex items-center justify-between gap-3 border-b border-border px-6 py-6">
           <BrandLink />
           <NotificationBell count={unreadCount} />
         </div>
-        <div className="flex-1 overflow-y-auto px-4 pb-6 pt-7">
+        <div className="flex-1 overflow-y-auto px-4 pb-5 pt-6">
           <SidebarNav groups={groups} />
         </div>
-        <div className="border-t border-border px-6 py-6">
+        <div className="border-t border-border px-5 py-4">
           <AccountPanel userName={userName} roleLabel={roleLabel} />
         </div>
       </aside>

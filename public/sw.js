@@ -1,4 +1,4 @@
-const CACHE_NAME = "cheliv-public-shell-v1";
+const CACHE_NAME = "cheliv-public-shell-v2";
 const SAFE_SHELL = ["/offline", "/icon"];
 
 self.addEventListener("install", (event) => {
