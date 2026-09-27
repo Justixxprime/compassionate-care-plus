@@ -26,7 +26,7 @@ For the uncle demonstration, use synthetic data only. You can use the deployed s
 ## Hosted portal safety checks
 
 1. Keep `DATABASE_URL`, `AUTH_SECRET`, R2 credentials, Resend key, scanner token, and Turnstile secret as Vercel **Secrets**, never Config values.
-2. Use the Neon pooled connection for Vercel. Apply production migrations with `npx prisma migrate deploy`, never `migrate dev` or a database reset.
+2. Use the Neon pooled connection for Vercel. Website builds deliberately do not run database migrations. Apply a new production migration once with `npm run db:deploy`, following `docs/DATABASE_MIGRATIONS.md`. Never use `migrate dev` or a database reset.
 3. Do not run demo seeding against the hosted production database.
 4. Redeploy after any environment-variable change.
 5. Before actual patient operations, complete `docs/PRODUCTION_COMPLIANCE_GATE.md`, including contracts, restore drill, scanning workflow, retention approval, and incident exercise.

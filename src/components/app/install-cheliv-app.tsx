@@ -1,7 +1,7 @@
 "use client";
 
 import { Download, Share } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 
 interface InstallPromptEvent extends Event {
@@ -11,11 +11,13 @@ interface InstallPromptEvent extends Event {
 
 export function InstallChelivApp() {
   const [prompt, setPrompt] = useState<InstallPromptEvent | null>(null);
-  const [isIos, setIsIos] = useState(false);
+  const isIos = useSyncExternalStore(
+    () => () => {},
+    () => /iphone|ipad|ipod/i.test(navigator.userAgent),
+    () => false,
+  );
 
   useEffect(() => {
-    const appleMobile = /iphone|ipad|ipod/i.test(navigator.userAgent);
-    setIsIos(appleMobile);
     const capture = (event: Event) => {
       event.preventDefault();
       setPrompt(event as InstallPromptEvent);
