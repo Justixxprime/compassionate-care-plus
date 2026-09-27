@@ -12,6 +12,7 @@ export const primaryNav = [
   { label: "Who we serve", href: "/who-we-serve" },
   { label: "How we care", href: "/how-we-care" },
   { label: "Resources", href: "/resources" },
+  { label: "Guide", href: "/guide" },
   { label: "Contact", href: "/contact" },
   { label: "Refer a patient", href: "/for-referral-partners" },
 ] as const;
