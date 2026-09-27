@@ -46,6 +46,7 @@ export async function submitCareRequestAction(
     // The honeypot field's real name on the form, kept out of the other
     // field names above on purpose - see request-care-form.tsx.
     honeypot: text(formData, "companyWebsite"),
+    turnstileToken: text(formData, "cf-turnstile-response"),
   });
   if (!result.ok) return { ok: false, error: result.error };
   return { ok: true };

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { services } from "@/lib/services-data";
 import { submitCareRequestAction } from "@/lib/care-requests-actions";
+import { resetTurnstileWidget, TurnstileWidget } from "@/components/marketing/turnstile-widget";
 import {
   CONTACT_TIME_OPTIONS,
   PREFERRED_CONTACT_OPTIONS,
@@ -40,6 +41,7 @@ export function RequestCareForm() {
       const result = await submitCareRequestAction(formData);
       if (!result.ok) {
         setError(result.error ?? "Something went wrong. Please try again.");
+        resetTurnstileWidget();
         return;
       }
       formRef.current?.reset();
@@ -186,6 +188,8 @@ export function RequestCareForm() {
           The care team will follow up to discuss next steps.
         </p>
       </div>
+
+      <TurnstileWidget action="request-care" />
 
       <Button type="submit" size="lg" disabled={pending}>
         {pending ? "Sending…" : "Send request"}

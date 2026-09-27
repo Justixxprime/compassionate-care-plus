@@ -51,6 +51,7 @@ const BASE: SubmitCareRequestInput = {
   bestTime: "Anytime",
   message: "",
   honeypot: "",
+  turnstileToken: "",
 };
 
 async function main() {

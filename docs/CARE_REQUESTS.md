@@ -65,8 +65,21 @@ finds usually fills this one too; if it's non-empty, the submission is
 silently accepted (so the script sees "success" and moves on) but
 nothing is written. This is not a defense against a determined attacker
 - just a cheap, honest filter against the ordinary automated spam a
-public form on the open internet collects. Real rate limiting is later,
-production-readiness territory (Milestone F), not this round.
+public form on the open internet collects.
+
+### Cloudflare Turnstile
+
+When both `NEXT_PUBLIC_TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` are
+configured, the form also uses Cloudflare Turnstile. The browser supplies a
+short-lived proof and the server verifies it with Cloudflare before a request
+is saved. Verification is fail-closed: a missing, expired, reused, invalid, or
+wrong-site proof saves nothing. The site key is public by design; the secret
+key is server-only.
+
+Until both values are set, local development remains usable and the honeypot
+continues to apply. Before enabling this in production, create a Turnstile
+widget limited to the exact Vercel hostname and add both values in Vercel's
+Production environment. See `docs/PRODUCTION_COMPLIANCE_GATE.md`.
 
 ## Access rules
 

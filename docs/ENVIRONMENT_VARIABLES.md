@@ -33,6 +33,8 @@ So: `NEXT_PUBLIC_` is for things that are not secret. A database password with `
 | `R2_SECRET_ACCESS_KEY` | R2 S3-compatible secret key. | Cloudflare R2 token | **Yes** | No |
 | `R2_BUCKET_NAME` | Name of the one private document bucket. | Cloudflare R2 | No | No |
 | `MFA_ENCRYPTION_KEY` | Encrypts staff authenticator secrets before database storage. | Password manager-generated random value | **Yes** | No |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Public identifier for the anti-spam widget on `/request-care`. | Cloudflare Turnstile | No | Yes |
+| `TURNSTILE_SECRET_KEY` | Lets the server verify the anti-spam proof. | Cloudflare Turnstile | **Yes** | No |
 
 ## Variables coming in later phases
 

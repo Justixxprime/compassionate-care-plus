@@ -3,8 +3,10 @@
 ## Current state
 
 Cheliv can read a document either from the current PostgreSQL `document_files`
-table or from an opaque, private Cloudflare R2 object key. The database remains
-the active upload path. R2 is configured only for synthetic demo files.
+table or from an opaque, private Cloudflare R2 object key. When the R2
+variables are configured, new uploads go to the private R2 bucket and start
+in `pending_scan`; otherwise the existing database path remains available for
+local demo work.
 
 No document URL is stored or returned. Every download still goes through the
 application's permission, organization, reach, category, consent, and audit
@@ -30,14 +32,17 @@ application. It accepts only a request authenticated with
 `DOCUMENT_SCANNER_TOKEN`, and it can move a pending document only to `clean`,
 `rejected`, or `quarantined`. It returns no document contents or patient data.
 Do not set that token or connect this endpoint until a genuine scanning service
-is selected and configured.
+is selected and configured. `pending_scan` is intentionally not a substitute
+for scanning: it is the safety lock that prevents a document from being shown
+before the scanner reports a result.
 
 ## Do not enable for real patient information
 
-R2 demo storage is not a substitute for the production compliance, agreement,
+R2 storage is not a substitute for the production compliance, agreement,
 malware-scanning, incident-response, and retention work required before real
 protected information is stored. Do not make the bucket public or add an R2
-public/custom domain for documents.
+public/custom domain for documents. See `docs/PRODUCTION_COMPLIANCE_GATE.md`
+for the mandatory malware-scanner checklist.
 
 ## Required private environment variables
 

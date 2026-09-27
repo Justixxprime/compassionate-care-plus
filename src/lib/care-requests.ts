@@ -37,6 +37,7 @@ import { requirePermission } from "@/lib/auth/authorize";
 import { writeAuditLog } from "@/lib/audit/log";
 import { auditAllowed, loadActor } from "@/lib/auth/actor";
 import { notifyUser } from "@/lib/notifications";
+import { turnstileEnabled, verifyTurnstile } from "@/lib/turnstile";
 import type { Result } from "@/lib/visits";
 import {
   CARE_REQUEST_TRANSITIONS,
@@ -72,6 +73,7 @@ export interface SubmitCareRequestInput {
   // attacker, just a cheap, honest filter against the ordinary spam
   // this form will otherwise collect - see docs/CARE_REQUESTS.md.
   honeypot: string;
+  turnstileToken: string;
 }
 
 export async function createCareRequest(
@@ -81,6 +83,10 @@ export async function createCareRequest(
   // and writes nothing - there is no person here to tell the truth to.
   if (input.honeypot.trim() !== "") {
     return { ok: true, value: { id: "" } };
+  }
+
+  if (turnstileEnabled() && !(await verifyTurnstile(input.turnstileToken, "request-care"))) {
+    return { ok: false, error: "Please complete the security check and try again." };
   }
 
   const fullName = input.fullName.trim();
