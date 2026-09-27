@@ -13,6 +13,7 @@ export const primaryNav = [
   { label: "How we care", href: "/how-we-care" },
   { label: "Resources", href: "/resources" },
   { label: "Contact", href: "/contact" },
+  { label: "Refer a patient", href: "/for-referral-partners" },
 ] as const;
 
 export const portalLinks = [

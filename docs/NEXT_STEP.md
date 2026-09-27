@@ -56,13 +56,10 @@ For the full R2 safety boundary, see `docs/R2_DOCUMENT_STORAGE.md`.
 2. **`justixxchiobi@gmail.com` is wired in as the office address**, via
    `CARE_REQUEST_NOTIFY_EMAIL`, stored on every request as a record of
    where it was meant to go.
-3. **Honest gap, on purpose:** no real e-mail is sent yet. That needs
-   either a new dependency (Nodemailer) or a third-party e-mail API,
-   and this project's rule is "no new dependency without asking" - so
-   this round stops at "never lost, and the office is alerted
-   instantly," which needs neither. Full explanation in
-   `docs/CARE_REQUESTS.md`, including the two options for real sending
-   whenever you want to pick one.
+3. **Office email alert:** when Resend is configured, a content-free alert
+   is sent to the office. It never includes the request's name, contact
+   details, message, or health information. In-app notification remains the
+   source of request details.
 4. **New `/care-requests` screen** (Office section) lists every
    request, newest first, with Mark contacted / Close buttons.
    `care_requests.manage`, Admin and Super Admin only.
