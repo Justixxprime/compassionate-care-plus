@@ -39,11 +39,13 @@ account-status confirmation.
 ## 3. Public care-request anti-spam
 
 Create a Cloudflare Turnstile widget in **Managed** mode for the exact current
-Vercel hostname, for example `compassionate-care-plus.vercel.app`. Copy its
-Site Key into Vercel as `NEXT_PUBLIC_TURNSTILE_SITE_KEY` and its Secret Key as
-`TURNSTILE_SECRET_KEY`, both for Production, then redeploy. The server checks
-the proof, its action, and the hostname before saving a request. Do not put the
-secret key in source code, a `NEXT_PUBLIC_` variable, GitHub, or chat.
+Vercel hostname, for example `compassionate-care-plus.vercel.app`. In Vercel's
+environment-variable screen, save the Site Key as **Config** named
+`NEXT_PUBLIC_TURNSTILE_SITE_KEY`; the `NEXT_PUBLIC_` prefix means it is safely
+visible to browsers by design. Save the Secret Key as **Secret** named
+`TURNSTILE_SECRET_KEY`. Add both for Production, then redeploy. The server
+checks the proof, its action, and the hostname before saving a request. Do not
+put the secret key in source code, a `NEXT_PUBLIC_` variable, GitHub, or chat.
 
 ## 4. Operational checks
 
