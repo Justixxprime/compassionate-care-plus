@@ -30,7 +30,7 @@ export default function ResourcesPage() {
 
       <Reveal as="section" className="mx-auto max-w-6xl px-6 py-20 lg:py-28">
         <div className="grid gap-5 md:grid-cols-3">
-          {resourcePaths.map(({ icon: Icon, title, body }, index) => (
+          {resourcePaths.map(({ icon: Icon, slug, title, body }, index) => (
             <Link href={`/resources/${slug}`} key={title} className="group relative block overflow-hidden border border-border bg-white p-7 transition-all duration-300 hover:-translate-y-1 hover:border-pine hover:shadow-raised">
               <span className="text-label font-semibold text-marigold">0{index + 1}</span>
               <Icon className="mt-8 h-7 w-7 text-pine" aria-hidden="true" />
