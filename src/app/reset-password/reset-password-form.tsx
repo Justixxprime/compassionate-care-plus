@@ -7,6 +7,7 @@ import {
 } from "@/lib/auth/password-recovery-actions";
 import type { PasswordResetResult } from "@/lib/auth/password-recovery";
 import { buttonVariants } from "@/components/ui/button";
+import { PasswordInput } from "@/components/ui/password-input";
 import { cn } from "@/lib/cn";
 
 const initialState: PasswordResetResult = { ok: false };
@@ -24,11 +25,11 @@ export function ResetPasswordForm({ token }: { token: string }) {
       <input type="hidden" name="token" value={token} />
       <div>
         <label htmlFor="password" className="text-label font-semibold text-ink">New password</label>
-        <input id="password" name="password" type="password" required minLength={10} autoComplete="new-password" className={inputStyles} />
+        <PasswordInput id="password" name="password" required minLength={10} autoComplete="new-password" className={inputStyles.replace("mt-1.5 ", "")} />
       </div>
       <div>
         <label htmlFor="confirmPassword" className="text-label font-semibold text-ink">Confirm new password</label>
-        <input id="confirmPassword" name="confirmPassword" type="password" required minLength={10} autoComplete="new-password" className={inputStyles} />
+        <PasswordInput id="confirmPassword" name="confirmPassword" required minLength={10} autoComplete="new-password" className={inputStyles.replace("mt-1.5 ", "")} />
       </div>
       {state.error ? <p role="alert" className="rounded-md bg-danger-bg px-3 py-2 text-body-sm text-danger">{state.error}</p> : null}
       <button type="submit" disabled={pending} className={cn(buttonVariants({ size: "lg" }), "w-full")}>

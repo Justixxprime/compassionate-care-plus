@@ -3,7 +3,7 @@
 import { useState, useTransition, type FormEvent } from "react";
 import { resetStaffMfaAction } from "@/lib/staff-mfa-actions";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 
 interface RecoverableStaffMember {
@@ -46,7 +46,7 @@ export function ResetStaffMfaForm({ staff }: { staff: RecoverableStaffMember[] }
       </div>
       <div>
         <Label htmlFor="mfa-recovery-password">Your current password</Label>
-        <Input id="mfa-recovery-password" name="currentPassword" type="password" autoComplete="current-password" required />
+        <PasswordInput id="mfa-recovery-password" name="currentPassword" autoComplete="current-password" required />
       </div>
       <p className="rounded-md bg-warning-bg px-3 py-2 text-body-sm text-warning">This action cannot be undone. It does not show or recover anyone’s old authenticator secret or recovery codes.</p>
       {error ? <p role="alert" className="rounded-md bg-danger-bg px-3 py-2 text-body-sm text-danger">{error}</p> : null}

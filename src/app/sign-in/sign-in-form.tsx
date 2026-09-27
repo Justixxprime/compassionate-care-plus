@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { signInAction, type SignInState } from "@/lib/auth/actions";
 import { buttonVariants } from "@/components/ui/button";
+import { PasswordInput } from "@/components/ui/password-input";
 import { cn } from "@/lib/cn";
 
 const initialState: SignInState = {};
@@ -43,13 +44,12 @@ export function SignInForm() {
             Forgot password?
           </Link>
         </div>
-        <input
+        <PasswordInput
           id="password"
           name="password"
-          type="password"
           required
           autoComplete="current-password"
-          className={inputStyles}
+          className={inputStyles.replace("mt-1.5 ", "")}
         />
       </div>
 

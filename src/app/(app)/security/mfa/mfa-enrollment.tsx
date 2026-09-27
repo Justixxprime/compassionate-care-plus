@@ -8,6 +8,7 @@ import {
   type MfaStartState,
 } from "@/lib/auth/mfa-actions";
 import { buttonVariants } from "@/components/ui/button";
+import { PasswordInput } from "@/components/ui/password-input";
 import { cn } from "@/lib/cn";
 
 const inputStyles = "mt-1.5 h-11 w-full rounded-md border border-border-strong px-3 text-body focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine/30";
@@ -62,7 +63,7 @@ export function MfaEnrollment({ status }: { status: "off" | "pending" | "active"
       <form action={startAction} className="mt-5 space-y-4" noValidate>
         <div>
           <label htmlFor="password" className="text-label font-semibold text-ink">Current password</label>
-          <input id="password" name="password" type="password" autoComplete="current-password" required className={inputStyles} />
+          <PasswordInput id="password" name="password" autoComplete="current-password" required className={inputStyles.replace("mt-1.5 ", "")} />
         </div>
         {!started.ok && started.error ? <p role="alert" className="rounded-md bg-danger-bg px-3 py-2 text-body-sm text-danger">{started.error}</p> : null}
         <button type="submit" disabled={starting} className={cn(buttonVariants({ size: "lg" }), "w-full sm:w-auto")}>

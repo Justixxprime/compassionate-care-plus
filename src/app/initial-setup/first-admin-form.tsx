@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { createFirstAdminAction } from "@/lib/auth/first-admin-actions";
 import type { FirstAdminResult } from "@/lib/auth/first-admin";
 import { buttonVariants } from "@/components/ui/button";
+import { PasswordInput } from "@/components/ui/password-input";
 import { cn } from "@/lib/cn";
 
 const initialState: FirstAdminResult = { ok: false, error: "" };
@@ -23,15 +24,15 @@ export function FirstAdminForm() {
       </div>
       <div>
         <label htmlFor="password" className="text-label font-semibold text-ink">Choose a password</label>
-        <input id="password" name="password" type="password" required minLength={10} autoComplete="new-password" className={inputStyles} />
+        <PasswordInput id="password" name="password" required minLength={10} autoComplete="new-password" className={inputStyles.replace("mt-1.5 ", "")} />
       </div>
       <div>
         <label htmlFor="confirmPassword" className="text-label font-semibold text-ink">Confirm password</label>
-        <input id="confirmPassword" name="confirmPassword" type="password" required minLength={10} autoComplete="new-password" className={inputStyles} />
+        <PasswordInput id="confirmPassword" name="confirmPassword" required minLength={10} autoComplete="new-password" className={inputStyles.replace("mt-1.5 ", "")} />
       </div>
       <div>
         <label htmlFor="setupToken" className="text-label font-semibold text-ink">Private setup code</label>
-        <input id="setupToken" name="setupToken" type="password" required minLength={32} autoComplete="off" className={inputStyles} />
+        <PasswordInput id="setupToken" name="setupToken" required minLength={32} autoComplete="off" className={inputStyles.replace("mt-1.5 ", "")} />
         <p className="mt-1.5 text-body-sm text-slate">This is the secret you saved in Vercel. It is not your password.</p>
       </div>
       {!state.ok && state.error ? <p role="alert" className="rounded-md bg-danger-bg px-3 py-2 text-body-sm text-danger">{state.error}</p> : null}
