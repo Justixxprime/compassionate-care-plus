@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MapPin, Phone, Clock } from "lucide-react";
+import { MapPin, Phone, Clock, ArrowUpRight, Send } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Reveal } from "@/components/motion/reveal";
 import { brandName } from "@/components/marketing/nav-links";
@@ -77,6 +77,16 @@ export default function ContactPage() {
             Request care
           </Link>
         </div>
+
+        <Reveal className="mt-14 grid overflow-hidden border border-border-strong bg-ink text-white md:grid-cols-[1.2fr_.8fr]">
+          <div className="px-7 py-9 sm:px-10 sm:py-11">
+            <p className="text-label font-semibold uppercase tracking-[.18em] text-marigold">Referral partners</p>
+            <h2 className="mt-4 font-display text-h2">Helping a patient move forward?</h2>
+            <p className="mt-3 max-w-xl text-body text-white/70">Use the dedicated referral path for a clear handoff and secure status updates.</p>
+            <Link href="/for-referral-partners" className={buttonVariants({ variant: "secondary", className: "mt-7" })}>Refer a patient <ArrowUpRight className="h-4 w-4" aria-hidden="true" /></Link>
+          </div>
+          <div className="flex min-h-44 items-end justify-between bg-pine px-7 py-8 sm:px-10"><Send className="h-11 w-11 text-marigold" aria-hidden="true" /><p className="max-w-40 text-right text-body-sm text-white/75">A more human next step, built for the person behind the paperwork.</p></div>
+        </Reveal>
       </div>
     </div>
   );

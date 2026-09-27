@@ -65,9 +65,11 @@ export default function HowWeCarePage() {
         </ol>
 
         <Reveal className="mt-20 border-t border-border pt-12">
-          <Link href="/request-care" className={buttonVariants({ size: "lg" })}>
-            Request care
-          </Link>
+          <div className="grid gap-8 lg:grid-cols-[1fr_.85fr] lg:items-end">
+            <div><p className="text-label font-semibold uppercase tracking-[.18em] text-pine">What to expect</p><h2 className="mt-3 font-display text-h2 text-ink">A clear next step, before a big decision.</h2><p className="mt-3 max-w-xl text-body text-slate">Questions are welcome. A conversation helps families understand whether this path is right for their situation.</p></div>
+            <div className="border-l-2 border-marigold bg-sage/50 p-6"><p className="text-body-sm font-semibold text-ink">For families</p><p className="mt-2 text-body-sm text-slate">You can start the conversation directly, even before a formal referral is in hand.</p></div>
+          </div>
+          <Link href="/request-care" className={buttonVariants({ size: "lg", className: "mt-9" })}>Request care</Link>
         </Reveal>
       </div>
     </div>

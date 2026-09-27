@@ -89,7 +89,7 @@ export function Footer() {
             <ul className="mt-4 space-y-3">
               <li>
                 <Link
-                  href="/contact"
+                  href="/for-referral-partners"
                   className="text-body-sm text-white/70 hover:text-white"
                 >
                   Refer a patient
@@ -141,9 +141,7 @@ export function Footer() {
           <p className="text-caption text-white/50">
             © 2026 {brandName} Inc. All rights reserved.
           </p>
-          <p className="text-caption text-white/50">
-            Licensed home health provider, Texas
-          </p>
+          <p className="text-caption text-white/50">Designed with privacy and healthcare security in mind</p>
         </div>
       </div>
     </footer>

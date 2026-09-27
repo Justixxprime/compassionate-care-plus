@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { Reveal } from "@/components/motion/reveal";
-import { StatCounter } from "@/components/motion/stat-counter";
 import { brandName } from "@/components/marketing/nav-links";
 import { SiteImage } from "@/components/marketing/site-image";
+import { EditorialHero } from "@/components/marketing/editorial-hero";
 import { siteImages } from "@/lib/site-images";
 
 const beliefs = [
@@ -14,10 +14,10 @@ const beliefs = [
 ] as const;
 
 const stats = [
-  { target: 10, suffix: "+", label: "Counties served" },
-  { target: 50, suffix: "+", label: "Licensed clinicians" },
-  { target: 1000, suffix: "+", label: "Patients cared for annually" },
-  { target: 100, suffix: "%", label: "Focused on home based recovery" },
+  { value: "Listen", label: "Begin with what matters to the patient" },
+  { value: "Plan", label: "Make the next step understandable" },
+  { value: "Support", label: "Keep the right people connected" },
+  { value: "Adapt", label: "Revisit care as needs change" },
 ] as const;
 
 function CheckIcon() {
@@ -45,23 +45,7 @@ function CheckIcon() {
 export default function AboutPage() {
   return (
     <div>
-      <Reveal as="section" className="bg-ink px-6 py-24 text-white lg:py-32">
-        <div className="mx-auto max-w-4xl">
-          <p className="text-label font-semibold uppercase tracking-[0.2em] text-marigold">
-            About {brandName}
-          </p>
-          <h1 className="mt-4 font-display text-[clamp(2.5rem,6vw,4.5rem)] font-semibold leading-[1.02]">
-            We treat the illness. Then we teach you to manage it.
-          </h1>
-          <p className="mt-6 max-w-2xl text-body-lg text-white/75">
-            Most home health agencies focus on short term recovery and step
-            back once it&rsquo;s done. Our approach goes a step further:
-            clinical treatment paired with real education, so patients and
-            the people caring for them stay healthier long after a visit
-            ends.
-          </p>
-        </div>
-      </Reveal>
+      <EditorialHero eyebrow={`About ${brandName}`} title="Care should still feel like home." summary="We believe good home-based care pairs professional attention with clear communication, practical education, and respect for the life already happening at home." image={siteImages.about} />
 
       <div className="mx-auto max-w-4xl px-6 py-20 lg:py-28">
         {/* WHAT WE BELIEVE */}
@@ -104,9 +88,7 @@ export default function AboutPage() {
             {stats.map((stat) => (
               <div key={stat.label}>
                 <dt className="sr-only">{stat.label}</dt>
-                <dd className="font-display text-[clamp(2rem,4vw,3.5rem)] font-semibold text-pine">
-                  <StatCounter target={stat.target} suffix={stat.suffix} />
-                </dd>
+                <dd className="font-display text-[clamp(1.45rem,3vw,2.35rem)] font-semibold text-pine">{stat.value}</dd>
                 <p className="mt-2 text-body-sm text-slate">{stat.label}</p>
               </div>
             ))}

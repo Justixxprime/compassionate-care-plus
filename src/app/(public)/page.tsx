@@ -4,16 +4,15 @@ import { AuroraField } from "@/components/marketing/aurora-field";
 import { SiteImage } from "@/components/marketing/site-image";
 import { siteImages } from "@/lib/site-images";
 import { Reveal } from "@/components/motion/reveal";
-import { StatCounter } from "@/components/motion/stat-counter";
 import { brandName } from "@/components/marketing/nav-links";
 import { services } from "@/lib/services-data";
 import { serviceIcons } from "@/lib/service-icons";
 
 const stats = [
-  { target: 10, suffix: "+", label: "Counties served" },
-  { target: 50, suffix: "+", label: "Licensed clinicians" },
-  { target: 1000, suffix: "+", label: "Patients cared for annually" },
-  { target: 100, suffix: "%", label: "Focused on home based recovery" },
+  { value: "At home", label: "Care starts in the place that matters most" },
+  { value: "In step", label: "A path that makes the next decision clearer" },
+  { value: "Together", label: "Patients, families, and care teams connected" },
+  { value: "With care", label: "A person-first approach from the first call" },
 ] as const;
 
 const careSteps = [
@@ -121,9 +120,7 @@ export default function HomePage() {
           {stats.map((stat) => (
             <div key={stat.label}>
               <dt className="sr-only">{stat.label}</dt>
-              <dd className="font-display text-[clamp(2rem,4vw,3.5rem)] font-semibold text-pine">
-                <StatCounter target={stat.target} suffix={stat.suffix} />
-              </dd>
+              <dd className="font-display text-[clamp(1.45rem,3vw,2.35rem)] font-semibold text-pine">{stat.value}</dd>
               <p className="mt-2 text-body-sm text-slate">{stat.label}</p>
             </div>
           ))}

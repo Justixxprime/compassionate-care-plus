@@ -1,6 +1,13 @@
 import Link from "next/link";
+import { ArrowUpRight, BookOpen, CircleHelp, HeartHandshake } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Reveal } from "@/components/motion/reveal";
+
+const resourcePaths = [
+  { icon: CircleHelp, title: "Starting home health", body: "A calm place to begin when you are figuring out what kind of support might help." },
+  { icon: HeartHandshake, title: "For family caregivers", body: "Questions to bring to the first conversation, and ways to stay connected with consent." },
+  { icon: BookOpen, title: "Preparing for a visit", body: "Simple ways to make the first visit feel easier for the patient and family." },
+] as const;
 
 export default function ResourcesPage() {
   return (
@@ -21,10 +28,22 @@ export default function ResourcesPage() {
         </div>
       </Reveal>
 
-      <Reveal as="section" className="mx-auto max-w-3xl px-6 py-20 lg:py-28">
-        <Link href="/contact" className={buttonVariants({ size: "lg" })}>
-          Contact us
-        </Link>
+      <Reveal as="section" className="mx-auto max-w-6xl px-6 py-20 lg:py-28">
+        <div className="grid gap-5 md:grid-cols-3">
+          {resourcePaths.map(({ icon: Icon, title, body }, index) => (
+            <article key={title} className="group relative overflow-hidden border border-border bg-white p-7 transition-all duration-300 hover:-translate-y-1 hover:border-pine hover:shadow-raised">
+              <span className="text-label font-semibold text-marigold">0{index + 1}</span>
+              <Icon className="mt-8 h-7 w-7 text-pine" aria-hidden="true" />
+              <h2 className="mt-5 text-h3 font-semibold text-ink">{title}</h2>
+              <p className="mt-3 text-body-sm text-slate">{body}</p>
+              <span className="mt-7 flex items-center gap-2 text-body-sm font-semibold text-pine">Ask the team <ArrowUpRight className="h-4 w-4" aria-hidden="true" /></span>
+            </article>
+          ))}
+        </div>
+        <div className="mt-14 border-l-2 border-marigold bg-sage/55 px-7 py-8 sm:flex sm:items-center sm:justify-between">
+          <div><p className="font-display text-h2 text-ink">Need an answer today?</p><p className="mt-2 max-w-xl text-body text-slate">The best resource is still a conversation about your particular situation.</p></div>
+          <Link href="/contact" className={buttonVariants({ size: "lg", className: "mt-5 sm:mt-0" })}>Contact us</Link>
+        </div>
       </Reveal>
     </div>
   );

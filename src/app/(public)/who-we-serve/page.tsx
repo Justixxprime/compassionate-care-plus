@@ -62,6 +62,10 @@ export default function WhoWeServePage() {
             </Link>
           </div>
         </Reveal>
+        <Reveal className="mt-12 border border-border bg-sage/45 p-7">
+          <p className="text-label font-semibold uppercase tracking-[.18em] text-pine">A family-first conversation</p>
+          <p className="mt-3 max-w-xl font-display text-h3 text-ink">The first question is never “what can we sell?” It is “what would help this person feel safer at home?”</p>
+        </Reveal>
         </div>
         <SiteImage
           image={siteImages.whoWeServePage}
