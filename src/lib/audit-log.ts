@@ -67,6 +67,7 @@ export const AUDIT_ACTIONS: { key: string; label: string }[] = [
   { key: "sign_in_failed", label: "Sign-in failed" },
   { key: "sign_in_rate_limited", label: "Sign-in rate limited" },
   { key: "sign_out", label: "Signed out" },
+  { key: "other_sessions_revoked", label: "Other sessions signed out" },
   { key: "permission_denied", label: "Permission denied" },
   { key: "access_denied", label: "Access denied" },
   { key: "visit_created", label: "Visit scheduled" },
@@ -83,6 +84,7 @@ export const AUDIT_ACTIONS: { key: string; label: string }[] = [
   { key: "care_plan_completed", label: "Care plan completed" },
   { key: "care_plan_discarded", label: "Care plan discarded" },
   { key: "document_uploaded", label: "Document filed" },
+  { key: "document_uploaded_pending_scan", label: "Document filed pending scan" },
   { key: "document_downloaded", label: "Document downloaded" },
   { key: "document_archived", label: "Document archived" },
   { key: "referral_created", label: "Referral created" },
@@ -97,6 +99,13 @@ export const AUDIT_ACTIONS: { key: string; label: string }[] = [
   { key: "care_request_received", label: "Care request received" },
   { key: "care_request_contacted", label: "Care request marked contacted" },
   { key: "care_request_closed", label: "Care request closed" },
+  { key: "mfa_enrollment_started", label: "MFA enrollment started" },
+  { key: "mfa_enabled", label: "MFA enabled" },
+  { key: "mfa_challenge_started", label: "MFA sign-in check started" },
+  { key: "mfa_challenge_failed", label: "MFA sign-in check failed" },
+  { key: "mfa_challenge_completed", label: "MFA sign-in check completed" },
+  { key: "mfa_recovery_code_used", label: "MFA recovery code used" },
+  { key: "staff_mfa_reset", label: "Staff MFA reset" },
 ];
 
 export function auditActionLabel(action: string): string {
