@@ -1,5 +1,15 @@
 # Production compliance gate
 
+## New operational package
+
+Before real patient information is processed, complete and approve these linked records:
+
+- [Backup and restore runbook](BACKUP_AND_RESTORE_RUNBOOK.md), including a successful isolated restore drill.
+- [Retention and secure disposal draft](DATA_RETENTION_AND_DISPOSAL.md), including legal-hold handling and approved periods.
+- [Incident response plan](INCIDENT_RESPONSE_PLAN.md), including named contacts and a tabletop exercise.
+- [Compliance evidence register](COMPLIANCE_EVIDENCE_REGISTER.md), with evidence attached outside the public repository.
+- [Legal documents workbook](LEGAL_DOCUMENT_WORKBOOK.md), followed by organization and attorney approval of every public legal notice.
+
 This is the short, non-negotiable checklist before Cheliv stores real patient
 documents or accepts public care requests in production. Code can prepare the
 guardrails; it cannot create legal agreements, run a real anti-malware engine,

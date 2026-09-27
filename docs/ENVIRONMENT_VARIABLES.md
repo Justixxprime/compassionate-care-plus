@@ -25,9 +25,9 @@ So: `NEXT_PUBLIC_` is for things that are not secret. A database password with `
 |---|---|---|---|---|
 | `NEXT_PUBLIC_APP_URL` | The address the app runs at. Used for links and redirects. | `http://localhost:3000` in development | No | Yes |
 | `NEXT_PUBLIC_DEMO_MODE` | When `true`, the app uses synthetic data and shows a "Demonstration data" indicator. Stays `true` for all of development. | Set by me | No | Yes |
-| `CARE_REQUEST_NOTIFY_EMAIL` | The office address a submitted "Request care" form is meant to reach. Not a live mailbox yet - see `docs/CARE_REQUESTS.md`. Falls back to a placeholder address if unset. | Set by me | No | No |
-| `RESEND_API_KEY` | Allows transactional password-recovery e-mail. | Resend or Vercel Marketplace integration | **Yes** | No |
-| `RESEND_FROM_EMAIL` | Verified sender shown on recovery e-mail. | A verified organization-owned domain | No | No |
+| `CARE_REQUEST_NOTIFY_EMAIL` | Approved office mailbox for privacy-safe submitted-care-request alerts. Falls back to the configured demo address only when intentionally unset. | Organization owner | No | No |
+| `RESEND_API_KEY` | Allows transactional password-recovery and privacy-safe care-request alerts. | Resend or Vercel Marketplace integration | **Yes** | No |
+| `RESEND_FROM_EMAIL` | Sender shown on recovery and care-request emails. Use a verified organization-owned domain before real operations. | Resend domain verification | No | No |
 | `R2_ACCOUNT_ID` | Cloudflare account identifier for the private document bucket. | Cloudflare R2 | No | No |
 | `R2_ACCESS_KEY_ID` | R2 S3-compatible access key identifier. | Cloudflare R2 token | **Yes** | No |
 | `R2_SECRET_ACCESS_KEY` | R2 S3-compatible secret key. | Cloudflare R2 token | **Yes** | No |
