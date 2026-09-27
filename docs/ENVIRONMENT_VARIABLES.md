@@ -28,6 +28,11 @@ So: `NEXT_PUBLIC_` is for things that are not secret. A database password with `
 | `CARE_REQUEST_NOTIFY_EMAIL` | The office address a submitted "Request care" form is meant to reach. Not a live mailbox yet - see `docs/CARE_REQUESTS.md`. Falls back to a placeholder address if unset. | Set by me | No | No |
 | `RESEND_API_KEY` | Allows transactional password-recovery e-mail. | Resend or Vercel Marketplace integration | **Yes** | No |
 | `RESEND_FROM_EMAIL` | Verified sender shown on recovery e-mail. | A verified organization-owned domain | No | No |
+| `R2_ACCOUNT_ID` | Cloudflare account identifier for the private document bucket. | Cloudflare R2 | No | No |
+| `R2_ACCESS_KEY_ID` | R2 S3-compatible access key identifier. | Cloudflare R2 token | **Yes** | No |
+| `R2_SECRET_ACCESS_KEY` | R2 S3-compatible secret key. | Cloudflare R2 token | **Yes** | No |
+| `R2_BUCKET_NAME` | Name of the one private document bucket. | Cloudflare R2 | No | No |
+| `MFA_ENCRYPTION_KEY` | Encrypts staff authenticator secrets before database storage. | Password manager-generated random value | **Yes** | No |
 
 ## Variables coming in later phases
 

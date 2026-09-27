@@ -1,7 +1,7 @@
 // Private R2 adapter for synthetic demo documents. The bucket is never public;
 // callers must complete the existing document authorization checks first.
 import "server-only";
-import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getR2StorageConfig } from "@/lib/document-storage-config";
 
 function client() {
@@ -21,7 +21,9 @@ export function r2Enabled() {
   return getR2StorageConfig() !== null;
 }
 
-export async function putDemoDocument(key: string, bytes: Uint8Array, contentType: string) {
+// This adapter never creates public or presigned URLs. Authorization happens
+// in the document service before any read, and the object key is opaque.
+export async function putPrivateDocument(key: string, bytes: Uint8Array, contentType: string) {
   const ready = client();
   if (!ready) return false;
   await ready.s3.send(new PutObjectCommand({
@@ -30,9 +32,22 @@ export async function putDemoDocument(key: string, bytes: Uint8Array, contentTyp
   return true;
 }
 
-export async function getDemoDocument(key: string): Promise<Uint8Array | null> {
+export async function getPrivateDocument(key: string): Promise<Uint8Array | null> {
   const ready = client();
   if (!ready) return null;
-  const object = await ready.s3.send(new GetObjectCommand({ Bucket: ready.config.bucketName, Key: key }));
-  return object.Body ? new Uint8Array(await object.Body.transformToByteArray()) : null;
+  try {
+    const object = await ready.s3.send(new GetObjectCommand({ Bucket: ready.config.bucketName, Key: key }));
+    return object.Body ? new Uint8Array(await object.Body.transformToByteArray()) : null;
+  } catch {
+    // A missing object has the same outcome as an inaccessible document.
+    return null;
+  }
+}
+
+// Used only for compensating a failed database transaction immediately after
+// an upload. Archived documents are retained and are never deleted here.
+export async function removePrivateDocument(key: string): Promise<void> {
+  const ready = client();
+  if (!ready) return;
+  await ready.s3.send(new DeleteObjectCommand({ Bucket: ready.config.bucketName, Key: key }));
 }

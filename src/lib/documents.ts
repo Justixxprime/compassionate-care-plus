@@ -60,7 +60,7 @@
 // and nothing else.
 
 import "server-only";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, requirePermission } from "@/lib/auth/authorize";
 import { auditAllowed, auditDenied, loadActor, type Actor } from "@/lib/auth/actor";
@@ -88,7 +88,7 @@ import {
   isRestrictedCategory,
   safeFileName,
 } from "@/lib/document-constants";
-import { getDemoDocument } from "@/lib/r2-document-storage";
+import { getPrivateDocument, putPrivateDocument, r2Enabled, removePrivateDocument } from "@/lib/r2-document-storage";
 
 const NOT_FOUND = "That document could not be found.";
 const NO_PATIENT_ACCESS = "You do not have access to that patient.";
@@ -376,7 +376,7 @@ export async function uploadDocument(
 
   const sha256 = createHash("sha256").update(input.bytes).digest("hex");
   const duplicate = await prisma.document.findFirst({
-    where: { patientId: input.patientId, sha256, status: "active", scanStatus: "clean" },
+    where: { patientId: input.patientId, sha256, status: "active" },
     select: { id: true },
   });
   if (duplicate) {
@@ -386,6 +386,11 @@ export async function uploadDocument(
     };
   }
 
+  const useR2 = r2Enabled();
+  // The random key has no patient, organization, or filename embedded in it.
+  // Possessing a guessed key is never enough to retrieve a file: R2 remains
+  // private and every download is streamed through the authorized app route.
+  const storageKey = useR2 ? `private-documents/${randomUUID()}` : null;
   const created = await prisma.document.create({
     data: {
       organizationId: actor.organizationId,
@@ -397,12 +402,26 @@ export async function uploadDocument(
       contentType,
       sizeBytes: input.bytes.length,
       sha256,
-      file: { create: { data: Buffer.from(input.bytes) } },
+      ...(useR2
+        ? { storageKind: "r2", storageKey, scanStatus: "pending_scan" }
+        : { file: { create: { data: Buffer.from(input.bytes) } } }),
     },
     select: { id: true },
   });
 
-  await auditAllowed(actor, "document_uploaded", "document", created.id);
+  if (useR2 && storageKey) {
+    try {
+      await putPrivateDocument(storageKey, input.bytes, contentType);
+    } catch {
+      // The database row has no usable file until the R2 write succeeds.
+      // Remove it rather than leave a dangling, potentially scannable entry.
+      await prisma.document.delete({ where: { id: created.id } }).catch(() => {});
+      await removePrivateDocument(storageKey).catch(() => {});
+      return { ok: false, error: "The secure file store is unavailable. Please try again later." };
+    }
+  }
+
+  await auditAllowed(actor, useR2 ? "document_uploaded_pending_scan" : "document_uploaded", "document", created.id);
   return { ok: true, value: { documentId: created.id } };
 }
 
@@ -422,7 +441,7 @@ export async function readDocumentBytes(doc: {
   storageKey: string | null;
 }): Promise<Uint8Array | null> {
   if (doc.storageKind === "r2") {
-    return doc.storageKey ? getDemoDocument(doc.storageKey) : null;
+    return doc.storageKey ? getPrivateDocument(doc.storageKey) : null;
   }
   const file = await prisma.documentFile.findUnique({
     where: { documentId: doc.id }, select: { data: true },

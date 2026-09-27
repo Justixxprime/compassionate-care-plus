@@ -43,3 +43,7 @@ that checkpoint into a session.
 - Patient, family, and referral-partner accounts are deliberately outside this
   staff MFA flow.
 - A password reset ends all active sessions and unfinished MFA checkpoints.
+- An administrator may reset another staff member’s MFA from **Staff → MFA
+  recovery for staff**. This requires the administrator's current password,
+  revokes the target's sessions, and is written to the audit log. It never
+  reveals the old authenticator secret or recovery codes.

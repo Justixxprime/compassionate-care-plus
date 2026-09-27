@@ -25,6 +25,7 @@ export interface StaffRow {
   email: string;
   roleLabels: string[];
   activePatientCount: number;
+  mfaStatus: "not_applicable" | "off" | "pending" | "active";
 }
 
 const LIST_LIMIT = 200;
@@ -40,7 +41,8 @@ export async function listStaff(userId: string): Promise<StaffRow[]> {
       id: true,
       name: true,
       email: true,
-      userRoles: { select: { role: { select: { name: true } } } },
+      userRoles: { select: { role: { select: { name: true, key: true } } } },
+      mfaFactor: { select: { status: true } },
       careTeamMemberships: {
         where: activeAssignmentFilter(),
         select: { id: true },
@@ -50,11 +52,15 @@ export async function listStaff(userId: string): Promise<StaffRow[]> {
     take: LIST_LIMIT,
   });
 
-  return users.map((u) => ({
-    id: u.id,
-    name: u.name,
-    email: u.email,
-    roleLabels: u.userRoles.map((ur) => ur.role.name),
-    activePatientCount: u.careTeamMemberships.length,
-  }));
+  return users.map((u) => {
+    const isStaff = u.userRoles.some((ur) => !["PATIENT", "AUTHORIZED_FAMILY", "REFERRAL_PARTNER"].includes(ur.role.key));
+    return {
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      roleLabels: u.userRoles.map((ur) => ur.role.name),
+      activePatientCount: u.careTeamMemberships.length,
+      mfaStatus: !isStaff ? "not_applicable" : u.mfaFactor?.status === "active" ? "active" : u.mfaFactor?.status === "pending" ? "pending" : "off",
+    };
+  });
 }

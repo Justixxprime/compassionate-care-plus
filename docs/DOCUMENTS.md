@@ -59,7 +59,34 @@ This is the first slice where reading is logged. Opening a file is exactly the e
 
 The bytes are stored in the database, in their own table (`document_files`), separate from the document's details. That keeps the demo free and testable on one machine, and it means a list of documents can never pull file contents into memory by accident.
 
-A real deployment should move them to encrypted object storage with short-lived download links. That is a paid-service decision and is deliberately NOT made here. Nothing outside `src/lib/documents.ts` knows where the bytes are, so the swap changes one file. Decide it before real patient documents are ever stored.
+When all four Cloudflare R2 variables are present, new uploads instead go to
+the configured **private** R2 bucket. Their keys are random opaque values: no
+patient name, organization name, filename, or public URL is used. Downloads
+continue through this application after the normal permission, patient-scope,
+category, consent, and scan checks. R2 is never an authorization boundary.
+
+R2-backed uploads begin as `pending_scan` and cannot be listed or downloaded
+until a trusted scanner reports `clean` to the internal scanner callback.
+Without R2 configured, synthetic local/demo uploads remain database-backed and
+clean after their file-type validation. Never enable R2 for real documents
+until the scanner is connected and tested.
+
+If the R2 write fails, the pending row is removed immediately; an orphaned
+object is also best-effort removed. Archived files remain retained, never
+deleted by the app.
+
+### Cloudflare R2 rules
+
+1. Keep the bucket private. Do **not** enable a public bucket URL or custom
+   public domain.
+2. Give the R2 token only **Object Read & Write** permission for this one
+   bucket—never every bucket.
+3. Store `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and
+   `R2_BUCKET_NAME` only in Vercel environment variables, never in browser
+   code or Git.
+4. Configure a real malware scanner before uploading any real document. The
+   scanner must call `/api/internal/document-scan` with the separate
+   `DOCUMENT_SCANNER_TOKEN`; no browser can mark a file clean.
 
 ## Files
 

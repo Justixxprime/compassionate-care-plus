@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/app/empty-state";
 import { DataTable, type Column } from "@/components/app/data-table";
 import { NoAccess } from "@/components/app/no-access";
 import { CreateAccountForm } from "./create-account-form";
+import { ResetStaffMfaForm } from "./reset-staff-mfa-form";
 
 export const metadata: Metadata = { title: "Staff" };
 
@@ -39,6 +40,16 @@ const columns: Column<StaffRow>[] = [
     header: "Active patients",
     alignRight: true,
     cell: (s) => <span className="tabular-nums">{s.activePatientCount}</span>,
+  },
+  {
+    key: "mfa",
+    header: "Sign-in security",
+    cell: (s) => {
+      if (s.mfaStatus === "not_applicable") return <span className="text-slate">Not staff</span>;
+      const tone = s.mfaStatus === "active" ? "success" : s.mfaStatus === "pending" ? "warning" : "neutral";
+      const label = s.mfaStatus === "active" ? "Authenticator active" : s.mfaStatus === "pending" ? "Setup unfinished" : "Not enrolled";
+      return <Badge tone={tone}>{label}</Badge>;
+    },
   },
 ];
 
@@ -89,6 +100,17 @@ export default async function StaffPage() {
             </EmptyState>
           }
         />
+      </Section>
+
+      <Section
+        title="MFA recovery for staff"
+        description="Use this only when a different staff member loses their authenticator and recovery codes. It signs that person out everywhere and removes their MFA setup; they must set it up again after signing in."
+      >
+        <div className="rounded-md border border-border bg-white p-4 sm:p-6">
+          <ResetStaffMfaForm
+            staff={staff.filter((person) => person.id !== user.id && person.mfaStatus !== "not_applicable")}
+          />
+        </div>
       </Section>
     </>
   );
