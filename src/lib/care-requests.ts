@@ -10,16 +10,9 @@
 // typed plausible, and is the honeypot field still empty (a field a
 // real visitor never sees or fills, left on by an automated bot).
 //
-// createCareRequest is deliberately NOT wired to send a real e-mail.
-// There is no e-mail service configured yet - PHASE_0_ARCHITECTURE.md's
-// stack lists Nodemailer for that, and this project's standing rule is
-// "no new dependency without asking first" (docs/CONTINUATION_PROMPT.md).
-// So what happens today is the two things that need nothing new: the
-// request is SAVED (never silently lost, which is the gap this round
-// closes) and every ADMIN/SUPER_ADMIN gets an in-app notification
-// through the existing bell (src/lib/notifications.ts). See
-// docs/CARE_REQUESTS.md for the honest account of what is and is not
-// wired up, and what real delivery would need.
+// A request is saved before any notification is attempted. It then alerts
+// each eligible administrator in-app and, if Resend is configured, sends the
+// office a content-free email that directs them to sign in securely.
 //
 // Reading and acting on requests IS a normal permission-checked
 // operation, same shape as every other admin screen:
@@ -37,6 +30,7 @@ import { requirePermission } from "@/lib/auth/authorize";
 import { writeAuditLog } from "@/lib/audit/log";
 import { auditAllowed, loadActor } from "@/lib/auth/actor";
 import { notifyUser } from "@/lib/notifications";
+import { sendCareRequestAlert } from "@/lib/care-request-email";
 import { turnstileEnabled, verifyTurnstile } from "@/lib/turnstile";
 import type { Result } from "@/lib/visits";
 import {
@@ -176,6 +170,11 @@ export async function createCareRequest(
         resourceId: created.id,
       });
     }
+
+    // Delivery is best effort. The record and in-app notifications already
+    // exist, so an email-provider outage never loses the request or exposes
+    // its contents in a retry/error message.
+    await sendCareRequestAlert();
 
     return { ok: true, value: { id: created.id } };
   } catch (err) {

@@ -29,32 +29,12 @@ this project runs under.
 
 ## What this does NOT do yet, and why
 
-**It does not send a real e-mail.** `justixxchiobi@gmail.com` is stored
-as the `CARE_REQUEST_NOTIFY_EMAIL` - the address this request was meant
-to reach - and shown next to it, but nothing in this round makes an
-e-mail land in that inbox.
-
-The reason is the project's own standing rule: **no new dependency
-without asking first.** Real SMTP sending needs a mail library (the
-architecture doc names Nodemailer) or a third-party HTTP email API - and
-either one is a new dependency, or a new account and (eventually) a
-cost, exactly the two things `docs/CONTINUATION_PROMPT.md` says to ask
-about before adding. So this round deliberately stops at "never lost,
-and the office is alerted the moment it comes in" - which needs neither
-- and leaves real delivery as a decision, not a guess.
-
-**The next decision, when you want it:**
-- add `nodemailer` (free, MIT-licensed) and point it at a local Mailpit
-  inbox for development, exactly as `PHASE_0_ARCHITECTURE.md`'s stack
-  table always said would happen - real SMTP sending only gets wired at
-  deploy time, to whatever provider you pick then; or
-- skip Nodemailer entirely and call a transactional e-mail HTTP API
-  (for example Resend) with `fetch`, no new npm package at all, but you
-  would need to create an account and hand me an API key.
-
-Either is a small, contained change once you pick one - this round's
-code does not need to be rebuilt for it, only `createCareRequest`'s one
-notification step.
+When Resend is configured, the office also receives an email alert at
+`CARE_REQUEST_NOTIFY_EMAIL`. It says only that a request is waiting and
+links to the protected staff page. It never includes the submitter's name,
+contact details, message, or health information. If email delivery is not
+configured or temporarily fails, the request is still saved and staff still
+receive their in-app notification.
 
 ## Spam
 
